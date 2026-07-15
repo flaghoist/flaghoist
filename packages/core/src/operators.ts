@@ -1,3 +1,4 @@
+import { FORBIDDEN_ATTRIBUTES } from './limits'
 import type {
   AttributeValue,
   Condition,
@@ -85,9 +86,13 @@ const operators: Record<Operator, (attr: AttributeValue, value: ConditionValue) 
 
 /**
  * Evaluate a single condition against the context. A referenced attribute that is absent
- * from the context never matches — you cannot target on data you were not given.
+ * from the context never matches — you cannot target on data you were not given. Prototype
+ * attribute names are rejected, and only own properties are read, so a crafted attribute
+ * name can never reach up the prototype chain.
  */
 export function matchCondition(condition: Condition, context: EvaluationContext): boolean {
+  if (FORBIDDEN_ATTRIBUTES.has(condition.attribute)) return false
+  if (!Object.hasOwn(context, condition.attribute)) return false
   const attr = context[condition.attribute]
   if (attr === undefined) return false
   const op = operators[condition.operator]

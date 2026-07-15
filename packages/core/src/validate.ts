@@ -1,4 +1,5 @@
 import { clampPercentage } from './hash'
+import { FLAG_KEY_RULE, FORBIDDEN_ATTRIBUTES, isValidFlagKey, LIMITS } from './limits'
 import type {
   Condition,
   ConditionValue,
@@ -30,8 +31,14 @@ function asRecord(input: unknown): Record<string, unknown> | null {
 }
 
 function isConditionValue(v: unknown): v is ConditionValue {
-  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return true
-  if (Array.isArray(v)) return v.every((x) => typeof x === 'string' || typeof x === 'number')
+  if (typeof v === 'string') return v.length <= LIMITS.maxValueLength
+  if (typeof v === 'number' || typeof v === 'boolean') return true
+  if (Array.isArray(v)) {
+    if (v.length > LIMITS.maxListItems) return false
+    return v.every((x) =>
+      typeof x === 'string' ? x.length <= LIMITS.maxValueLength : typeof x === 'number',
+    )
+  }
   return false
 }
 
@@ -39,6 +46,8 @@ function parseCondition(input: unknown): Condition | null {
   const o = asRecord(input)
   if (!o) return null
   if (typeof o.attribute !== 'string') return null
+  if (o.attribute.length === 0 || o.attribute.length > LIMITS.maxKeyLength) return null
+  if (FORBIDDEN_ATTRIBUTES.has(o.attribute)) return null
   if (typeof o.operator !== 'string' || !OPERATORS.includes(o.operator as Operator)) return null
   if (!isConditionValue(o.value)) return null
   return { attribute: o.attribute, operator: o.operator as Operator, value: o.value }
@@ -58,6 +67,7 @@ function parseRuleResult(input: unknown): RuleResult | null {
 function parseRule(input: unknown): TargetingRule | null {
   const o = asRecord(input)
   if (!o || !Array.isArray(o.conditions)) return null
+  if (o.conditions.length > LIMITS.maxConditionsPerRule) return null
   const conditions = o.conditions.map(parseCondition)
   if (conditions.some((c) => c === null)) return null
   const result = parseRuleResult(o.result)
@@ -86,16 +96,16 @@ function parseMetadata(input: unknown): FlagMetadata {
 export function parseFlag(input: unknown): FeatureFlag | null {
   const o = asRecord(input)
   if (!o) return null
-  if (typeof o.key !== 'string' || o.key.length === 0) return null
+  if (typeof o.key !== 'string' || !isValidFlagKey(o.key)) return null
   if (typeof o.enabled !== 'boolean') return null
 
   const rollout = asRecord(o.rollout)
   const percentage =
     rollout && typeof rollout.percentage === 'number' ? clampPercentage(rollout.percentage) : 0
 
-  const rules = Array.isArray(o.rules)
-    ? o.rules.map(parseRule).filter((r): r is TargetingRule => r !== null)
-    : []
+  const rawRules = Array.isArray(o.rules) ? o.rules : []
+  if (rawRules.length > LIMITS.maxRules) return null
+  const rules = rawRules.map(parseRule).filter((r): r is TargetingRule => r !== null)
 
   return {
     key: o.key,
@@ -117,8 +127,15 @@ export interface CreateFlagInput {
   identity?: string
 }
 
-/** Construct a well-formed FeatureFlag with sensible defaults and fresh metadata. */
+/**
+ * Construct a well-formed FeatureFlag with sensible defaults and fresh metadata.
+ * Throws if the key is invalid — this is a programmer-facing constructor, so bad input
+ * fails fast rather than producing an unusable flag.
+ */
 export function createFlag(input: CreateFlagInput): FeatureFlag {
+  if (!isValidFlagKey(input.key)) {
+    throw new Error(`Invalid flag key ${JSON.stringify(input.key)}: ${FLAG_KEY_RULE}.`)
+  }
   const now = new Date().toISOString()
   const identity = input.identity ?? 'system'
   return {

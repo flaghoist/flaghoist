@@ -37,5 +37,8 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Check package exports (publint + are-the-types-wrong)
+        run: pnpm check:packages
+
       - name: Test
         run: pnpm test

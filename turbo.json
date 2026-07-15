@@ -9,6 +9,9 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
+    "check:package": {
+      "dependsOn": ["build"]
+    },
     "test": {
       "dependsOn": ["^build"]
     },

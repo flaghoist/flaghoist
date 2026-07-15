@@ -1,0 +1,53 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a bug. Please fill out the sections below.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Deploy with '...'
+        2. Create a flag '...'
+        3. Evaluate '...'
+        4. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Which package?
+      multiple: true
+      options:
+        - "@flaghoist/core"
+        - "@flaghoist/server"
+        - "@flaghoist/adapter-cloudflare-kv"
+        - "@flaghoist/adapter-memory"
+        - "@flaghoist/provider-web"
+        - "@flaghoist/provider-node"
+        - "@flaghoist/vue"
+        - "flaghoist (CLI)"
+        - "dashboard"
+        - "not sure"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "e.g. 0.1.0"
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime
+      placeholder: "e.g. Cloudflare Workers, Node 22, Bun 1.1"

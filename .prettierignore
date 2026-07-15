@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+.wrangler/
+.astro/
+pnpm-lock.yaml
+CHANGELOG.md

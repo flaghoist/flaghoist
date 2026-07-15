@@ -1,0 +1,21 @@
+{
+  "name": "flaghoist",
+  "version": "0.0.0",
+  "description": "Scaffold, deploy, and manage your Flaghoist feature-flag service from the terminal.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "flaghoist": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

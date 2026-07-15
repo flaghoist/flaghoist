@@ -1,0 +1,32 @@
+{
+  "name": "@flaghoist/vue",
+  "version": "0.0.0",
+  "description": "Vue 3 bindings for Flaghoist — useFeatureFlag() composable and the FlaghoistProvider re-export.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@flaghoist/provider-web": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

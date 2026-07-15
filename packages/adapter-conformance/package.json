@@ -1,0 +1,19 @@
+{
+  "name": "@flaghoist/adapter-conformance",
+  "version": "0.0.0",
+  "description": "Shared StorageAdapter conformance test suite — the executable contract every Flaghoist adapter must pass.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@flaghoist/core": "workspace:*",
+    "vitest": "^3.0.2"
+  }
+}

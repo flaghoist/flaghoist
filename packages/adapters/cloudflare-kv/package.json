@@ -26,6 +26,9 @@
   "dependencies": {
     "@flaghoist/core": "workspace:*"
   },
+  "devDependencies": {
+    "@flaghoist/adapter-conformance": "workspace:*"
+  },
   "publishConfig": {
     "access": "public"
   }

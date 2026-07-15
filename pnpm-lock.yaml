@@ -30,17 +30,34 @@ importers:
         specifier: ^3.0.2
         version: 3.2.7(@types/node@22.20.1)
 
+  packages/adapter-conformance:
+    dependencies:
+      '@flaghoist/core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: ^3.0.2
+        version: 3.2.7(@types/node@22.20.1)
+
   packages/adapters/cloudflare-kv:
     dependencies:
       '@flaghoist/core':
         specifier: workspace:*
         version: link:../../core
+    devDependencies:
+      '@flaghoist/adapter-conformance':
+        specifier: workspace:*
+        version: link:../../adapter-conformance
 
   packages/adapters/memory:
     dependencies:
       '@flaghoist/core':
         specifier: workspace:*
         version: link:../../core
+    devDependencies:
+      '@flaghoist/adapter-conformance':
+        specifier: workspace:*
+        version: link:../../adapter-conformance
 
   packages/cli: {}
 

@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { version } from './index'
+import * as core from './index'
 
-describe('@flaghoist/core', () => {
-  it('exposes a package version', () => {
-    expect(version).toBe('0.0.0')
+describe('@flaghoist/core public API', () => {
+  it('exports the evaluation and schema helpers', () => {
+    expect(typeof core.evaluate).toBe('function')
+    expect(typeof core.evaluateAll).toBe('function')
+    expect(typeof core.matchCondition).toBe('function')
+    expect(typeof core.matchesAllConditions).toBe('function')
+    expect(typeof core.isInRollout).toBe('function')
+    expect(typeof core.stickyBucket).toBe('function')
+    expect(typeof core.compareSemver).toBe('function')
+    expect(typeof core.parseFlag).toBe('function')
+    expect(typeof core.createFlag).toBe('function')
+    expect(core.version).toBe('0.0.0')
   })
 })

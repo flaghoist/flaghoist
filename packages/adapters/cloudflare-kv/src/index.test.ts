@@ -7,6 +7,8 @@ import { cloudflareKV, type KVNamespaceLike } from './index'
 class FakeKV implements KVNamespaceLike {
   private store = new Map<string, string>()
 
+  constructor(private readonly pageSize = 1000) {}
+
   async get(key: string): Promise<string | null> {
     return this.store.get(key) ?? null
   }
@@ -16,12 +18,14 @@ class FakeKV implements KVNamespaceLike {
   async delete(key: string): Promise<void> {
     this.store.delete(key)
   }
-  async list(options?: { prefix?: string }) {
+  async list(options?: { prefix?: string; cursor?: string; limit?: number }) {
     const prefix = options?.prefix ?? ''
-    const keys = [...this.store.keys()]
-      .filter((k) => k.startsWith(prefix))
-      .map((name) => ({ name }))
-    return { keys, list_complete: true }
+    const all = [...this.store.keys()].filter((k) => k.startsWith(prefix))
+    const start = options?.cursor ? Number(options.cursor) : 0
+    const end = start + this.pageSize
+    const keys = all.slice(start, end).map((name) => ({ name }))
+    if (end >= all.length) return { keys, list_complete: true }
+    return { keys, list_complete: false, cursor: String(end) }
   }
 
   raw(key: string): string | undefined {
@@ -70,5 +74,15 @@ describe('cloudflareKV — specifics', () => {
     await adapter.put('mine', createFlag({ key: 'mine' }))
     const keys = (await adapter.list()).map((f) => f.key)
     expect(keys).toEqual(['mine'])
+  })
+
+  it('pages through a large key set via the cursor', async () => {
+    const kv = new FakeKV(2) // a tiny page size forces multiple list() round trips
+    const adapter = cloudflareKV(kv)
+    for (const key of ['a', 'b', 'c', 'd', 'e']) {
+      await adapter.put(key, createFlag({ key }))
+    }
+    const keys = (await adapter.list()).map((f) => f.key).sort()
+    expect(keys).toEqual(['a', 'b', 'c', 'd', 'e'])
   })
 })

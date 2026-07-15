@@ -78,5 +78,28 @@ export function testStorageAdapter(
       const second = await adapter.get('k')
       expect(second?.enabled).toBe(true)
     })
+
+    it('preserves the full flag shape through a round trip, including rules', async () => {
+      const flag = createFlag({
+        key: 'checkout',
+        enabled: true,
+        rollout: { percentage: 40 },
+        description: 'Redesigned checkout',
+        rules: [
+          {
+            description: 'beta cohort',
+            conditions: [
+              { attribute: 'plan', operator: 'eq', value: 'beta' },
+              { attribute: 'country', operator: 'in', value: ['NG', 'GH'] },
+            ],
+            result: { enabled: true, rollout: { percentage: 25 } },
+          },
+        ],
+      })
+      await adapter.put('checkout', flag)
+      expect(await adapter.get('checkout')).toEqual(flag)
+      const listed = (await adapter.list()).find((f) => f.key === 'checkout')
+      expect(listed).toEqual(flag)
+    })
   })
 }

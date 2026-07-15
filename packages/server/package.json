@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/server",
   "version": "0.0.0",
-  "description": "Hono app factory for Flaghoist: OFREP evaluate, admin CRUD, pluggable auth, and the bundled dashboard.",
+  "description": "Hono app factory for Flaghoist: OFREP evaluate, admin CRUD, and pluggable auth.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -9,22 +9,36 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "files": [
     "dist"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:package": "publint --strict && attw --pack ."
   },
   "dependencies": {
-    "@flaghoist/core": "workspace:*"
+    "@flaghoist/core": "workspace:*",
+    "hono": "^4.6.14",
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@flaghoist/adapter-memory": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

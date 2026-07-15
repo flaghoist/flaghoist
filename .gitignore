@@ -5,30 +5,47 @@ node_modules/
 # Build output
 dist/
 build/
+out/
 *.tsbuildinfo
 
-# Turbo
+# Turborepo
 .turbo/
 
-# Test coverage
+# Test coverage & reports
 coverage/
+*.lcov
+test-results/
+playwright-report/
+playwright/.cache/
 
-# Cloudflare / Wrangler
+# Cloudflare / Wrangler / Miniflare
 .wrangler/
+.mf/
 .dev.vars
 .dev.vars.*
+
+# Build tool caches
+.vite/
+.astro/
+.cache/
 
 # Env / secrets
 .env
 .env.*
 !.env.example
 
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # Editor / OS
 .DS_Store
+Thumbs.db
+Desktop.ini
 .idea/
 .vscode/*
 !.vscode/extensions.json
-*.log
-
-# Astro
-.astro/
+*.local

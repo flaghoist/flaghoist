@@ -1,5 +1,8 @@
 # Security Policy
 
+For the design-level security analysis — trust boundaries, threats per surface, and the
+controls that mitigate them — see the [threat model](./docs/threat-model.md).
+
 ## Supported versions
 
 Flaghoist is pre-1.0 and under active development. Security fixes are applied to the latest `0.x`

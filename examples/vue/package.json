@@ -1,0 +1,20 @@
+{
+  "name": "@flaghoist/example-vue",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Read Flaghoist flags in a Vue 3 app with the useFeatureFlag() composable.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@flaghoist/vue": "workspace:*",
+    "@openfeature/web-sdk": "^1.9.0",
+    "vue": "^3.5.39"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7"
+  }
+}

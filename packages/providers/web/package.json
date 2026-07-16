@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/provider-web",
   "version": "0.0.0",
-  "description": "OpenFeature web SDK provider for Flaghoist (browser / client-side evaluation).",
+  "description": "OpenFeature web SDK provider for Flaghoist — a pre-wired OFREP provider for browser/client apps.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -9,22 +9,36 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "files": [
     "dist"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@flaghoist/core": "workspace:*"
+    "@openfeature/ofrep-web-provider": "^0.4.1"
+  },
+  "peerDependencies": {
+    "@openfeature/web-sdk": "^1.9.0"
+  },
+  "devDependencies": {
+    "@openfeature/web-sdk": "^1.9.0"
   },
   "publishConfig": {
     "access": "public"

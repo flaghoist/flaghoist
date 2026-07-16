@@ -1,0 +1,13 @@
+name = "team-flags"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Create the namespace with: npx wrangler kv namespace create FLAGS
+# then paste the returned id below.
+kv_namespaces = [
+  { binding = "FLAGS", id = "<your-kv-namespace-id>" }
+]
+
+# Secrets are set out of band, never committed:
+#   npx wrangler secret put ADMIN_TOKEN
+#   npx wrangler secret put READ_API_KEY

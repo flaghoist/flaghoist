@@ -1,0 +1,18 @@
+{
+  "name": "@flaghoist/example-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Evaluate Flaghoist flags from a Node app via the OpenFeature server SDK.",
+  "scripts": {
+    "start": "node src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@flaghoist/adapter-memory": "workspace:*",
+    "@flaghoist/core": "workspace:*",
+    "@flaghoist/provider-node": "workspace:*",
+    "@flaghoist/server": "workspace:*",
+    "@openfeature/server-sdk": "^1.22.0"
+  }
+}

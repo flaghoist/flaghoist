@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/vue",
   "version": "0.0.0",
-  "description": "Vue 3 bindings for Flaghoist — useFeatureFlag() composable and the FlaghoistProvider re-export.",
+  "description": "Vue 3 bindings for Flaghoist — the useFeatureFlag() composable and a pre-wired FlaghoistProvider.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -9,15 +9,23 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "files": [
     "dist"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run --passWithNoTests",
@@ -25,6 +33,14 @@
   },
   "dependencies": {
     "@flaghoist/provider-web": "workspace:*"
+  },
+  "peerDependencies": {
+    "@openfeature/web-sdk": "^1.9.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@openfeature/web-sdk": "^1.9.0",
+    "vue": "^3.5.39"
   },
   "publishConfig": {
     "access": "public"

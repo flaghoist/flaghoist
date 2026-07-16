@@ -10,10 +10,21 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --clean",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "smol-toml": "^1.7.0"
+  },
+  "devDependencies": {
+    "@flaghoist/adapter-memory": "workspace:*",
+    "@flaghoist/core": "workspace:*",
+    "@flaghoist/server": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

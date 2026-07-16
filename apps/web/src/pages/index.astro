@@ -1,0 +1,507 @@
+---
+const languages = ['Go', 'Java', 'Python', '.NET', 'PHP', 'Ruby', 'JavaScript']
+
+const features = [
+  {
+    title: '$0 idle',
+    body: 'Runs on the Cloudflare free tier and scales to zero. No always-on server, no database bill, no subscription.',
+  },
+  {
+    title: 'OpenFeature-native',
+    body: 'Standard SDKs everywhere. Speaks OFREP, so Go, Java, Python, .NET and more work on day one — no per-language SDK from us.',
+  },
+  {
+    title: 'Bring your own DB',
+    body: 'A storage adapter is four methods. Cloudflare KV, Redis, Postgres — or write your own against the conformance suite.',
+  },
+  {
+    title: 'Targeting from day one',
+    body: 'Boolean flags, sticky percentage rollouts, and ordered targeting rules with a real rule builder in the dashboard.',
+  },
+  {
+    title: 'A dashboard in the box',
+    body: 'One deploy gives you the read API, the admin API, and a management UI at /admin. Toggle, roll out, and target visually.',
+  },
+  {
+    title: 'Your data, your account',
+    body: 'Flags live in your infrastructure, inside your compliance boundary. Swap providers with a one-line change — no lock-in.',
+  },
+]
+
+const comparison = [
+  ['', 'LaunchDarkly', 'Flagsmith / Unleash', 'flagd', 'Flaghoist'],
+  ['Model', 'SaaS, paid', 'Self-host, server + DB', 'Sidecar, no UI', 'Serverless, edge-first'],
+  ['Idle cost', 'Subscription', 'A running server + DB', 'A sidecar per pod', '$0 (scale-to-zero)'],
+  ['Management UI', 'Yes', 'Yes', 'No', 'Yes, self-hosted'],
+  ['Standard', 'Proprietary SDK', 'OF providers', 'OpenFeature-native', 'OpenFeature + OFREP'],
+  ['Your data lives', 'Their cloud', 'Your DB', 'Files', 'Your DB, your account'],
+]
+
+const steps = [
+  {
+    title: 'Deploy the service',
+    code: '$ npx flaghoist deploy',
+    note: 'One config file, one command. Your own Worker + KV, or bring Redis / Postgres.',
+  },
+  {
+    title: 'Install the client',
+    code: '$ npm i @openfeature/web-sdk @flaghoist/vue',
+    note: "Or, in Go / Python / Java, use your language's official OFREP provider.",
+  },
+  {
+    title: 'Register the provider',
+    code: 'await OpenFeature.setProviderAndWait(\n  new FlaghoistProvider({ url, apiKey }),\n)',
+    note: 'Wire it once at startup. Your app never mentions Flaghoist again.',
+  },
+  {
+    title: 'Use a flag',
+    code: "const newCheckout = useFeatureFlag('new-checkout')",
+    note: 'Toggle it, roll it out, or target a cohort from the dashboard — no deploy.',
+  },
+]
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flaghoist — hoist your own feature flags</title>
+    <meta
+      name="description"
+      content="An open-source, OpenFeature-native feature-flag service you deploy on your own infrastructure in five minutes — for $0."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <nav>
+      <a class="brand" href="/">
+        <svg width="26" height="26" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <circle cx="16" cy="9" r="3" fill="var(--ink)"></circle>
+          <line x1="16" y1="9" x2="16" y2="57" stroke="var(--ink)" stroke-width="3.5" stroke-linecap="round"></line>
+          <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="var(--signal)"></path>
+        </svg>
+        <span>Flag<span class="accent">hoist</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="https://docs.flaghoist.dev">Docs</a>
+        <a href="https://github.com/flaghoist/flaghoist" class="btn btn-ghost">GitHub</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <p class="eyebrow">Open source · Apache-2.0 · OpenFeature-native</p>
+      <h1>Hoist your own<br /><span class="accent">feature flags.</span></h1>
+      <p class="lede">
+        A feature-flag service you deploy on your own infrastructure in five minutes — for $0.
+        Serverless, OpenFeature-native, bring your own database.
+      </p>
+      <div class="cta">
+        <a href="https://github.com/flaghoist/flaghoist" class="btn btn-primary">Get started on GitHub</a>
+        <a href="https://docs.flaghoist.dev" class="btn btn-ghost">Read the docs</a>
+      </div>
+
+      <div class="terminal">
+        <div class="term-bar"><span></span><span></span><span></span></div>
+        <pre><code><span class="c">// Stand up your own flag service (once, for your team)</span>
+<span class="p">$</span> npm create flaghoist@latest team-flags
+<span class="p">$</span> cd team-flags && npx flaghoist deploy
+  <span class="o">→ https://team-flags.you.workers.dev</span>  <span class="c">API + admin UI, $0 idle</span></code></pre>
+      </div>
+    </header>
+
+    <section class="langs">
+      <p>Every language with an OpenFeature provider works today — no SDK from us:</p>
+      <ul>
+        {languages.map((l) => <li>{l}</li>)}
+      </ul>
+    </section>
+
+    <section class="features">
+      <div class="grid">
+        {
+          features.map((f) => (
+            <article>
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="compare">
+      <h2>Why not just use X?</h2>
+      <p class="section-sub">We compare honestly. Flaghoist is the serverless, own-your-data option.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>{comparison[0].map((h, i) => <th class={i === 4 ? 'us' : ''}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {
+              comparison.slice(1).map((row) => (
+                <tr>
+                  {row.map((cell, i) =>
+                    i === 0 ? <th scope="row">{cell}</th> : <td class={i === 4 ? 'us' : ''}>{cell}</td>,
+                  )}
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="quickstart">
+      <h2>Five minutes, four steps</h2>
+      <ol>
+        {
+          steps.map((s) => (
+            <li>
+              <h3>{s.title}</h3>
+              <pre><code>{s.code}</code></pre>
+              <p>{s.note}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="final-cta">
+      <h2>Own your flags.</h2>
+      <p>Star it, self-host it, and never pay per-seat for a toggle again.</p>
+      <a href="https://github.com/flaghoist/flaghoist" class="btn btn-primary">github.com/flaghoist</a>
+    </section>
+
+    <footer>
+      <p>Apache-2.0 · © Damilola Oluwafemi and the Flaghoist contributors</p>
+      <p class="fine">Not affiliated with or endorsed by the OpenFeature project or the CNCF.</p>
+    </footer>
+
+    <style is:global>
+      :root {
+        --ink: #0b1e3a;
+        --ink-2: #17335c;
+        --signal: #ff4a1f;
+        --sail: #f7f4ec;
+        --paper: #fffdf8;
+        --on: #1d9e75;
+        --slate: #6b7a90;
+        --line: rgba(11, 30, 58, 0.12);
+        --font-display: 'Fraunces', Georgia, serif;
+        --font-ui: 'Archivo', system-ui, sans-serif;
+        --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-ui);
+        color: var(--ink);
+        background: var(--sail);
+        background-image: radial-gradient(rgba(11, 30, 58, 0.05) 1px, transparent 1px);
+        background-size: 24px 24px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .accent {
+        color: var(--signal);
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-weight: 600;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.92rem;
+        font-weight: 600;
+        border-radius: 9px;
+        padding: 0.7rem 1.1rem;
+        border: 1px solid transparent;
+        transition: transform 0.06s;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn-primary {
+        background: var(--signal);
+        color: #fff;
+      }
+      .btn-ghost {
+        border-color: var(--line);
+        background: var(--paper);
+      }
+      nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 1.3rem 1.5rem;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: var(--font-display);
+        font-size: 1.35rem;
+        font-weight: 600;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 1.4rem;
+        font-weight: 500;
+        font-size: 0.92rem;
+      }
+      .hero {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 2rem;
+        text-align: center;
+      }
+      .eyebrow {
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--slate);
+      }
+      .hero h1 {
+        font-family: var(--font-display);
+        font-size: clamp(2.8rem, 8vw, 5rem);
+        line-height: 1.02;
+        letter-spacing: -0.02em;
+        margin: 0.6rem 0 1.2rem;
+      }
+      .lede {
+        font-size: 1.2rem;
+        color: var(--ink-2);
+        max-width: 620px;
+        margin: 0 auto 2rem;
+      }
+      .cta {
+        display: flex;
+        gap: 0.8rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .terminal {
+        margin: 3rem auto 0;
+        max-width: 720px;
+        text-align: left;
+        background: var(--ink);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 24px 60px -24px rgba(11, 30, 58, 0.5);
+      }
+      .term-bar {
+        display: flex;
+        gap: 0.4rem;
+        padding: 0.7rem 0.9rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .term-bar span {
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.25);
+      }
+      .terminal pre {
+        margin: 0;
+        padding: 1.2rem 1.3rem;
+        overflow-x: auto;
+        font-family: var(--font-mono);
+        font-size: 0.86rem;
+        line-height: 1.7;
+        color: #e7ecf3;
+      }
+      .terminal .p {
+        color: var(--signal);
+      }
+      .terminal .c {
+        color: #7f92ab;
+      }
+      .terminal .o {
+        color: var(--on);
+      }
+      section {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 3.5rem 1.5rem;
+      }
+      .langs {
+        text-align: center;
+      }
+      .langs p {
+        color: var(--slate);
+        font-size: 0.95rem;
+        margin-bottom: 1rem;
+      }
+      .langs ul {
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.6rem;
+        padding: 0;
+        margin: 0;
+      }
+      .langs li {
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        padding: 0.35rem 0.8rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--paper);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.1rem;
+      }
+      .features article {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.4rem;
+        border-top: 3px solid var(--signal);
+      }
+      .features h3 {
+        font-size: 1.15rem;
+        margin-bottom: 0.5rem;
+      }
+      .features p {
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 0.94rem;
+      }
+      h2 {
+        font-family: var(--font-display);
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        text-align: center;
+      }
+      .section-sub {
+        text-align: center;
+        color: var(--slate);
+        margin: 0.5rem 0 2rem;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      th,
+      td {
+        padding: 0.8rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+      }
+      thead th {
+        font-weight: 600;
+        background: rgba(11, 30, 58, 0.03);
+      }
+      tbody th {
+        font-weight: 600;
+        color: var(--slate);
+      }
+      .us {
+        background: rgba(255, 74, 31, 0.06);
+        font-weight: 600;
+        color: var(--signal-ink, #712b13);
+      }
+      thead .us {
+        color: var(--signal);
+      }
+      .quickstart ol {
+        list-style: none;
+        counter-reset: step;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.2rem;
+        margin-top: 2rem;
+      }
+      .quickstart li {
+        counter-increment: step;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.4rem;
+        position: relative;
+      }
+      .quickstart li::before {
+        content: counter(step);
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--signal);
+        font-size: 0.85rem;
+      }
+      .quickstart h3 {
+        font-size: 1.1rem;
+        margin: 0.3rem 0 0.7rem;
+      }
+      .quickstart pre {
+        margin: 0 0 0.7rem;
+        background: var(--ink);
+        color: #e7ecf3;
+        border-radius: 8px;
+        padding: 0.8rem 0.9rem;
+        overflow-x: auto;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+      }
+      .quickstart .p {
+        color: var(--signal);
+      }
+      .quickstart p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--ink-2);
+      }
+      .final-cta {
+        text-align: center;
+      }
+      .final-cta h2 {
+        font-style: italic;
+      }
+      .final-cta p {
+        color: var(--ink-2);
+        margin: 0.6rem 0 1.6rem;
+      }
+      footer {
+        text-align: center;
+        padding: 2.5rem 1.5rem 3.5rem;
+        color: var(--slate);
+        font-size: 0.85rem;
+        border-top: 1px solid var(--line);
+      }
+      footer .fine {
+        font-size: 0.78rem;
+        opacity: 0.8;
+      }
+    </style>
+  </body>
+</html>

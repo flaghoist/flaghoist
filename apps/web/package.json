@@ -1,0 +1,15 @@
+{
+  "name": "@flaghoist/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "flaghoist.dev — the Flaghoist landing page.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^7.1.0"
+  }
+}

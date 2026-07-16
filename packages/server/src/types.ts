@@ -36,6 +36,11 @@ export interface ServerConfig {
    * made trustworthy rather than self-asserted.
    */
   trustedContext?: (headers: Headers) => Record<string, AttributeValue>
+  /**
+   * Prebuilt admin dashboard HTML (a single-file SPA build) to serve at `/admin`. When set, a
+   * single deploy gives you the read API, the admin API, and the management UI together.
+   */
+  dashboard?: string
 }
 
 /** Config, or a function that derives it from the runtime environment (e.g. Workers bindings). */

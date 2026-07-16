@@ -73,6 +73,17 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
 
+  // ---- Admin dashboard SPA (served at /admin when a build is configured) ----
+
+  app.get('/admin', (c) => {
+    const cfg = resolve(c.env)
+    return cfg.dashboard ? c.html(cfg.dashboard) : c.text('Dashboard not configured', 404)
+  })
+  app.get('/admin/*', (c) => {
+    const cfg = resolve(c.env)
+    return cfg.dashboard ? c.html(cfg.dashboard) : c.text('Dashboard not configured', 404)
+  })
+
   // ---- OFREP read path (API-key auth) ----
 
   app.post('/ofrep/v1/evaluate/flags', async (c) => {

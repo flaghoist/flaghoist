@@ -1,0 +1,45 @@
+{
+  "name": "@flaghoist/adapter-postgres",
+  "version": "0.0.0",
+  "description": "Postgres StorageAdapter for Flaghoist — stores flags in a jsonb table via any node-postgres client.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "check:package": "publint --strict && attw --pack ."
+  },
+  "dependencies": {
+    "@flaghoist/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@flaghoist/adapter-conformance": "workspace:*",
+    "pg-mem": "^3.0.14"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

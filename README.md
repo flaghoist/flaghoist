@@ -91,6 +91,8 @@ packages/
   adapters/
     memory/             @flaghoist/adapter-memory — dev/test/fallback
     cloudflare-kv/      @flaghoist/adapter-cloudflare-kv — default storage
+    redis/              @flaghoist/adapter-redis — ioredis (Node) or Upstash (edge)
+    postgres/           @flaghoist/adapter-postgres — jsonb table via node-postgres
   providers/
     web/                @flaghoist/provider-web — OpenFeature web SDK provider
     node/               @flaghoist/provider-node — OpenFeature server SDK provider

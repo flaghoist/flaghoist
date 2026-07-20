@@ -11,5 +11,8 @@
   "dependencies": {
     "@flaghoist/adapter-cloudflare-kv": "workspace:*",
     "@flaghoist/server": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "^4.112.0"
   }
 }

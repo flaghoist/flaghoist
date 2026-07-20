@@ -23,6 +23,19 @@ Run one package's tests with a filter:
 pnpm --filter @flaghoist/core test
 ```
 
+### A local server
+
+To run a real Flaghoist server on your machine — to `curl`, point the browser examples at, or
+manage with the CLI — use:
+
+```bash
+pnpm dev:server   # → http://localhost:8787
+```
+
+It uses the in-memory adapter, seeds a couple of flags, opens CORS to the Vite dev ports, and serves
+the dashboard at `/admin` if you have run `pnpm build`. The read key is `read-key` and the admin
+token is `admin`; override with `PORT`, `READ_API_KEY`, `ADMIN_TOKEN`, or `FLAGS_CORS`.
+
 ## Good first contributions
 
 - **New storage adapters.** Implement the four-method `StorageAdapter` for a database we do not

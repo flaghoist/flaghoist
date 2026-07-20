@@ -21,6 +21,7 @@
     "check:packages": "turbo run check:package",
     "lint": "turbo run lint",
     "dev": "turbo run dev",
+    "dev:server": "turbo run build --filter=@flaghoist/server --filter=@flaghoist/adapter-memory && node scripts/dev-server.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,vue,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,vue,js,json,md}\"",
     "changeset": "changeset",
@@ -30,6 +31,9 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@changesets/cli": "^2.27.11",
+    "@flaghoist/adapter-memory": "workspace:*",
+    "@flaghoist/core": "workspace:*",
+    "@flaghoist/server": "workspace:*",
     "@types/node": "^22.10.5",
     "prettier": "^3.4.2",
     "publint": "^0.3.2",

@@ -29,7 +29,7 @@ The CLI generates a Worker from the config and hands off to `wrangler`. You own 
 When you need a custom adapter, custom auth, or middleware, drop to a project you own:
 
 ```bash
-flaghoist eject
+npx flaghoist eject
 ```
 
 This writes `src/index.ts`, `wrangler.toml`, and `package.json`. The entrypoint composes the server

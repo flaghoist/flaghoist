@@ -13,7 +13,7 @@ the docs obvious.
 serverless platforms. It exposes:
 
 - the **OFREP read path** (`POST /ofrep/v1/evaluate/flags`) for apps to evaluate flags,
-- the **admin API** (`GET/PUT/DELETE /flags`) for managing them,
+- the **admin API** (`GET/PUT/DELETE /api/v1/flags`) for managing them,
 - the **dashboard** at `/admin`.
 
 **Your apps** consume flags through OpenFeature. A provider fetches evaluated booleans from the

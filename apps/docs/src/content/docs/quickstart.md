@@ -9,8 +9,8 @@ your apps. After the service exists, adding a flag is a one-line CLI call plus a
 ## 1. Stand up the service (once, for your team)
 
 ```bash
-npm create flaghoist@latest team-flags
-cd team-flags
+mkdir team-flags && cd team-flags
+npx flaghoist init --name team-flags   # writes flaghoist.toml — the entire project
 npx flaghoist deploy
 # → https://team-flags.you.workers.dev
 ```
@@ -25,17 +25,28 @@ npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put READ_API_KEY
 ```
 
-## 2. Create a flag
+## 2. Point the CLI at your service
+
+Flag commands talk to your server, so they need its URL and the admin token you just set. Pass
+`--url`/`--token` on every call, or export them once for the session:
+
+```bash
+export FLAGS_URL=https://team-flags.you.workers.dev
+export FLAGS_ADMIN_TOKEN=<the ADMIN_TOKEN you set above>
+```
+
+## 3. Create a flag
 
 From the terminal:
 
 ```bash
-flaghoist flag create new-checkout --off --desc "Redesigned checkout"
+npx flaghoist flag create new-checkout --desc "Redesigned checkout"
 ```
 
-…or click **New flag** in the dashboard. No code change is required to register a flag.
+Flags are created **disabled** — safe by default, so nothing ships until you turn it on. Or click
+**New flag** in the dashboard. Either way, no code change is required to register a flag.
 
-## 3. Read it in your app
+## 4. Read it in your app
 
 Install the client (JavaScript shown; other languages use their official OFREP provider):
 
@@ -72,14 +83,14 @@ const newCheckout = useFeatureFlag('new-checkout')
 </template>
 ```
 
-## 4. Release it
+## 5. Release it
 
 Toggle the flag on, drag the rollout to 25%, or add a targeting rule — from the dashboard or the
 CLI, no deploy:
 
 ```bash
-flaghoist flag toggle new-checkout --on
-flaghoist flag rollout new-checkout 25
+npx flaghoist flag toggle new-checkout --on
+npx flaghoist flag rollout new-checkout 25
 ```
 
 Users pick up the change on their next page load.

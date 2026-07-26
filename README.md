@@ -3,16 +3,27 @@
 </p>
 
 <p align="center">
-  <strong>Hoist your own feature flags.</strong><br />
-  An open-source, OpenFeature-native feature-flag service you deploy on your own infrastructure in five minutes — for $0.
+  <strong>Feature flags at the edge. No server, no database, no bill.</strong><br />
+  Self-host your own flag service in five minutes — and use it from every language
+  with an OpenFeature SDK, on day one.
 </p>
 
 <p align="center">
   <a href="https://github.com/flaghoist/flaghoist/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
-  <a href="https://github.com/flaghoist/flaghoist/actions"><img src="https://img.shields.io/badge/CI-passing-brightgreen.svg" alt="CI" /></a>
+  <a href="https://github.com/flaghoist/flaghoist/actions/workflows/ci.yml"><img src="https://github.com/flaghoist/flaghoist/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://openfeature.dev"><img src="https://img.shields.io/badge/OpenFeature-native-000.svg" alt="OpenFeature native" /></a>
   <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha" />
 </p>
+
+<!--
+  DEMO GIF GOES HERE — the highest-leverage asset in this README.
+  Record: flaghoist deploy → create a flag → toggle it in the dashboard → the app flips.
+  Keep it under 20 seconds. Then uncomment:
+
+<p align="center">
+  <img src="./brand/demo.gif" alt="Deploy Flaghoist, create a flag, and toggle it live" width="100%" />
+</p>
+-->
 
 ---
 
@@ -35,21 +46,37 @@ SDK.
 
 ## Why not just use X?
 
-|                 | LaunchDarkly    | Flagsmith / Unleash          | flagd              | **Flaghoist**                       |
-| --------------- | --------------- | ---------------------------- | ------------------ | ----------------------------------- |
-| Model           | SaaS, paid      | Self-host, server + Postgres | Sidecar, no UI     | Serverless, edge-first, BYO storage |
-| Idle cost       | Subscription    | A running server + DB        | A sidecar per pod  | **$0 (scale-to-zero)**              |
-| Management UI   | Yes             | Yes                          | No                 | **Yes, self-hosted**                |
-| Standard        | Proprietary SDK | OF providers                 | OpenFeature-native | **OpenFeature + OFREP native**      |
-| Your data lives | Their cloud     | Your DB                      | Files              | **Your DB, your account**           |
+An honest table — including the rows where Flaghoist loses today.
+
+|                    | LaunchDarkly    | Flagsmith / Unleash   | PostHog             | flagd              | **Flaghoist**                   |
+| ------------------ | --------------- | --------------------- | ------------------- | ------------------ | ------------------------------- |
+| Deployment         | SaaS            | Server + Postgres     | SaaS or server + DB | Sidecar per pod    | **Serverless, or any runtime**  |
+| Idle cost          | Subscription    | Always-on server + DB | Free tier, then $$  | A sidecar per pod  | **$0 (scale-to-zero)**          |
+| Management UI      | Yes             | Yes                   | Yes                 | No                 | **Yes, self-hosted**            |
+| Protocol           | Proprietary SDK | OF providers          | Own SDK             | OpenFeature-native | **OpenFeature + OFREP native**  |
+| Your data lives    | Their cloud     | Your DB               | Their cloud         | Files              | **Your DB, your account**       |
+| Multivariate flags | Yes             | Yes                   | Yes                 | Yes                | _Not yet — boolean only_        |
+| Experiments / A-B  | Yes             | Yes                   | Yes                 | No                 | _No (bring your own analytics)_ |
+| Maturity           | Mature          | Mature                | Mature              | CNCF               | _Pre-alpha, one maintainer_     |
+
+**Why not just build it yourself?** You can — a JSON blob in S3 gets you 60% of the way. The other
+40% is what's here: sticky SHA-256 rollouts that don't reshuffle users on every deploy, ordered
+targeting rules, OFREP conformance so every OpenFeature SDK works unmodified, an audit trail, and
+a UI your PM can use without a deploy.
 
 ## Quickstart
 
 ```bash
 # 1. Stand up your own flag service (once, for your whole team)
-npm create flaghoist@latest team-flags
-cd team-flags && npx flaghoist deploy        # → https://team-flags.you.workers.dev
+mkdir team-flags && cd team-flags
+npx flaghoist init --name team-flags     # writes flaghoist.toml — the entire project
+npx flaghoist deploy                     # → https://team-flags.<you>.workers.dev
+```
 
+Your API, your dashboard at `/admin`, and your storage — one deploy, no code. Want the code
+instead? `npx flaghoist eject` turns it into a one-file TypeScript project you own.
+
+```bash
 # 2. In your app, install the client
 npm install @openfeature/web-sdk @flaghoist/vue
 ```
@@ -93,13 +120,15 @@ packages/
     cloudflare-kv/      @flaghoist/adapter-cloudflare-kv — default storage
     redis/              @flaghoist/adapter-redis — ioredis (Node) or Upstash (edge)
     postgres/           @flaghoist/adapter-postgres — jsonb table via node-postgres
+  adapter-conformance/  @flaghoist/adapter-conformance — the shared test suite every
+                        adapter must pass, so BYO storage is verified, not just promised
   providers/
     web/                @flaghoist/provider-web — OpenFeature web SDK provider
     node/               @flaghoist/provider-node — OpenFeature server SDK provider
   vue/                  @flaghoist/vue — useFeatureFlag() composable
   cli/                  flaghoist — scaffold, deploy, and manage flags
 apps/                   dashboard (Vue), web + docs (Astro)
-examples/               vue, react, node, worker
+examples/               vue, node, worker
 ```
 
 ## Development
@@ -111,6 +140,24 @@ pnpm build         # build all packages
 pnpm test          # run all tests
 pnpm typecheck     # type-check all packages
 ```
+
+## Project status & sustainability
+
+Flaghoist is currently built and maintained by one person. That's a fair thing to weigh before
+adopting any piece of infrastructure, so here is exactly what it means for you:
+
+- **Apache-2.0.** Anyone can fork it and keep it alive. No CLA, no rug-pull clause.
+- **Your flags live in your storage** — your KV namespace, your Redis, your Postgres. Nothing about
+  this project's health affects your data.
+- **The API is [OFREP](https://openfeature.dev/specification/appendix-c), an open standard.** If you
+  ever want to leave, point the same OpenFeature providers at a different server. No app rewrite.
+- **`flaghoist eject`** hands you a self-contained TypeScript project you own outright.
+
+If this project stalled tomorrow, you would keep running exactly what you are running today. That
+is deliberate — it's the whole point of self-hosting on open protocols.
+
+Want to shrink the bus factor? New storage adapters are self-contained, need ~four methods, and are
+validated by an existing conformance suite — see the `good first issue` label.
 
 ## Contributing
 

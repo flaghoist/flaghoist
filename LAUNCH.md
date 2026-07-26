@@ -35,7 +35,11 @@ in chat history.
 - [ ] **(you)** Register **flaghoist.dev** (and **.io** defensively).
 - [ ] **(you)** Create a **Cloudflare** account (Pages for the sites + a demo Worker).
 - [ ] **(you)** Grab social handles: **X / Bluesky** (`@flaghoist` or nearest).
-- [ ] **(you)** Create a **Discord** server (+ enable GitHub Discussions on the repo).
+- [ ] **(you)** Enable **GitHub Discussions** on the repo — one checkbox (Settings → Features),
+      zero upkeep. This + Issues is the whole support surface for launch.
+- [ ] _(defer)_ **Discord** — hold until people are actually asking for a chat room. An empty,
+      unattended server reads worse than none. Low time commitment when it happens; announcements
+      are drafted for you (see Phase 5).
 - [ ] **(you)** Enable **GitHub Sponsors** (the repo already ships `.github/FUNDING.yml`).
 
 ---
@@ -49,7 +53,9 @@ in chat history.
       Changesets → npm publish with provenance).
 - [ ] Cut **v0.1.0**: `pnpm changeset` → `pnpm version-packages` → merge → release workflow
       publishes `@flaghoist/*` to npm.
-- [ ] Smoke-test a published install: `npm create flaghoist@latest` in a clean dir.
+- [ ] Smoke-test a published install in a clean dir: `npx flaghoist init` → `npx flaghoist deploy`.
+      (Note: there is no `create-flaghoist` package, so `npm create flaghoist` does **not** work —
+      decide before launch whether to publish one, since `npm create` is what people will try.)
 
 ---
 
@@ -81,6 +87,9 @@ in chat history.
 ## Phase 5 — Distribution & announcements
 
 Ordered by leverage. The OpenFeature listing is the highest-value channel for this product.
+**All copy below is drafted for you** — Show HN title + body, Product Hunt tagline + description,
+the r/selfhosted post, the OpenFeature PR description, and the build-in-public thread. Your job is
+to hit publish and be around to reply; the writing is handled.
 
 - [ ] **OpenFeature ecosystem PR** — get Flaghoist listed on the openfeature.dev ecosystem page
       (PR to their repo). Then announce in the **OpenFeature CNCF Slack**. This reaches the exact

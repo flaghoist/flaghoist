@@ -64,7 +64,32 @@ export interface Api {
   remove(key: string): Promise<void>
 }
 
-export function createApi(url: string, token: string): Api {
+const DEFAULT_TIMEOUT_MS = 15000
+
+/** Runtime check for the fields the UI relies on — guards against a malformed response. */
+function isFeatureFlag(v: unknown): v is FeatureFlag {
+  if (!v || typeof v !== 'object') return false
+  const f = v as Record<string, unknown>
+  const rollout = f.rollout as Record<string, unknown> | undefined
+  return (
+    typeof f.key === 'string' &&
+    typeof f.enabled === 'boolean' &&
+    typeof rollout?.percentage === 'number' &&
+    typeof f.metadata === 'object' &&
+    f.metadata !== null
+  )
+}
+
+/** Parse a response body as JSON, turning a non-JSON body into a clean ApiError. */
+async function readJson(res: Response): Promise<unknown> {
+  try {
+    return await res.json()
+  } catch {
+    throw new ApiError(502, 'The server returned a response that was not valid JSON.')
+  }
+}
+
+export function createApi(url: string, token: string, timeoutMs = DEFAULT_TIMEOUT_MS): Api {
   const base = url.replace(/\/+$/, '')
   const headers = {
     authorization: `Bearer ${token}`,
@@ -72,7 +97,19 @@ export function createApi(url: string, token: string): Api {
   }
 
   async function request(path: string, init?: RequestInit): Promise<Response> {
-    const res = await fetch(base + path, { ...init, headers })
+    let res: Response
+    try {
+      res = await fetch(base + path, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) })
+    } catch (err) {
+      // A timeout/abort becomes a clean ApiError; other failures (DNS, refused, CORS) propagate.
+      if (
+        err instanceof DOMException &&
+        (err.name === 'TimeoutError' || err.name === 'AbortError')
+      ) {
+        throw new ApiError(408, `Request timed out after ${Math.round(timeoutMs / 1000)}s.`)
+      }
+      throw err
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => '')
       throw new ApiError(res.status, text || res.statusText)
@@ -82,15 +119,24 @@ export function createApi(url: string, token: string): Api {
 
   return {
     async list() {
-      const body = (await (await request('/api/v1/flags')).json()) as { flags: FeatureFlag[] }
-      return body.flags
+      const body = await readJson(await request('/api/v1/flags'))
+      const flags = (body as { flags?: unknown } | null)?.flags
+      if (!Array.isArray(flags)) {
+        throw new ApiError(502, 'Unexpected response: the flag list was missing or malformed.')
+      }
+      return flags.filter(isFeatureFlag)
     },
     async save(key, input) {
-      const res = await request(`/api/v1/flags/${encodeURIComponent(key)}`, {
-        method: 'PUT',
-        body: JSON.stringify(input),
-      })
-      return (await res.json()) as FeatureFlag
+      const body = await readJson(
+        await request(`/api/v1/flags/${encodeURIComponent(key)}`, {
+          method: 'PUT',
+          body: JSON.stringify(input),
+        }),
+      )
+      if (!isFeatureFlag(body)) {
+        throw new ApiError(502, 'Unexpected response: the saved flag was malformed.')
+      }
+      return body
     },
     async remove(key) {
       await request(`/api/v1/flags/${encodeURIComponent(key)}`, { method: 'DELETE' })

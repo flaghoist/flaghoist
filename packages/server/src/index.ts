@@ -2,9 +2,11 @@ import { evaluate, type EvaluationContext } from '@flaghoist/core'
 import { Hono } from 'hono'
 import { createDefinitionCache } from './cache'
 import { buildFlag } from './flags'
+import { openApiDocument } from './openapi'
 import type { ConfigResolver, ServerConfig } from './types'
 
 export { apiKey, bearerToken, oidc, type OidcOptions } from './auth'
+export { openApiDocument } from './openapi'
 export type { AuthResult, Authenticator, ConfigResolver, ServerConfig } from './types'
 
 const DEFAULT_CACHE_TTL_SECONDS = 30
@@ -72,6 +74,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   })
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
+
+  app.get('/api/v1/openapi.json', (c) => c.json(openApiDocument))
 
   // ---- Admin dashboard SPA (served at /admin when a build is configured) ----
 
@@ -143,51 +147,56 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
   })
 
-  // ---- Admin CRUD (admin auth) ----
+  // ---- Admin CRUD (admin auth) — served under /api/v1 and the legacy unversioned alias ----
 
-  app.get('/flags', async (c) => {
-    const cfg = resolve(c.env)
-    const auth = await cfg.auth.admin(c.req.raw.headers)
-    if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-    return c.json({ flags: await cfg.storage.list() })
-  })
+  const registerAdmin = (prefix: string) => {
+    app.get(`${prefix}/flags`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      return c.json({ flags: await cfg.storage.list() })
+    })
 
-  app.get('/flags/:key', async (c) => {
-    const cfg = resolve(c.env)
-    const auth = await cfg.auth.admin(c.req.raw.headers)
-    if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-    const flag = await cfg.storage.get(c.req.param('key'))
-    if (!flag) return c.json({ error: 'Flag not found' }, 404)
-    return c.json(flag)
-  })
+    app.get(`${prefix}/flags/:key`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const flag = await cfg.storage.get(c.req.param('key'))
+      if (!flag) return c.json({ error: 'Flag not found' }, 404)
+      return c.json(flag)
+    })
 
-  app.put('/flags/:key', async (c) => {
-    const cfg = resolve(c.env)
-    const auth = await cfg.auth.admin(c.req.raw.headers)
-    if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-    const key = c.req.param('key')
-    const parsed = await readJsonBody(await c.req.text())
-    if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
-    const built = buildFlag(
-      key,
-      parsed.value,
-      auth.identity ?? 'unknown',
-      await cfg.storage.get(key),
-    )
-    if (!built.ok) return c.json({ error: built.error }, 400)
-    await cfg.storage.put(key, built.flag)
-    cache.invalidate()
-    return c.json(built.flag)
-  })
+    app.put(`${prefix}/flags/:key`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const key = c.req.param('key')
+      const parsed = await readJsonBody(await c.req.text())
+      if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
+      const built = buildFlag(
+        key,
+        parsed.value,
+        auth.identity ?? 'unknown',
+        await cfg.storage.get(key),
+      )
+      if (!built.ok) return c.json({ error: built.error }, 400)
+      await cfg.storage.put(key, built.flag)
+      cache.invalidate()
+      return c.json(built.flag)
+    })
 
-  app.delete('/flags/:key', async (c) => {
-    const cfg = resolve(c.env)
-    const auth = await cfg.auth.admin(c.req.raw.headers)
-    if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-    await cfg.storage.delete(c.req.param('key'))
-    cache.invalidate()
-    return c.body(null, 204)
-  })
+    app.delete(`${prefix}/flags/:key`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      await cfg.storage.delete(c.req.param('key'))
+      cache.invalidate()
+      return c.body(null, 204)
+    })
+  }
+
+  registerAdmin('/api/v1')
+  registerAdmin('') // legacy unversioned alias — /flags maps to /api/v1/flags
 
   app.onError((err, c) => {
     console.error('[flaghoist] unhandled error', err)

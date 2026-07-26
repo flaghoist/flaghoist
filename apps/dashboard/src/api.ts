@@ -82,18 +82,18 @@ export function createApi(url: string, token: string): Api {
 
   return {
     async list() {
-      const body = (await (await request('/flags')).json()) as { flags: FeatureFlag[] }
+      const body = (await (await request('/api/v1/flags')).json()) as { flags: FeatureFlag[] }
       return body.flags
     },
     async save(key, input) {
-      const res = await request(`/flags/${encodeURIComponent(key)}`, {
+      const res = await request(`/api/v1/flags/${encodeURIComponent(key)}`, {
         method: 'PUT',
         body: JSON.stringify(input),
       })
       return (await res.json()) as FeatureFlag
     },
     async remove(key) {
-      await request(`/flags/${encodeURIComponent(key)}`, { method: 'DELETE' })
+      await request(`/api/v1/flags/${encodeURIComponent(key)}`, { method: 'DELETE' })
     },
   }
 }

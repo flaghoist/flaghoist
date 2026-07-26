@@ -25,16 +25,16 @@ export interface AdminClient {
 
 export function createAdminClient(options: AdminClientOptions): AdminClient {
   const doFetch: FetchLike = options.fetch ?? ((input, init) => fetch(input, init))
-  const base = options.url.replace(/\/+$/, '')
+  const api = `${options.url.replace(/\/+$/, '')}/api/v1`
   const headers = {
     authorization: `Bearer ${options.token}`,
     'content-type': 'application/json',
   }
-  const path = (key: string) => `${base}/flags/${encodeURIComponent(key)}`
+  const path = (key: string) => `${api}/flags/${encodeURIComponent(key)}`
 
   return {
     async list() {
-      const res = await doFetch(`${base}/flags`, { headers })
+      const res = await doFetch(`${api}/flags`, { headers })
       if (!res.ok) throw new Error(`Failed to list flags (${res.status})`)
       return ((await res.json()) as { flags: FeatureFlag[] }).flags
     },

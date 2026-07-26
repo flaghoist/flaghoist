@@ -27,19 +27,22 @@ Evaluate a single flag. Returns `404` with `errorCode: FLAG_NOT_FOUND` for an un
 
 ## Admin path
 
-Guarded by the admin verifier (bearer token or OIDC). Full flag configuration.
+Guarded by the admin verifier (bearer token or OIDC). This is Flaghoist's own **versioned** API —
+build dashboards, scripts, and integrations against it.
 
-| Method   | Path          | Purpose                  |
-| -------- | ------------- | ------------------------ |
-| `GET`    | `/flags`      | List all flags           |
-| `GET`    | `/flags/:key` | Get one flag             |
-| `PUT`    | `/flags/:key` | Create or replace a flag |
-| `DELETE` | `/flags/:key` | Delete a flag            |
+| Method   | Path                 | Purpose                  |
+| -------- | -------------------- | ------------------------ |
+| `GET`    | `/api/v1/flags`      | List all flags           |
+| `GET`    | `/api/v1/flags/:key` | Get one flag             |
+| `PUT`    | `/api/v1/flags/:key` | Create or replace a flag |
+| `DELETE` | `/api/v1/flags/:key` | Delete a flag            |
+
+The unversioned `/flags` paths remain as a legacy alias of `/api/v1/flags`.
 
 `PUT` is a full replace (creation metadata is preserved). Send the complete desired state:
 
 ```bash
-curl -X PUT https://team-flags.you.workers.dev/flags/new-checkout \
+curl -X PUT https://team-flags.you.workers.dev/api/v1/flags/new-checkout \
   -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
   -d '{
     "enabled": true,
@@ -56,10 +59,11 @@ curl -X PUT https://team-flags.you.workers.dev/flags/new-checkout \
 
 ## Other endpoints
 
-| Method | Path      | Auth | Purpose                           |
-| ------ | --------- | ---- | --------------------------------- |
-| `GET`  | `/health` | none | Health check                      |
-| `GET`  | `/admin`  | none | The dashboard SPA (if configured) |
+| Method | Path                   | Auth | Purpose                           |
+| ------ | ---------------------- | ---- | --------------------------------- |
+| `GET`  | `/health`              | none | Health check                      |
+| `GET`  | `/admin`               | none | The dashboard SPA (if configured) |
+| `GET`  | `/api/v1/openapi.json` | none | The OpenAPI 3.1 spec (see below)  |
 
 ## Flag schema
 
@@ -76,3 +80,19 @@ interface FeatureFlag {
 
 Operators available in conditions: `eq`, `neq`, `in`, `notIn`, `contains`, `startsWith`,
 `endsWith`, `gt`, `gte`, `lt`, `lte`, `semverGte`, `semverLt`.
+
+## OpenAPI
+
+Every server describes itself. Fetch the machine-readable spec from a running server:
+
+```bash
+curl https://team-flags.you.workers.dev/api/v1/openapi.json
+```
+
+It is an OpenAPI 3.1 document covering the admin API, the OFREP read endpoints, and the schemas
+above — point Swagger UI, Postman, or a client generator at it. The same document is exported from
+the package for build-time tooling:
+
+```ts
+import { openApiDocument } from '@flaghoist/server'
+```

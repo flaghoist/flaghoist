@@ -77,6 +77,10 @@ in chat history.
 - [ ] **Embed the dashboard into the deploy template** so `flaghoist deploy` / `eject` ship the
       admin UI at `/admin` out of the box. The server already supports `config.dashboard`; what's
       missing is wiring the built dashboard HTML into the generated Worker. (Deferred from CP7.)
+- [ ] **Publish a `create-flaghoist` package** so `npm create flaghoist` works. (#14) It resolves to
+      a `create-flaghoist` package that doesn't exist today, so the idiomatic command every
+      Vite/Astro/Next user will instinctively type 404s. A ~20-line wrapper around the existing
+      `flaghoist init`; then update the README quickstart to lead with it.
 - [ ] **Convert the tracked TODOs to GitHub issues** (once the repo exists) — see the list below.
 - [ ] **Seed `good first issue` labels** — adapters and language guides are ideal (see below).
 - [ ] Decide whether the **Miniflare real-KV test** (#9) is pre- or post-launch (recommended:
@@ -121,6 +125,7 @@ Create these as issues once the repo is pushed (drafts are ready in chat / the t
 
 **Post-go-live product improvements**
 
+- [ ] **`create-flaghoist` package** — make `npm create flaghoist` work (see Phase 4). (#14)
 - [ ] **Miniflare real-KV adapter test** — a `@cloudflare/vitest-pool-workers` test for
       `adapter-cloudflare-kv` against a real Miniflare KV binding. (#9)
 - [ ] **Dashboard API: surface server error messages** — parse the JSON error body and show

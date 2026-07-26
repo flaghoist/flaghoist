@@ -1,0 +1,11 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    Single-colour Flaghoist mark. Deliberately carries no fill attributes so it inherits
+    currentColor from the host page — this is the form third-party directories ask for
+    (e.g. the OpenFeature ecosystem's `*-no-fill.svg` convention). The halyard is a
+    rounded rect rather than a stroked line so nothing depends on stroke colour either.
+  -->
+  <circle cx="16" cy="9" r="3" />
+  <rect x="14.25" y="9" width="3.5" height="48" rx="1.75" />
+  <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" />
+</svg>

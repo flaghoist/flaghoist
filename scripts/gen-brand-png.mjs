@@ -31,18 +31,24 @@ const og = () => `
     ${Array.from({ length: 13 }, (_, i) => `<rect x="${i * 96}" y="0" width="1" height="630"/>`).join('')}
     ${Array.from({ length: 7 }, (_, i) => `<rect x="0" y="${i * 96}" width="1200" height="1"/>`).join('')}
   </g>
-  <g transform="translate(96,150) scale(1.7)">
+  <!--
+    Lockup. The mark's own left edge is at x=13 in its 64-unit box, so translate by
+    (96 - 13*scale) to optically align it with the 96px text margin below. The wordmark
+    is deliberately smaller than the headline — on a share card the message leads, not
+    the brand — and its baseline is set to the mark's vertical centre.
+  -->
+  <g transform="translate(79,96) scale(1.3)">
     <circle cx="16" cy="9" r="3" fill="#F7F4EC"/>
     <line x1="16" y1="9" x2="16" y2="57" stroke="#F7F4EC" stroke-width="3.5" stroke-linecap="round"/>
     <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="#FF4A1F"/>
     <path d="M16 31 L40.5 24 L52 32.5 L16 31 Z" fill="#000" fill-opacity="0.16"/>
   </g>
-  <text x="292" y="212" font-family="Georgia, serif" font-size="76" font-weight="600" fill="#F7F4EC">Flaghoist</text>
-  <text x="96" y="360" font-family="Georgia, serif" font-size="64" font-weight="600" fill="#F7F4EC">Feature flags at <tspan fill="#FF4A1F">the edge.</tspan></text>
-  <text x="96" y="432" font-family="Helvetica, Arial, sans-serif" font-size="30" fill="#B9C2D0">No server. No database. No bill.</text>
-  <text x="96" y="486" font-family="Helvetica, Arial, sans-serif" font-size="30" fill="#B9C2D0">Self-hosted, OpenFeature-native, Apache-2.0.</text>
-  <rect x="96" y="546" width="180" height="4" fill="#FF4A1F"/>
-  <text x="96" y="590" font-family="Courier New, monospace" font-size="24" fill="#8494A8">flaghoist.dev</text>
+  <text x="169" y="155" font-family="Georgia, serif" font-size="52" font-weight="600" fill="#F7F4EC">Flaghoist</text>
+  <text x="96" y="330" font-family="Georgia, serif" font-size="68" font-weight="600" fill="#F7F4EC">Feature flags at <tspan fill="#FF4A1F">the edge.</tspan></text>
+  <text x="96" y="402" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">No server. No database. No bill.</text>
+  <text x="96" y="448" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">Self-hosted, OpenFeature-native, Apache-2.0.</text>
+  <rect x="96" y="512" width="180" height="4" fill="#FF4A1F"/>
+  <text x="96" y="558" font-family="Courier New, monospace" font-size="24" fill="#8494A8">flaghoist.dev</text>
 </svg>`
 
 await sharp(Buffer.from(icon(512)))

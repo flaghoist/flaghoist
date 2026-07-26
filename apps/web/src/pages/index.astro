@@ -29,18 +29,26 @@ const features = [
 ]
 
 const comparison = [
-  ['', 'LaunchDarkly', 'Flagsmith / Unleash', 'flagd', 'Flaghoist'],
-  ['Model', 'SaaS, paid', 'Self-host, server + DB', 'Sidecar, no UI', 'Serverless, edge-first'],
-  ['Idle cost', 'Subscription', 'A running server + DB', 'A sidecar per pod', '$0 (scale-to-zero)'],
-  ['Management UI', 'Yes', 'Yes', 'No', 'Yes, self-hosted'],
-  ['Standard', 'Proprietary SDK', 'OF providers', 'OpenFeature-native', 'OpenFeature + OFREP'],
-  ['Your data lives', 'Their cloud', 'Your DB', 'Files', 'Your DB, your account'],
+  ['', 'LaunchDarkly', 'Flagsmith / Unleash', 'PostHog', 'flagd', 'Flaghoist'],
+  ['Deployment', 'SaaS', 'Server + Postgres', 'SaaS or server + DB', 'Sidecar per pod', 'Serverless, or any runtime'],
+  ['Idle cost', 'Subscription', 'Always-on server + DB', 'Free tier, then usage', 'A sidecar per pod', '$0 (scale-to-zero)'],
+  ['Management UI', 'Yes', 'Yes', 'Yes', 'No', 'Yes, self-hosted'],
+  ['Protocol', 'Proprietary SDK', 'OF providers', 'Own SDK', 'OpenFeature-native', 'OpenFeature + OFREP'],
+  ['Your data lives', 'Their cloud', 'Your DB', 'Their cloud', 'Files', 'Your DB, your account'],
+  ['Multivariate flags', 'Yes', 'Yes', 'Yes', 'Yes', 'Not yet — boolean only'],
+  ['Experiments / A-B', 'Yes', 'Yes', 'Yes', 'No', 'No — bring your own analytics'],
+  ['Maturity', 'Mature', 'Mature', 'Mature', 'CNCF', 'Pre-alpha, one maintainer'],
 ]
+
+// Rows where Flaghoist loses today. Rendered muted rather than highlighted — the point of an
+// honest table is that the reader can tell at a glance which cells are wins and which aren't.
+const caveatRows = new Set(['Multivariate flags', 'Experiments / A-B', 'Maturity'])
+const lastCol = comparison[0].length - 1
 
 const steps = [
   {
     title: 'Deploy the service',
-    code: '$ npx flaghoist deploy',
+    code: '$ npx flaghoist init\n$ npx flaghoist deploy',
     note: 'One config file, one command. Your own Worker + KV, or bring Redis / Postgres.',
   },
   {
@@ -66,12 +74,34 @@ const steps = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Flaghoist — hoist your own feature flags</title>
+    <title>Flaghoist — feature flags at the edge</title>
     <meta
       name="description"
-      content="An open-source, OpenFeature-native feature-flag service you deploy on your own infrastructure in five minutes — for $0."
+      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill — and every language with an OpenFeature SDK works on day one."
     />
+    <link rel="canonical" href="https://flaghoist.dev/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Social share cards. Without these, a link posted to HN/X/Slack renders as bare text. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://flaghoist.dev/" />
+    <meta property="og:site_name" content="Flaghoist" />
+    <meta property="og:title" content="Flaghoist — feature flags at the edge" />
+    <meta
+      property="og:description"
+      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill."
+    />
+    <meta property="og:image" content="https://flaghoist.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Flaghoist — feature flags at the edge" />
+    <meta
+      name="twitter:description"
+      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill."
+    />
+    <meta name="twitter:image" content="https://flaghoist.dev/og.png" />
+    <meta name="theme-color" content="#0B1E3A" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -97,10 +127,10 @@ const steps = [
 
     <header class="hero">
       <p class="eyebrow">Open source · Apache-2.0 · OpenFeature-native</p>
-      <h1>Hoist your own<br /><span class="accent">feature flags.</span></h1>
+      <h1>Feature flags<br />at <span class="accent">the edge.</span></h1>
       <p class="lede">
-        A feature-flag service you deploy on your own infrastructure in five minutes — for $0.
-        Serverless, OpenFeature-native, bring your own database.
+        No server. No database. No bill. Self-host your own flag service in five minutes — and
+        use it from every language with an OpenFeature SDK, on day one.
       </p>
       <div class="cta">
         <a href="https://github.com/flaghoist/flaghoist" class="btn btn-primary">Get started on GitHub</a>
@@ -109,10 +139,11 @@ const steps = [
 
       <div class="terminal">
         <div class="term-bar"><span></span><span></span><span></span></div>
-        <pre><code><span class="c">// Stand up your own flag service (once, for your team)</span>
-<span class="p">$</span> npm create flaghoist@latest team-flags
-<span class="p">$</span> cd team-flags && npx flaghoist deploy
-  <span class="o">→ https://team-flags.you.workers.dev</span>  <span class="c">API + admin UI, $0 idle</span></code></pre>
+        <pre><code><span class="c"># Stand up your own flag service (once, for your team)</span>
+<span class="p">$</span> mkdir team-flags && cd team-flags
+<span class="p">$</span> npx flaghoist init --name team-flags
+<span class="p">$</span> npx flaghoist deploy
+  <span class="o">→ https://team-flags.you.workers.dev</span>  <span class="c"># API + admin UI, $0 idle</span></code></pre>
       </div>
     </header>
 
@@ -138,18 +169,24 @@ const steps = [
 
     <section class="compare">
       <h2>Why not just use X?</h2>
-      <p class="section-sub">We compare honestly. Flaghoist is the serverless, own-your-data option.</p>
+      <p class="section-sub">
+        An honest table — including the rows where Flaghoist loses today.
+      </p>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr>{comparison[0].map((h, i) => <th class={i === 4 ? 'us' : ''}>{h}</th>)}</tr>
+            <tr>{comparison[0].map((h, i) => <th class={i === lastCol ? 'us' : ''}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {
               comparison.slice(1).map((row) => (
                 <tr>
                   {row.map((cell, i) =>
-                    i === 0 ? <th scope="row">{cell}</th> : <td class={i === 4 ? 'us' : ''}>{cell}</td>,
+                    i === 0 ? (
+                      <th scope="row">{cell}</th>
+                    ) : (
+                      <td class={i === lastCol ? (caveatRows.has(row[0]) ? 'us caveat' : 'us') : ''}>{cell}</td>
+                    ),
                   )}
                 </tr>
               ))
@@ -157,6 +194,12 @@ const steps = [
           </tbody>
         </table>
       </div>
+      <p class="build-it">
+        <strong>Why not just build it yourself?</strong> You can — a JSON blob in object storage gets
+        you 60% of the way. The other 40% is what's here: sticky SHA-256 rollouts that don't reshuffle
+        users on every deploy, ordered targeting rules, OFREP conformance so every OpenFeature SDK
+        works unmodified, an audit trail, and a UI your PM can use without a deploy.
+      </p>
     </section>
 
     <section class="quickstart">
@@ -172,6 +215,35 @@ const steps = [
           ))
         }
       </ol>
+    </section>
+
+    <section class="sustain">
+      <h2>Built by one person. Here's why that's safe.</h2>
+      <p class="section-sub">
+        Weighing a single-maintainer project is fair. So here is exactly what it means for you.
+      </p>
+      <div class="grid">
+        <article>
+          <h3>Apache-2.0</h3>
+          <p>Anyone can fork it and keep it alive. No CLA, no rug-pull clause.</p>
+        </article>
+        <article>
+          <h3>Your flags, your storage</h3>
+          <p>Your KV, your Redis, your Postgres. This project's health never touches your data.</p>
+        </article>
+        <article>
+          <h3>An open protocol</h3>
+          <p>The API is OFREP. To leave, point the same OpenFeature providers elsewhere — no rewrite.</p>
+        </article>
+        <article>
+          <h3>Eject whenever</h3>
+          <p><code>flaghoist eject</code> hands you a self-contained TypeScript project you own outright.</p>
+        </article>
+      </div>
+      <p class="sustain-note">
+        If this project stalled tomorrow, you'd keep running exactly what you're running today.
+        That's deliberate — it's the whole point of self-hosting on open protocols.
+      </p>
     </section>
 
     <section class="final-cta">
@@ -434,6 +506,51 @@ const steps = [
       }
       thead .us {
         color: var(--signal);
+      }
+      /* Rows where we lose: muted, not highlighted, so wins and caveats read differently. */
+      td.us.caveat {
+        background: transparent;
+        color: var(--slate);
+        font-weight: 500;
+      }
+      .build-it {
+        max-width: 760px;
+        margin: 1.8rem auto 0;
+        font-size: 0.95rem;
+        color: var(--ink-2);
+        text-align: center;
+      }
+      .sustain .grid {
+        margin-top: 2rem;
+      }
+      .sustain article {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.3rem;
+      }
+      .sustain h3 {
+        font-size: 1.05rem;
+        margin-bottom: 0.4rem;
+      }
+      .sustain article p {
+        margin: 0;
+        font-size: 0.92rem;
+        color: var(--ink-2);
+      }
+      .sustain code {
+        font-family: var(--font-mono);
+        font-size: 0.85em;
+        background: rgba(11, 30, 58, 0.06);
+        padding: 0.1rem 0.35rem;
+        border-radius: 5px;
+      }
+      .sustain-note {
+        max-width: 640px;
+        margin: 1.8rem auto 0;
+        text-align: center;
+        font-size: 0.95rem;
+        color: var(--ink-2);
       }
       .quickstart ol {
         list-style: none;

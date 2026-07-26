@@ -22,10 +22,47 @@ const avatar = (size, bg) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">` +
   `<rect width="80" height="80" fill="${bg}"/><g transform="translate(8,8)">${MARK}</g></svg>`
 
-await sharp(Buffer.from(icon(512))).png().toFile(out('icon.png'))
-await sharp(Buffer.from(icon(1024))).png().toFile(out('icon-1024.png'))
-await sharp(Buffer.from(avatar(512, '#F7F4EC'))).png().toFile(out('avatar.png'))
-await sharp(Buffer.from(avatar(512, '#0B1E3A'))).png().toFile(out('avatar-navy.png'))
+// Social share card, 1200x630 — what renders when flaghoist.dev is posted to HN, X, or Slack.
+// Kept in sync with the landing-page hero copy.
+const og = () => `
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#0B1E3A"/>
+  <g fill="#F7F4EC" fill-opacity="0.05">
+    ${Array.from({ length: 13 }, (_, i) => `<rect x="${i * 96}" y="0" width="1" height="630"/>`).join('')}
+    ${Array.from({ length: 7 }, (_, i) => `<rect x="0" y="${i * 96}" width="1200" height="1"/>`).join('')}
+  </g>
+  <g transform="translate(96,150) scale(1.7)">
+    <circle cx="16" cy="9" r="3" fill="#F7F4EC"/>
+    <line x1="16" y1="9" x2="16" y2="57" stroke="#F7F4EC" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="#FF4A1F"/>
+    <path d="M16 31 L40.5 24 L52 32.5 L16 31 Z" fill="#000" fill-opacity="0.16"/>
+  </g>
+  <text x="292" y="212" font-family="Georgia, serif" font-size="76" font-weight="600" fill="#F7F4EC">Flaghoist</text>
+  <text x="96" y="360" font-family="Georgia, serif" font-size="64" font-weight="600" fill="#F7F4EC">Feature flags at <tspan fill="#FF4A1F">the edge.</tspan></text>
+  <text x="96" y="432" font-family="Helvetica, Arial, sans-serif" font-size="30" fill="#B9C2D0">No server. No database. No bill.</text>
+  <text x="96" y="486" font-family="Helvetica, Arial, sans-serif" font-size="30" fill="#B9C2D0">Self-hosted, OpenFeature-native, Apache-2.0.</text>
+  <rect x="96" y="546" width="180" height="4" fill="#FF4A1F"/>
+  <text x="96" y="590" font-family="Courier New, monospace" font-size="24" fill="#8494A8">flaghoist.dev</text>
+</svg>`
+
+await sharp(Buffer.from(icon(512)))
+  .png()
+  .toFile(out('icon.png'))
+await sharp(Buffer.from(icon(1024)))
+  .png()
+  .toFile(out('icon-1024.png'))
+await sharp(Buffer.from(avatar(512, '#F7F4EC')))
+  .png()
+  .toFile(out('avatar.png'))
+await sharp(Buffer.from(avatar(512, '#0B1E3A')))
+  .png()
+  .toFile(out('avatar-navy.png'))
+await sharp(Buffer.from(og())).png().toFile(out('og.png'))
+// The landing page serves it from /og.png.
+await sharp(Buffer.from(og()))
+  .png()
+  .toFile(fileURLToPath(new URL('../apps/web/public/og.png', import.meta.url)))
 
 console.log('Wrote: brand/icon.png (512, transparent), brand/icon-1024.png,')
-console.log('       brand/avatar.png (512, sail), brand/avatar-navy.png (512, navy)')
+console.log('       brand/avatar.png (512, sail), brand/avatar-navy.png (512, navy),')
+console.log('       brand/og.png + apps/web/public/og.png (1200x630 social card)')

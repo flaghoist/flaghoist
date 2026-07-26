@@ -148,3 +148,51 @@ Their `CONTRIBUTING.md` documents how to add Hooks, Providers, and SDKs — but 
 The steps above were derived from the code. Offering a follow-up PR that documents the OFREP API
 path is a cheap, genuinely useful contribution, and a good way to be more than a drive-by listing.
 Keep it as a separate PR so the listing itself stays focused.
+
+---
+
+## Could Flaghoist list in more than one category?
+
+Vendors _can_ appear more than once — Flipt, flagd, ConfigCat and GO Feature Flag are each in both
+`providers/` and `ofrep-api/`. So the question is only whether we honestly qualify. Category by
+category:
+
+| Category               | Verdict             | Why                                                                     |
+| ---------------------- | ------------------- | ----------------------------------------------------------------------- |
+| **OFREP API**          | **Yes — file it**   | We implement the protocol. Small, curated, high-intent list.            |
+| **Providers**          | Not yet — see below | Ours are subclasses of the already-listed generic OFREP provider.       |
+| **Integrations**       | Not yet — see below | Category is tooling _around_ OpenFeature, not flag backends.            |
+| **Hooks**              | No                  | We ship no OpenFeature hook.                                            |
+| **SDKs**               | No                  | That list is OpenFeature's own SDKs.                                    |
+| **Commercial support** | No                  | We have no commercial offering. Revisit if support contracts ever ship. |
+
+Note the OFREP entry already sets a `vendor` field (see `ofrep-api/index.ts`), so Flaghoist is
+listed _as a vendor_ either way — the question is how many surfaces it appears on.
+
+### Providers — the door is open, but there's a real price
+
+Every dual-listed vendor earned it the same way: their provider entries point at packages inside
+OpenFeature's own contrib monorepos (`js-sdk-contrib`, `go-sdk-contrib`, …), and those providers
+speak the vendor's **native** API, which is genuinely distinct from OFREP.
+
+Ours are not that. `@flaghoist/provider-web` is `extends OFREPWebProvider` and
+`@flaghoist/provider-node` is `extends OFREPProvider` — thin convenience wrappers around the
+generic OFREP provider that is _already listed_ at `providers/ofrep.ts`. Submitting them as a
+provider listing invites the fair response: "your users can just use the OFREP provider."
+
+The cost of being absent is real, though: `providers/` is the long, browsable list that feeds the
+landing page, and it is where LaunchDarkly, Flagsmith, Unleash, Flipt and PostHog all appear. Being
+missing from it means being invisible in the comparison people actually scroll.
+
+**The legitimate path** is to contribute an actual `flaghoist` provider to `js-sdk-contrib` and
+list that. Only worth doing if it earns its existence over plain OFREP — e.g. definition caching,
+local evaluation, or streaming updates. Treat it as a post-launch decision, not a launch blocker.
+
+### Integrations — a genuine future fit
+
+Only two entries today (Dropwizard, FlagLint), and FlagLint's description makes the category's shape
+clear: _"Open-source CLI that audits LaunchDarkly Node.js SDK usage and generates safe OpenFeature
+migration plans."_ Tooling around OpenFeature, not a flag backend. Flaghoist itself does not fit.
+
+A **Flaghoist MCP server** — letting coding agents create and toggle flags — plausibly would, and
+the category is nearly empty, so it would be prominent. Worth revisiting if that gets built.

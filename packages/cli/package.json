@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "smol-toml": "^1.7.0"
+    "smol-toml": "^1.7.1"
   },
   "devDependencies": {
     "@flaghoist/adapter-memory": "workspace:*",

@@ -98,7 +98,7 @@ importers:
         version: link:../../packages/server
       '@openfeature/server-sdk':
         specifier: ^1.22.0
-        version: 1.22.0(@openfeature/core@1.11.0)
+        version: 1.22.0(@openfeature/core@1.12.0)
 
   examples/vue:
     dependencies:
@@ -106,8 +106,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/vue
       '@openfeature/web-sdk':
-        specifier: ^1.9.0
-        version: 1.9.0(@openfeature/core@1.11.0)
+        specifier: ^1.10.0
+        version: 1.10.0(@openfeature/core@1.12.0)
       vue:
         specifier: ^3.5.39
         version: 3.5.39(typescript@5.9.3)
@@ -206,21 +206,21 @@ importers:
     dependencies:
       '@openfeature/ofrep-provider':
         specifier: ^0.2.5
-        version: 0.2.5(@openfeature/core@1.11.0)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
+        version: 0.2.5(@openfeature/core@1.12.0)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.12.0))
     devDependencies:
       '@openfeature/server-sdk':
         specifier: ^1.22.0
-        version: 1.22.0(@openfeature/core@1.11.0)
+        version: 1.22.0(@openfeature/core@1.12.0)
 
   packages/providers/web:
     dependencies:
       '@openfeature/ofrep-web-provider':
         specifier: ^0.4.1
-        version: 0.4.1(@openfeature/core@1.11.0)(@openfeature/web-sdk@1.9.0(@openfeature/core@1.11.0))
+        version: 0.4.1(@openfeature/core@1.12.0)(@openfeature/web-sdk@1.10.0(@openfeature/core@1.12.0))
     devDependencies:
       '@openfeature/web-sdk':
-        specifier: ^1.9.0
-        version: 1.9.0(@openfeature/core@1.11.0)
+        specifier: ^1.10.0
+        version: 1.10.0(@openfeature/core@1.12.0)
 
   packages/server:
     dependencies:
@@ -245,8 +245,8 @@ importers:
         version: link:../providers/web
     devDependencies:
       '@openfeature/web-sdk':
-        specifier: ^1.9.0
-        version: 1.9.0(@openfeature/core@1.11.0)
+        specifier: ^1.10.0
+        version: 1.10.0(@openfeature/core@1.12.0)
       vue:
         specifier: ^3.5.39
         version: 3.5.39(typescript@5.9.3)
@@ -1264,8 +1264,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@openfeature/core@1.11.0':
-    resolution: {integrity: sha512-P0u3/ht/oZCQT89fOed+laLk0kZR529a825cS02uPDglxXbE97irWYpDAeRGGVETIzKfuy+H2g8c3Ccv/tXJNQ==}
+  '@openfeature/core@1.12.0':
+    resolution: {integrity: sha512-7PCPzyd1OC19begz30+CRknFB0ChtyaZUhk7YWrk+Bov1fpVw0HYkTXtoxxsvPfDZB9P9WsT7uixN+Z8f9+bcA==}
 
   '@openfeature/ofrep-core@2.2.0':
     resolution: {integrity: sha512-YbeT8mYS4Ggo/JFcYY1IzN0O0UvsCx7RPk1m40TFc4ip0gJdFVpYc5a8WDwZC2v/YqxreJ7NWBDxHxP5SOevsA==}
@@ -1288,10 +1288,10 @@ packages:
     peerDependencies:
       '@openfeature/core': ^1.11.0
 
-  '@openfeature/web-sdk@1.9.0':
-    resolution: {integrity: sha512-FCrNfqvE/thHVfCNU0KKx1SD7rk+1wE2UaR5B5OPZl917QJv6AsKRwaI3N+SVgwXWI07GgtXP6hNlTVb49PGhg==}
+  '@openfeature/web-sdk@1.10.0':
+    resolution: {integrity: sha512-qf+JmJSnaslhegNwoDDLn2Cf72P6cIobuAQPUb61MSkzJOZuVLU6f9pv/90FlLcK6UDtp6od//xZHW712rBrmg==}
     peerDependencies:
-      '@openfeature/core': ^1.11.0
+      '@openfeature/core': ^1.12.0
 
   '@oslojs/encoding@1.1.0':
     resolution: {integrity: sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ==}
@@ -4898,33 +4898,33 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@openfeature/core@1.11.0': {}
+  '@openfeature/core@1.12.0': {}
 
-  '@openfeature/ofrep-core@2.2.0(@openfeature/core@1.11.0)':
+  '@openfeature/ofrep-core@2.2.0(@openfeature/core@1.12.0)':
     dependencies:
-      '@openfeature/core': 1.11.0
+      '@openfeature/core': 1.12.0
 
-  '@openfeature/ofrep-provider@0.2.5(@openfeature/core@1.11.0)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))':
+  '@openfeature/ofrep-provider@0.2.5(@openfeature/core@1.12.0)(@openfeature/server-sdk@1.22.0(@openfeature/core@1.12.0))':
     dependencies:
-      '@openfeature/ofrep-core': 2.2.0(@openfeature/core@1.11.0)
-      '@openfeature/server-sdk': 1.22.0(@openfeature/core@1.11.0)
+      '@openfeature/ofrep-core': 2.2.0(@openfeature/core@1.12.0)
+      '@openfeature/server-sdk': 1.22.0(@openfeature/core@1.12.0)
     transitivePeerDependencies:
       - '@openfeature/core'
 
-  '@openfeature/ofrep-web-provider@0.4.1(@openfeature/core@1.11.0)(@openfeature/web-sdk@1.9.0(@openfeature/core@1.11.0))':
+  '@openfeature/ofrep-web-provider@0.4.1(@openfeature/core@1.12.0)(@openfeature/web-sdk@1.10.0(@openfeature/core@1.12.0))':
     dependencies:
-      '@openfeature/ofrep-core': 2.2.0(@openfeature/core@1.11.0)
-      '@openfeature/web-sdk': 1.9.0(@openfeature/core@1.11.0)
+      '@openfeature/ofrep-core': 2.2.0(@openfeature/core@1.12.0)
+      '@openfeature/web-sdk': 1.10.0(@openfeature/core@1.12.0)
     transitivePeerDependencies:
       - '@openfeature/core'
 
-  '@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0)':
+  '@openfeature/server-sdk@1.22.0(@openfeature/core@1.12.0)':
     dependencies:
-      '@openfeature/core': 1.11.0
+      '@openfeature/core': 1.12.0
 
-  '@openfeature/web-sdk@1.9.0(@openfeature/core@1.11.0)':
+  '@openfeature/web-sdk@1.10.0(@openfeature/core@1.12.0)':
     dependencies:
-      '@openfeature/core': 1.11.0
+      '@openfeature/core': 1.12.0
 
   '@oslojs/encoding@1.1.0': {}
 

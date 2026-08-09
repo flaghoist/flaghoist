@@ -35,11 +35,11 @@
     "@flaghoist/provider-web": "workspace:*"
   },
   "peerDependencies": {
-    "@openfeature/web-sdk": "^1.9.0",
+    "@openfeature/web-sdk": "^1.10.0",
     "vue": "^3.5.0"
   },
   "devDependencies": {
-    "@openfeature/web-sdk": "^1.9.0",
+    "@openfeature/web-sdk": "^1.10.0",
     "vue": "^3.5.39"
   },
   "publishConfig": {

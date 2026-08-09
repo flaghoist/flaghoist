@@ -15,6 +15,14 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    ignore:
+      # TypeScript 7 (the Go compiler rewrite) breaks .d.ts generation in our build toolchain —
+      # tsup/rollup-plugin-dts fails with "Cannot read properties of undefined (reading
+      # 'useCaseSensitiveFileNames')" in core, provider-node, and provider-web. Nothing to fix on
+      # our side; it needs upstream bundler support. Drop this ignore and retry once tsup ships a
+      # TS7-compatible release. Minor and patch updates to TypeScript 5.x still come through.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   # GitHub Actions used in CI/release workflows
   - package-ecosystem: github-actions

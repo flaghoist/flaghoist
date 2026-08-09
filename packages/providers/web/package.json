@@ -32,7 +32,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@openfeature/ofrep-web-provider": "^0.4.1"
+    "@openfeature/ofrep-web-provider": "^0.4.2"
   },
   "peerDependencies": {
     "@openfeature/web-sdk": "^1.10.0"

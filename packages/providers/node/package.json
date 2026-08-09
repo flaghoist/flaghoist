@@ -35,10 +35,10 @@
     "@openfeature/ofrep-provider": "^0.2.5"
   },
   "peerDependencies": {
-    "@openfeature/server-sdk": "^1.22.0"
+    "@openfeature/server-sdk": "^1.23.0"
   },
   "devDependencies": {
-    "@openfeature/server-sdk": "^1.22.0"
+    "@openfeature/server-sdk": "^1.23.0"
   },
   "publishConfig": {
     "access": "public"

@@ -14,6 +14,6 @@
   },
   "dependencies": {
     "@flaghoist/core": "workspace:*",
-    "vitest": "^3.0.2"
+    "vitest": "^4.1.10"
   }
 }

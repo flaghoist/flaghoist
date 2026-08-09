@@ -29,11 +29,15 @@ Decision made: use a **GitHub organization**, not a personal repo — the whole 
 points at the `flaghoist` org (repo URL, `@flaghoist` npm scope, flaghoist.dev). See the rationale
 in chat history.
 
-- [ ] **(you)** Create the GitHub org **`flaghoist`** (you are sole owner).
-- [ ] **(you)** Create the npm org **`flaghoist`** (free for public packages) so `@flaghoist/*` can
-      publish. (Name verified available.)
-- [ ] **(you)** Register **flaghoist.dev** (and **.io** defensively).
-- [ ] **(you)** Create a **Cloudflare** account (Pages for the sites + a demo Worker).
+- [x] **(you)** Create the GitHub org **`flaghoist`** (you are sole owner).
+- [x] **(you)** Create the npm org **`flaghoist`** so `@flaghoist/*` can publish — **and** publish a
+      `flaghoist@0.0.1` placeholder to reserve the unscoped CLI name. Both halves of the namespace
+      are now held.
+- [x] **(you)** Register **flaghoist.dev**, and move its nameservers to Cloudflare. A coming-soon
+      page is deployed there via Cloudflare Pages (direct upload, project `flaghoist-coming-soon`);
+      swap the custom domain to the real `apps/web` project at launch.
+- [x] **(you)** Create a **Cloudflare** account (Pages for the sites + a demo Worker).
+- [ ] **(you)** Register **.io** defensively (optional).
 - [ ] **(you)** Grab social handles: **X / Bluesky** (`@flaghoist` or nearest).
 - [ ] **(you)** Enable **GitHub Discussions** on the repo — one checkbox (Settings → Features),
       zero upkeep. This + Issues is the whole support surface for launch.
@@ -46,9 +50,19 @@ in chat history.
 
 ## Phase 2 — Ship the code
 
-- [ ] Create repo **`flaghoist/flaghoist`** and push `main`.
-- [ ] Turn on **branch protection** for `main` (require CI + review).
-- [ ] Confirm **CI is green** on the pushed repo (`.github/workflows/ci.yml` already exists).
+- [x] Create repo **`flaghoist/flaghoist`** and push `main`. Created **private** deliberately, so CI
+      could run for the first time and the tracker could be seeded before anyone sees it.
+- [x] Confirm **CI is green** on the pushed repo — green on the first run.
+- [x] Clear the **Dependabot backlog** it opened on push: 17 merged (each verified locally through
+      install → format:check → typecheck → build → check:packages → test, not just trusted from the
+      badge), 1 rejected. TypeScript 7 is pinned out in `.github/dependabot.yml` — the Go compiler
+      rewrite breaks `.d.ts` generation in core, provider-node and provider-web.
+- [x] Seed the tracker: 3 new labels, **7 `good first issue`s** (#19–#25), plus #26 and the tracked
+      maintainer TODOs #27–#33.
+- [ ] **Flip the repo to public.** Everything above is deliberately done first.
+- [ ] Turn on **branch protection** for `main` (require CI + review) — do this _after_ the flip, and
+      after any remaining Dependabot merges, or it blocks them.
+- [ ] **(you)** Enable **GitHub Discussions** (Settings → Features) once public.
 - [ ] Add the **`NPM_TOKEN`** secret for the release workflow (`.github/workflows/release.yml`,
       Changesets → npm publish with provenance).
 - [ ] Cut **v0.1.0**: `pnpm changeset` → `pnpm version-packages` → merge → release workflow
@@ -121,26 +135,36 @@ awesome-selfhosted PR → build-in-public thread. Be around to answer for the fi
 
 ## Tracked TODOs → GitHub issues
 
-Create these as issues once the repo is pushed (drafts are ready in chat / the task list):
+All filed on the repo. Kept here as a map so the launch plan and the tracker don't drift.
 
-**Post-go-live product improvements**
+**Maintainer TODOs**
 
-- [ ] **`create-flaghoist` package** — make `npm create flaghoist` work (see Phase 4). (#14)
-- [ ] **Miniflare real-KV adapter test** — a `@cloudflare/vitest-pool-workers` test for
-      `adapter-cloudflare-kv` against a real Miniflare KV binding. (#9)
-- [ ] **Dashboard API: surface server error messages** — parse the JSON error body and show
-      `.error` instead of the raw response text. (#10)
-- [ ] **Dashboard API: normalize failures to `ApiError`** — one error model for network/parse
-      failures, not two. (#11)
-- [ ] **Dashboard: return to the token gate on a mid-session 401** — treat an expired/revoked
-      token as session-over. (#12)
-- [ ] **Flags: concurrency + scale** — optimistic concurrency (ETag/version) for concurrent admin
-      edits, and pagination for `GET /flags`. (#13)
+- [ ] [#27](https://github.com/flaghoist/flaghoist/issues/27) — publish `create-flaghoist` so
+      `npm create flaghoist` works. _Do this before launch;_ the broken command reached the README,
+      the landing page, and the docs independently.
+- [ ] [#28](https://github.com/flaghoist/flaghoist/issues/28) — `@flaghoist/mcp`, the MCP server.
+      Fast-follow a few weeks after launch, as its own moment. Needs `@flaghoist/admin-client`
+      extracted first (the CLI's client is bin-only; the dashboard has a second copy).
+- [ ] [#29](https://github.com/flaghoist/flaghoist/issues/29) — dashboard API: surface the server's
+      `.error` message instead of raw response text.
+- [ ] [#30](https://github.com/flaghoist/flaghoist/issues/30) — dashboard API: normalize every
+      failure to `ApiError`.
+- [ ] [#31](https://github.com/flaghoist/flaghoist/issues/31) — dashboard: return to the token gate
+      on a mid-session 401.
+- [ ] [#32](https://github.com/flaghoist/flaghoist/issues/32) — flags: optimistic concurrency
+      (ETag/version) and pagination for the admin API.
+- [ ] [#33](https://github.com/flaghoist/flaghoist/issues/33) — test `adapter-cloudflare-kv` against
+      a real Miniflare KV binding. Lowest priority; the conformance suite already covers the contract.
 
-**`good first issue` candidates**
+**Seeded for contributors** — the on-ramp that makes the tracker look inhabited on day one, and the
+only real fix for a bus factor of one.
 
-- [ ] Storage adapters we don't ship yet: **DynamoDB, Deno KV, SQLite, MongoDB** — implement the
-      four-method `StorageAdapter` and pass the shared conformance suite.
-- [ ] **OFREP language guides** — using Flaghoist from Go / Python / Java / .NET / PHP / Ruby via
-      each language's official OpenFeature OFREP provider.
-- [ ] A **React example** app (mirrors the Vue example via `@openfeature/react-sdk`).
+- [#19](https://github.com/flaghoist/flaghoist/issues/19) DynamoDB ·
+  [#20](https://github.com/flaghoist/flaghoist/issues/20) SQLite ·
+  [#21](https://github.com/flaghoist/flaghoist/issues/21) Deno KV ·
+  [#22](https://github.com/flaghoist/flaghoist/issues/22) MongoDB — storage adapters, each ~70 lines
+  and validated by the existing conformance suite.
+- [#23](https://github.com/flaghoist/flaghoist/issues/23) Go ·
+  [#24](https://github.com/flaghoist/flaghoist/issues/24) Python — OFREP language guides.
+- [#25](https://github.com/flaghoist/flaghoist/issues/25) — a React example app.
+- [#26](https://github.com/flaghoist/flaghoist/issues/26) — auth recipes per identity provider.

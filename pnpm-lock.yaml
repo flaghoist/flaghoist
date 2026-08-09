@@ -228,8 +228,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       hono:
-        specifier: ^4.6.14
-        version: 4.12.30
+        specifier: ^4.13.0
+        version: 4.13.0
       jose:
         specifier: ^5.9.6
         version: 5.10.0
@@ -2663,8 +2663,8 @@ packages:
   highlight.js@10.7.3:
     resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
 
-  hono@4.12.30:
-    resolution: {integrity: sha512-emn+JoJjrN9YTpRDS5it/UI2SO9BAE37T6I3d963RxcZ81G9A4pr2SZTEiiaiKbzx+NKRg5BZ89fCL7gCJCUog==}
+  hono@4.13.0:
+    resolution: {integrity: sha512-jhunvfHWxd7J5EFfSgH4xsYJzSe/lfqbUCxiyyeaQasUsXeEHXtzVid+7EOGByc5JnFa23SSFL3Y2RV/z1T+eQ==}
     engines: {node: '>=16.9.0'}
 
   html-escaper@3.0.3:
@@ -6804,7 +6804,7 @@ snapshots:
 
   highlight.js@10.7.3: {}
 
-  hono@4.12.30: {}
+  hono@4.13.0: {}
 
   html-escaper@3.0.3: {}
 

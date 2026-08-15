@@ -68,9 +68,8 @@ a UI your PM can use without a deploy.
 
 ```bash
 # 1. Stand up your own flag service (once, for your whole team)
-mkdir team-flags && cd team-flags
-npx flaghoist init --name team-flags     # writes flaghoist.toml — the entire project
-npx flaghoist deploy                     # → https://team-flags.<you>.workers.dev
+npm create flaghoist@latest team-flags   # writes flaghoist.toml — the entire project
+cd team-flags && npx flaghoist deploy    # → https://team-flags.<you>.workers.dev
 ```
 
 Your API, your dashboard at `/admin`, and your storage — one deploy, no code. Want the code
@@ -127,6 +126,7 @@ packages/
     node/               @flaghoist/provider-node — OpenFeature server SDK provider
   vue/                  @flaghoist/vue — useFeatureFlag() composable
   cli/                  flaghoist — scaffold, deploy, and manage flags
+  create-flaghoist/     create-flaghoist — the package behind `npm create flaghoist`
 apps/                   dashboard (Vue), web + docs (Astro)
 examples/               vue, node, worker
 ```

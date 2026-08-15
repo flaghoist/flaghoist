@@ -16,13 +16,13 @@ import {
   DEFAULT_CONFIG,
   parseConfig,
   serializeConfig,
+  STORAGE_KINDS,
   type FlaghoistConfig,
   type StorageKind,
 } from './config'
 import { generatePackageJson, generateWorkerEntry, generateWranglerToml } from './generate'
 
 const VERSION = '0.0.0'
-const STORAGE_KINDS: readonly StorageKind[] = ['cloudflare-kv', 'redis', 'postgres', 'memory']
 
 function writeFileSafe(path: string, content: string): void {
   mkdirSync(dirname(path) || '.', { recursive: true })

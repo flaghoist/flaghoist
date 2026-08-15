@@ -1,0 +1,34 @@
+{
+  "name": "create-flaghoist",
+  "version": "0.0.0",
+  "description": "Scaffold a Flaghoist feature-flag service — the package behind `npm create flaghoist`.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "create-flaghoist": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "flaghoist",
+    "feature-flags",
+    "openfeature",
+    "create",
+    "scaffold"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "flaghoist": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -48,7 +48,7 @@ const lastCol = comparison[0].length - 1
 const steps = [
   {
     title: 'Deploy the service',
-    code: '$ npx flaghoist init\n$ npx flaghoist deploy',
+    code: '$ npm create flaghoist@latest my-flags\n$ npx flaghoist deploy',
     note: 'One config file, one command. Your own Worker + KV, or bring Redis / Postgres.',
   },
   {
@@ -140,9 +140,8 @@ const steps = [
       <div class="terminal">
         <div class="term-bar"><span></span><span></span><span></span></div>
         <pre><code><span class="c"># Stand up your own flag service (once, for your team)</span>
-<span class="p">$</span> mkdir team-flags && cd team-flags
-<span class="p">$</span> npx flaghoist init --name team-flags
-<span class="p">$</span> npx flaghoist deploy
+<span class="p">$</span> npm create flaghoist@latest team-flags
+<span class="p">$</span> cd team-flags && npx flaghoist deploy
   <span class="o">→ https://team-flags.you.workers.dev</span>  <span class="c"># API + admin UI, $0 idle</span></code></pre>
       </div>
     </header>

@@ -67,9 +67,8 @@ in chat history.
       Changesets → npm publish with provenance).
 - [ ] Cut **v0.1.0**: `pnpm changeset` → `pnpm version-packages` → merge → release workflow
       publishes `@flaghoist/*` to npm.
-- [ ] Smoke-test a published install in a clean dir: `npx flaghoist init` → `npx flaghoist deploy`.
-      (Note: there is no `create-flaghoist` package, so `npm create flaghoist` does **not** work —
-      decide before launch whether to publish one, since `npm create` is what people will try.)
+- [ ] Smoke-test a published install in a clean dir:
+      `npm create flaghoist@latest smoke` → `npx flaghoist deploy`.
 
 ---
 
@@ -91,10 +90,8 @@ in chat history.
 - [ ] **Embed the dashboard into the deploy template** so `flaghoist deploy` / `eject` ship the
       admin UI at `/admin` out of the box. The server already supports `config.dashboard`; what's
       missing is wiring the built dashboard HTML into the generated Worker. (Deferred from CP7.)
-- [ ] **Publish a `create-flaghoist` package** so `npm create flaghoist` works. (#14) It resolves to
-      a `create-flaghoist` package that doesn't exist today, so the idiomatic command every
-      Vite/Astro/Next user will instinctively type 404s. A ~20-line wrapper around the existing
-      `flaghoist init`; then update the README quickstart to lead with it.
+- [x] **Publish a `create-flaghoist` package** so `npm create flaghoist` works — built, tested, and
+      wired into the README, docs, and landing page. Ships with v0.1.0. ([#27](https://github.com/flaghoist/flaghoist/issues/27))
 - [ ] **Convert the tracked TODOs to GitHub issues** (once the repo exists) — see the list below.
 - [ ] **Seed `good first issue` labels** — adapters and language guides are ideal (see below).
 - [ ] Decide whether the **Miniflare real-KV test** (#9) is pre- or post-launch (recommended:
@@ -139,9 +136,9 @@ All filed on the repo. Kept here as a map so the launch plan and the tracker don
 
 **Maintainer TODOs**
 
-- [ ] [#27](https://github.com/flaghoist/flaghoist/issues/27) — publish `create-flaghoist` so
-      `npm create flaghoist` works. _Do this before launch;_ the broken command reached the README,
-      the landing page, and the docs independently.
+- [x] [#27](https://github.com/flaghoist/flaghoist/issues/27) — `create-flaghoist`. **Done.** The
+      package exists, the CLI exposes its config helpers so the two cannot drift, and all three
+      docs now lead with `npm create flaghoist@latest`. Releases with v0.1.0.
 - [ ] [#28](https://github.com/flaghoist/flaghoist/issues/28) — `@flaghoist/mcp`, the MCP server.
       Fast-follow a few weeks after launch, as its own moment. Needs `@flaghoist/admin-client`
       extracted first (the CLI's client is bin-only; the dashboard has a second copy).

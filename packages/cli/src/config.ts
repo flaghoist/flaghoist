@@ -16,7 +16,13 @@ export const DEFAULT_CONFIG: FlaghoistConfig = {
   auth: { admin: 'bearer-token', read: 'api-key' },
 }
 
-const STORAGE_KINDS: readonly StorageKind[] = ['cloudflare-kv', 'redis', 'postgres', 'memory']
+/** Every storage backend selectable by name in `flaghoist.toml`. */
+export const STORAGE_KINDS: readonly StorageKind[] = [
+  'cloudflare-kv',
+  'redis',
+  'postgres',
+  'memory',
+]
 
 /** Parse a `flaghoist.toml` into a validated config, falling back to defaults for unknown values. */
 export function parseConfig(text: string): FlaghoistConfig {

@@ -9,11 +9,14 @@ your apps. After the service exists, adding a flag is a one-line CLI call plus a
 ## 1. Stand up the service (once, for your team)
 
 ```bash
-mkdir team-flags && cd team-flags
-npx flaghoist init --name team-flags   # writes flaghoist.toml — the entire project
+npm create flaghoist@latest team-flags   # writes flaghoist.toml — the entire project
+cd team-flags
 npx flaghoist deploy
 # → https://team-flags.you.workers.dev
 ```
+
+Already inside a directory you want to use? `npx flaghoist init` does the same thing without
+creating one. Pick a different backend with `--storage redis|postgres|memory`.
 
 That URL now serves three things at once: the OFREP read API, the admin API, and the dashboard at
 `/admin`. It scales to zero when nobody is reading flags.

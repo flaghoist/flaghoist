@@ -658,9 +658,13 @@ const demoFlags = [
       }
       .hero-grid {
         display: grid;
-        grid-template-columns: 1.02fr 1fr;
+        grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
         gap: clamp(2rem, 5vw, 3.75rem);
         align-items: center;
+      }
+      .hero-copy,
+      .terminal {
+        min-width: 0;
       }
       .eyebrow {
         display: inline-flex;
@@ -1050,7 +1054,8 @@ const demoFlags = [
       .fgrid {
         margin-top: 2.75rem;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+        /* min(270px, 100%) so the track can still collapse on very narrow screens. */
+        grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
         gap: 0;
         border-top: 1px solid var(--line);
         border-left: 1px solid var(--line);
@@ -1149,13 +1154,20 @@ const demoFlags = [
         margin: 2.75rem auto 0;
         max-width: 760px;
         display: grid;
+        /* minmax(0, …) rather than 1fr: grid items default to min-width:auto, so without this
+           the card refuses to shrink below its code block's min-content width and overflows. */
+        grid-template-columns: minmax(0, 1fr);
         gap: 1.4rem;
       }
       .quickstart li {
+        min-width: 0;
         border: 1px solid var(--line);
         border-radius: 13px;
         padding: 1.4rem 1.5rem 1.5rem;
         background: var(--paper);
+      }
+      .step-head > div {
+        min-width: 0;
       }
       .step-head {
         display: flex;
@@ -1180,6 +1192,7 @@ const demoFlags = [
       }
       .quickstart pre {
         margin: 1.1rem 0 0;
+        max-width: 100%;
         background: var(--ink);
         color: #e7ecf3;
         border-radius: 9px;
@@ -1199,7 +1212,7 @@ const demoFlags = [
       /* ── sustainability ────────────────────────────────────── */
       .sustain-grid {
         display: grid;
-        grid-template-columns: 0.92fr 1.08fr;
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
         gap: clamp(2rem, 5vw, 4rem);
         align-items: start;
       }

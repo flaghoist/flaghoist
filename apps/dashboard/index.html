@@ -3,13 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Flaghoist — admin</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
+    <title>Flaghoist admin</title>
+    <meta name="color-scheme" content="light dark" />
+    <!--
+      No external font requests. This console is deployed inside the operator's own infrastructure,
+      and a self-hosted admin UI that fetches assets from a third party on every load undercuts the
+      compliance boundary the product is sold on, and breaks entirely on an egress-restricted or
+      air-gapped network. Fonts are bundled into this single file instead.
+    -->
+    <script>
+      // Apply a stored theme before first paint so a chosen theme never flashes the other one.
+      try {
+        var t = localStorage.getItem('flaghoist.theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch (e) {
+        /* private mode: fall through to the OS preference */
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>

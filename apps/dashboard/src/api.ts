@@ -89,6 +89,26 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
+/**
+ * Pull the server's own explanation out of a failed response. The API answers errors as
+ * `{ error: "..." }`, and showing that beats showing a bare status line the operator cannot act on.
+ * Falls back through raw text to the status text when the body is not the shape we expect.
+ */
+async function errorMessage(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '')
+  if (text) {
+    try {
+      const body = JSON.parse(text) as { error?: unknown; message?: unknown }
+      const detail = body?.error ?? body?.message
+      if (typeof detail === 'string' && detail.trim()) return detail.trim()
+    } catch {
+      /* not JSON: the raw text is still better than nothing */
+    }
+    return text.slice(0, 300)
+  }
+  return res.statusText || 'Request failed.'
+}
+
 export function createApi(url: string, token: string, timeoutMs = DEFAULT_TIMEOUT_MS): Api {
   const base = url.replace(/\/+$/, '')
   const headers = {
@@ -101,19 +121,18 @@ export function createApi(url: string, token: string, timeoutMs = DEFAULT_TIMEOU
     try {
       res = await fetch(base + path, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) })
     } catch (err) {
-      // A timeout/abort becomes a clean ApiError; other failures (DNS, refused, CORS) propagate.
+      // Every failure leaves here as an ApiError, so callers have exactly one error shape to
+      // handle. Previously a timeout became an ApiError while DNS, refused-connection and CORS
+      // failures escaped as raw TypeErrors, and callers quietly handled only the first kind.
       if (
         err instanceof DOMException &&
         (err.name === 'TimeoutError' || err.name === 'AbortError')
       ) {
         throw new ApiError(408, `Request timed out after ${Math.round(timeoutMs / 1000)}s.`)
       }
-      throw err
+      throw new ApiError(0, 'Could not reach the server. Check the URL and its CORS allowlist.')
     }
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new ApiError(res.status, text || res.statusText)
-    }
+    if (!res.ok) throw new ApiError(res.status, await errorMessage(res))
     return res
   }
 

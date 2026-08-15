@@ -16,8 +16,14 @@ const BASE = `http://localhost:${PORT}`
 const out = (f) => fileURLToPath(new URL(`../apps/web/public/${f}`, import.meta.url))
 
 const FLAGS = [
-  ['checkout-v2', { enabled: true, rollout: { percentage: 25 }, description: 'Redesigned checkout flow' }],
-  ['dark-mode', { enabled: true, rollout: { percentage: 100 }, description: 'Dark theme across the app' }],
+  [
+    'checkout-v2',
+    { enabled: true, rollout: { percentage: 25 }, description: 'Redesigned checkout flow' },
+  ],
+  [
+    'dark-mode',
+    { enabled: true, rollout: { percentage: 100 }, description: 'Dark theme across the app' },
+  ],
   [
     'eu-cookie-banner',
     {
@@ -32,8 +38,14 @@ const FLAGS = [
       ],
     },
   ],
-  ['search-rerank', { enabled: true, rollout: { percentage: 50 }, description: 'ML reranking on search results' }],
-  ['pricing-page-q3', { enabled: false, rollout: { percentage: 0 }, description: 'Q3 pricing experiment' }],
+  [
+    'search-rerank',
+    { enabled: true, rollout: { percentage: 50 }, description: 'ML reranking on search results' },
+  ],
+  [
+    'pricing-page-q3',
+    { enabled: false, rollout: { percentage: 0 }, description: 'Q3 pricing experiment' },
+  ],
 ]
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -74,12 +86,15 @@ try {
   }
 
   const browser = await chromium.launch()
-  const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2 })
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 860 },
+    deviceScaleFactor: 2,
+  })
 
   await page.goto(`${BASE}/admin`, { waitUntil: 'networkidle' })
-  // The gate prefills a hardcoded localhost:8787, so set the URL explicitly rather than trusting it.
-  await page.getByPlaceholder('https://team-flags.you.workers.dev').fill(BASE)
-  await page.getByPlaceholder('bearer token').fill(TOKEN)
+  // The gate prefills the origin it is served from, which is already this server, so only the
+  // token needs filling.
+  await page.getByPlaceholder('Bearer token').fill(TOKEN)
   await page.getByRole('button', { name: 'Connect' }).click()
   await page.waitForSelector('text=checkout-v2')
 

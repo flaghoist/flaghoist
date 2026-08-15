@@ -24,6 +24,10 @@ const avatar = (size, bg) =>
 
 // Social share card, 1200x630 — what renders when flaghoist.dev is posted to HN, X, or Slack.
 // Kept in sync with the landing-page hero copy.
+//
+// The brand face is Geist, but the rasteriser only sees fonts installed on the machine, so this
+// falls back to a neutral grotesk. That approximates Geist closely enough at card size; what it
+// must not do is drift back to a serif, which would contradict the type system in brand/README.md.
 const og = () => `
 <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
   <rect width="1200" height="630" fill="#0B1E3A"/>
@@ -43,8 +47,8 @@ const og = () => `
     <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="#FF4A1F"/>
     <path d="M16 31 L40.5 24 L52 32.5 L16 31 Z" fill="#000" fill-opacity="0.16"/>
   </g>
-  <text x="169" y="155" font-family="Georgia, serif" font-size="52" font-weight="600" fill="#F7F4EC">Flaghoist</text>
-  <text x="96" y="330" font-family="Georgia, serif" font-size="68" font-weight="600" fill="#F7F4EC">Feature flags at <tspan fill="#FF4A1F">the edge.</tspan></text>
+  <text x="169" y="155" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="52" font-weight="600" fill="#F7F4EC">Flaghoist</text>
+  <text x="96" y="330" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="68" font-weight="600" fill="#F7F4EC">Feature flags at <tspan fill="#FF4A1F">the edge.</tspan></text>
   <text x="96" y="402" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">No server. No database. No bill.</text>
   <text x="96" y="448" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">Self-hosted, OpenFeature-native, Apache-2.0.</text>
   <rect x="96" y="512" width="180" height="4" fill="#FF4A1F"/>

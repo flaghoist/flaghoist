@@ -4,5 +4,5 @@
   <line x1="16" y1="9" x2="16" y2="57" stroke="#F7F4EC" stroke-width="3.5" stroke-linecap="round" />
   <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="#FF4A1F" />
   <path d="M16 31 L40.5 24 L52 32.5 L16 31 Z" fill="#F7F4EC" fill-opacity="0.18" />
-  <text x="74" y="41" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" letter-spacing="-0.5" fill="#F7F4EC">Flag<tspan fill="#FF4A1F">hoist</tspan></text>
+  <text x="74" y="41" font-family="'Geist Sans', 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="600" letter-spacing="-0.5" fill="#F7F4EC">Flag<tspan fill="#FF4A1F">hoist</tspan></text>
 </svg>

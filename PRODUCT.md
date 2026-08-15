@@ -98,10 +98,10 @@ Binding, and already recorded in `brand/README.md`:
 - **Name and namespace:** GitHub org `flaghoist`, npm scope `@flaghoist` plus the unscoped
   `flaghoist` package, and the domain `flaghoist.dev`.
 
-**Open conflict to resolve:** `brand/README.md` specifies Inter 600 for the wordmark. The landing
-page now sets its type in Geist Sans and Geist Mono, self-hosted. The brand kit is the older
-authority and has not been updated to match, so one of the two still needs to give way. The logo
-mark itself is unaffected; only the wordmark typeface is in question.
+- **Type:** Geist Sans for the wordmark, headings and UI; Geist Mono for code, flag keys and
+  numerals. Self-hosted everywhere, never loaded from a CDN, because the admin console ships inside
+  the operator's own infrastructure. Recorded in `brand/README.md`, and applied across the landing
+  page, the dashboard and the lockup SVGs.
 
 ## Evidence on Hand
 

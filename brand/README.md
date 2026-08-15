@@ -9,12 +9,33 @@ nautical, never kitschy.
 | File            | Use                                                       |
 | --------------- | --------------------------------------------------------- |
 | `icon.svg`      | App icon, favicon source, GitHub org avatar. Square mark. |
+| `icon-mono.svg` | Single-colour mark, inherits `currentColor`.              |
 | `logo.svg`      | Horizontal lockup for light backgrounds.                  |
 | `logo-dark.svg` | Horizontal lockup for dark backgrounds.                   |
 | `banner.svg`    | README / social header (1280×400).                        |
+| `og.png`        | Social share card, 1200×630. Generated, see below.        |
 
-The wordmark uses `Inter` weight 600. In these source SVGs the wordmark is live text; before shipping
-final production assets, outline the text so rendering does not depend on the viewer having Inter.
+`icon-mono.svg` is the same mark with no fill attributes, so it inherits `currentColor`. Use it
+wherever a directory or third party asks for a single-colour logo.
+
+## Type
+
+| Role                      | Face           | Weight   |
+| ------------------------- | -------------- | -------- |
+| Wordmark, headings, UI    | **Geist Sans** | 400, 600 |
+| Code, flag keys, numerals | **Geist Mono** | 400, 500 |
+
+Geist is licensed **OFL-1.1**, so it can be redistributed inside our own builds, and it is
+self-hosted everywhere it is used (via `@fontsource/geist-sans` and `@fontsource/geist-mono`).
+
+Do not load it, or any other face, from a third-party CDN. The admin console ships inside the
+operator's own infrastructure, so a webfont request to someone else's domain breaks air-gapped
+deployments and contradicts the compliance boundary the product is sold on. The console inlines its
+fonts into the single-file bundle for exactly this reason.
+
+In `logo.svg`, `logo-dark.svg` and `banner.svg` the wordmark is live text so it stays editable.
+Outline it before handing those files to anyone outside the project, so rendering never depends on
+the viewer having Geist installed.
 
 ## Palette
 
@@ -34,8 +55,20 @@ final production assets, outline the text so rendering does not depend on the vi
 oversell (a KV kill switch is "within a minute on next load," not "instant"), and we never punch down
 at the tools we're an alternative to.
 
+## Generated assets
+
+The PNGs are built from the SVGs rather than edited by hand, so they cannot drift from the mark:
+
+```bash
+node scripts/gen-brand-png.mjs   # icon.png, icon-1024.png, avatar.png, avatar-navy.png, og.png
+```
+
+`og.png` is written to both `brand/` and `apps/web/public/`. Re-run it after any change to the mark
+or to the landing page's headline, which the card repeats.
+
 ## Don'ts
 
 - Don't recolor the flag away from signal orange — it's the one load-bearing accent.
 - Don't add gradients, bevels, or drop shadows to the mark. It stays flat.
 - Don't stretch the lockup or change the icon-to-wordmark spacing.
+- Don't load fonts from a CDN in anything that ships to an operator. Self-host or inline.

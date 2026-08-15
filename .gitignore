@@ -49,3 +49,6 @@ Desktop.ini
 .vscode/*
 !.vscode/extensions.json
 *.local
+
+# Impeccable local workflow settings (machine-specific)
+.impeccable/config.local.json

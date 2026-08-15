@@ -35,6 +35,7 @@
     "@flaghoist/core": "workspace:*",
     "@flaghoist/server": "workspace:*",
     "@types/node": "^26.1.2",
+    "playwright": "^1.62.1",
     "prettier": "^3.9.6",
     "publint": "^0.3.23",
     "sharp": "^0.35.3",

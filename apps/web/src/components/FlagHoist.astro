@@ -1,0 +1,169 @@
+---
+// The live demo. Every result on screen comes from @flaghoist/core running in the visitor's
+// browser: the same evaluate() cascade, the same SHA-256 sticky bucketing, the same first-match-wins
+// rule ordering that a deployed Flaghoist server runs. Nothing here is simulated.
+//
+// Each visitor is drawn as a signal flag, which is what the product is named for. Raising the
+// rollout raises exactly the flags the real engine selects, and they stay raised as it climbs.
+
+// Forty example visitors, chosen so their REAL sticky buckets land on evenly spaced percentiles
+// (1, 4, 6, 9 ... 99). Nothing about the engine, the hash or the ordering is staged: only which
+// forty visitors are on display is curated, the way any demo dataset is. The effect is that a 25%
+// rollout raises about ten of them, so the demo reads truthfully at a glance instead of looking
+// broken through small-sample variance.
+const BY_BUCKET = [
+  ['u_038113', 'DE'], ['u_04f447', 'US'], ['u_01eef0', 'FR'], ['u_060aae', 'US'],
+  ['u_00d889', 'GB'], ['u_244014', 'ES'], ['u_163bc8', 'US'], ['u_125de8', 'BR'],
+  ['u_024bbd', 'IT'], ['u_1b4efe', 'US'], ['u_04599c', 'NG'], ['u_1b8cdc', 'DE'],
+  ['u_44ff15', 'US'], ['u_2f5df8', 'JP'], ['u_030557', 'FR'], ['u_26e89e', 'US'],
+  ['u_032446', 'CA'], ['u_098bc1', 'ES'], ['u_02e668', 'US'], ['u_02c779', 'IN'],
+  ['u_013556', 'US'], ['u_0c155c', 'IT'], ['u_10eab4', 'AU'], ['u_011667', 'DE'],
+  ['u_079cd1', 'US'], ['u_07f99e', 'NL'], ['u_077de2', 'US'], ['u_05ade1', 'FR'],
+  ['u_0f1ab3', 'SE'], ['u_2899b0', 'US'], ['u_00f778', 'KE'], ['u_0efbc4', 'US'],
+  ['u_133671', 'PL'], ['u_03fccf', 'US'], ['u_055114', 'IT'], ['u_034335', 'MX'],
+  ['u_019223', 'US'], ['u_072115', 'DE'], ['u_182ab8', 'US'], ['u_0b1de4', 'PT'],
+]
+
+// The list above is sorted by bucket, so rendering it in order would stack every raised flag in the
+// first rows and look staged. Deal it across the grid with a stride coprime to the length, which is
+// a pure reordering: the same forty visitors, the same buckets, just not in ascending order.
+const KEYS = Array.from({ length: BY_BUCKET.length }, (_, i) => BY_BUCKET[(i * 17) % BY_BUCKET.length])
+---
+
+<div class="hoistdemo" data-hoist>
+  <div class="hoist-head">
+    <span class="hoist-key">new-checkout</span>
+    <span class="hoist-count"><output data-count>0</output> of 40 raised</span>
+  </div>
+
+  <!-- The hoist. One flag per visitor; raised means the engine returned true for them. -->
+  <div class="hoist-grid" role="img" aria-labelledby="hoist-summary">
+    {
+      KEYS.map(([key, country]) => (
+        <span class="fl" data-key={key} data-country={country} title={`${key} · ${country}`}>
+          <svg viewBox="0 0 34 30" aria-hidden="true">
+            <rect class="fl-pole" x="1.1" y="0" width="2.2" height="30" rx="1.1" />
+            <path class="fl-cloth" d="M3 2.5 L31 4.4 L22 11 L31 17.6 L3 16.1 Z" />
+          </svg>
+        </span>
+      ))
+    }
+  </div>
+  <p class="sr-only" id="hoist-summary" data-summary></p>
+
+  <div class="hoist-controls">
+    <label class="ctl ctl-switch">
+      <span>Flag</span>
+      <button type="button" class="sw" data-enabled aria-pressed="true">
+        <span></span>
+      </button>
+    </label>
+
+    <label class="ctl ctl-range">
+      <span>Rollout <output data-pct>25</output>%</span>
+      <input type="range" min="0" max="100" step="1" value="25" data-rollout aria-label="Rollout percentage" />
+    </label>
+
+    <label class="ctl ctl-switch">
+      <span>Rule: EU always on</span>
+      <button type="button" class="sw" data-rule aria-pressed="false">
+        <span></span>
+      </button>
+    </label>
+  </div>
+
+  <p class="hoist-note" data-note>Drag the rollout. The same visitors stay raised as it climbs.</p>
+</div>
+
+<script>
+  import { createFlag, evaluate, type FeatureFlag } from '@flaghoist/core'
+
+  const EU = ['DE', 'FR', 'ES', 'IT', 'NL', 'SE', 'PL', 'PT']
+
+  document.querySelectorAll<HTMLElement>('[data-hoist]').forEach((root) => {
+    const flags = Array.from(root.querySelectorAll<HTMLElement>('.fl'))
+    const enabledBtn = root.querySelector<HTMLButtonElement>('[data-enabled]')!
+    const ruleBtn = root.querySelector<HTMLButtonElement>('[data-rule]')!
+    const range = root.querySelector<HTMLInputElement>('[data-rollout]')!
+    const pctOut = root.querySelector<HTMLOutputElement>('[data-pct]')!
+    const countOut = root.querySelector<HTMLOutputElement>('[data-count]')!
+    const summary = root.querySelector<HTMLElement>('[data-summary]')!
+    const note = root.querySelector<HTMLElement>('[data-note]')!
+
+    const people = flags.map((el) => ({
+      el,
+      targetingKey: el.dataset.key!,
+      country: el.dataset.country!,
+    }))
+
+    let enabled = true
+    let ruleOn = false
+    let run = 0
+
+    const build = (): FeatureFlag =>
+      createFlag({
+        key: 'new-checkout',
+        enabled,
+        rollout: { percentage: Number(range.value) },
+        description: 'Redesigned checkout flow',
+        rules: ruleOn
+          ? [
+              {
+                conditions: [{ attribute: 'country', operator: 'in', value: EU }],
+                result: { enabled: true, rollout: { percentage: 100 } },
+              },
+            ]
+          : [],
+      })
+
+    async function paint() {
+      const token = ++run
+      const flag = build()
+
+      // The real cascade, once per visitor, exactly as a deployed server would run it.
+      const results = await Promise.all(
+        people.map((p) => evaluate(flag, { targetingKey: p.targetingKey, country: p.country })),
+      )
+      if (token !== run) return // a newer drag superseded this pass
+
+      let raised = 0
+      results.forEach((r, i) => {
+        const on = r.value === true
+        if (on) raised++
+        people[i].el.classList.toggle('up', on)
+        // TARGETING_MATCH means a rule decided it, not the default rollout.
+        people[i].el.classList.toggle('by-rule', on && r.reason === 'TARGETING_MATCH')
+      })
+
+      countOut.textContent = String(raised)
+      pctOut.textContent = range.value
+      summary.textContent = `${raised} of 40 visitors currently receive the new-checkout flag.`
+      note.textContent = !enabled
+        ? 'Flag off. Nobody sees it, whatever the rollout says.'
+        : ruleOn
+          ? 'Rules win over the default rollout. EU visitors are raised regardless of the percentage.'
+          : 'Drag the rollout. The same visitors stay raised as it climbs.'
+    }
+
+    const press = (btn: HTMLButtonElement, next: boolean) => {
+      btn.setAttribute('aria-pressed', String(next))
+      btn.classList.toggle('on', next)
+    }
+
+    enabledBtn.addEventListener('click', () => {
+      enabled = !enabled
+      press(enabledBtn, enabled)
+      root.classList.toggle('is-off', !enabled)
+      void paint()
+    })
+    ruleBtn.addEventListener('click', () => {
+      ruleOn = !ruleOn
+      press(ruleBtn, ruleOn)
+      void paint()
+    })
+    range.addEventListener('input', () => void paint())
+
+    press(enabledBtn, true)
+    void paint()
+  })
+</script>

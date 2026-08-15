@@ -1,61 +1,74 @@
 ---
+// Self-hosted Geist. No Google Fonts link: Astro bundles and hashes these at build time.
+import '@fontsource/geist-sans/400.css'
+import '@fontsource/geist-sans/500.css'
+import '@fontsource/geist-sans/600.css'
+import '@fontsource/geist-mono/400.css'
+import '@fontsource/geist-mono/500.css'
+import FlagHoist from '../components/FlagHoist.astro'
+// Icons from Phosphor rather than hand-drawn paths. Imported raw so they inline with no runtime.
+import sunIcon from '@phosphor-icons/core/assets/regular/sun.svg?raw'
+import moonIcon from '@phosphor-icons/core/assets/regular/moon.svg?raw'
+
 const languages = ['Go', 'Java', 'Python', '.NET', 'PHP', 'Ruby', 'Rust', 'JavaScript']
 
 const features = [
   {
-    n: '01',
-    title: '$0 idle',
-    body: 'Runs on the Cloudflare free tier and scales to zero. No always-on server, no database bill, no subscription.',
+    title: 'Nothing runs when nothing asks',
+    body: 'Scale-to-zero on the Cloudflare free tier. No always-on process, no database instance, no monthly floor.',
   },
   {
-    n: '02',
-    title: 'OpenFeature-native',
-    body: 'Speaks OFREP, so Go, Java, Python and .NET work on day one through their standard providers — no SDK from us.',
+    title: 'Every language, on day one',
+    body: 'The read path implements OFREP, so Go, Java, Python and .NET work through their own OpenFeature providers. We ship no SDKs.',
   },
   {
-    n: '03',
-    title: 'Bring your own DB',
-    body: 'A storage adapter is four methods. Cloudflare KV, Redis and Postgres ship today; write your own against the conformance suite.',
+    title: 'Point it at your database',
+    body: 'A storage adapter is four methods. Cloudflare KV, Redis and Postgres ship today, and a conformance suite proves any adapter you write.',
   },
   {
-    n: '04',
-    title: 'Targeting from day one',
-    body: 'Boolean flags, sticky SHA-256 rollouts that never reshuffle users, and ordered targeting rules with a visual builder.',
+    title: 'Targeting that holds still',
+    body: 'Sticky SHA-256 rollouts keep the same users in the same bucket across deploys. Ordered rules, first match wins.',
   },
   {
-    n: '05',
-    title: 'A dashboard in the box',
-    body: 'One deploy gives you the read API, the admin API, and a management UI at /admin. No second service to run.',
+    title: 'One deploy, API and UI',
+    body: 'The read API, the admin API and the dashboard all come up together at one URL. There is no second service to operate.',
   },
   {
-    n: '06',
-    title: 'Your data, your account',
-    body: 'Flags live inside your infrastructure and your compliance boundary. Swap providers with a one-line change.',
+    title: 'Inside your boundary',
+    body: 'Flags live in your account and your compliance perimeter. Swapping to another provider is a one-line change.',
   },
 ]
 
 const comparison = [
   ['', 'LaunchDarkly', 'Flagsmith / Unleash', 'PostHog', 'flagd', 'Flaghoist'],
   ['Deployment', 'SaaS', 'Server + Postgres', 'SaaS or server + DB', 'Sidecar per pod', 'Serverless, or any runtime'],
-  ['Idle cost', 'Subscription', 'Always-on server + DB', 'Free tier, then usage', 'A sidecar per pod', '$0 (scale-to-zero)'],
+  ['Idle cost', 'Subscription', 'Always-on server + DB', 'Free tier, then usage', 'A sidecar per pod', '$0, scale-to-zero'],
   ['Management UI', 'Yes', 'Yes', 'Yes', 'No', 'Yes, self-hosted'],
   ['Protocol', 'Proprietary SDK', 'OF providers', 'Own SDK', 'OpenFeature-native', 'OpenFeature + OFREP'],
   ['Your data lives', 'Their cloud', 'Your DB', 'Their cloud', 'Files', 'Your DB, your account'],
-  ['Multivariate flags', 'Yes', 'Yes', 'Yes', 'Yes', 'Not yet — boolean only'],
-  ['Experiments / A-B', 'Yes', 'Yes', 'Yes', 'No', 'No — bring your own analytics'],
+  ['Multivariate flags', 'Yes', 'Yes', 'Yes', 'Yes', 'Not yet, boolean only'],
+  ['Experiments / A-B', 'Yes', 'Yes', 'Yes', 'No', 'No, bring your own analytics'],
   ['Maturity', 'Mature', 'Mature', 'Mature', 'CNCF', 'Pre-alpha, one maintainer'],
 ]
 
-// Rows where Flaghoist loses today. Rendered muted rather than highlighted — an honest table only
-// works if the reader can tell wins from caveats at a glance.
 const caveatRows = new Set(['Multivariate flags', 'Experiments / A-B', 'Maturity'])
 const lastCol = comparison[0].length - 1
 
+// Code samples are assembled to HTML here rather than with JSX inside <pre>, because JSX source
+// indentation becomes real text nodes and <pre> preserves every one of them.
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const renderLines = (lines: { p: string; code: string; out?: boolean }[]): string =>
+  lines
+    .map((l) => {
+      const prompt = l.p ? `<span class="${l.out ? 'o' : 'p'}">${esc(l.p)} </span>` : ''
+      return prompt + (l.out ? `<span class="o">${esc(l.code)}</span>` : esc(l.code))
+    })
+    .join('\n')
+
 const steps = [
   {
-    n: '01',
     title: 'Deploy the service',
-    note: 'One config file, one command. Your own Worker + KV — or bring Redis, Postgres, or an adapter you wrote.',
+    note: 'One config file, one command. Your own Worker and KV, or bring Redis, Postgres, or an adapter you wrote.',
     lines: [
       { p: '$', code: 'npm create flaghoist@latest team-flags' },
       { p: '$', code: 'cd team-flags && npx flaghoist deploy' },
@@ -63,15 +76,13 @@ const steps = [
     ],
   },
   {
-    n: '02',
     title: 'Install a client',
-    note: "JavaScript shown. In Go, Python, Java or .NET, install your language's official OFREP provider instead — there is nothing Flaghoist-specific to add.",
+    note: "JavaScript shown. In Go, Python, Java or .NET, install your language's official OFREP provider instead. There is nothing Flaghoist-specific to add.",
     lines: [{ p: '$', code: 'npm i @openfeature/web-sdk @flaghoist/vue' }],
   },
   {
-    n: '03',
     title: 'Register the provider once',
-    note: 'Wire it at startup and your application code never mentions Flaghoist again — it only ever talks to OpenFeature.',
+    note: 'Wire it at startup and your application code never mentions Flaghoist again. It only ever talks to OpenFeature.',
     lines: [
       { p: '', code: 'await OpenFeature.setProviderAndWait(' },
       { p: '', code: '  new FlaghoistProvider({ url, apiKey }),' },
@@ -79,33 +90,17 @@ const steps = [
     ],
   },
   {
-    n: '04',
     title: 'Read a flag',
-    note: 'Then toggle it, roll it out to 25%, or target a cohort — from the dashboard or the CLI, with no deploy.',
+    note: 'Then toggle it, roll it to 25%, or target a cohort. From the dashboard or the CLI, with no deploy.',
     lines: [{ p: '', code: "const newCheckout = useFeatureFlag('new-checkout')" }],
   },
 ]
 
-// Code samples are assembled to an HTML string here rather than with JSX inside <pre>, because
-// JSX source indentation becomes real text nodes and <pre> preserves every one of them — which
-// silently indents every line of every sample.
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const renderLines = (lines: { p: string; code: string; out?: boolean }[]): string =>
-  lines
-    .map((l) => {
-      const cls = l.out ? 'o' : 'p'
-      const prompt = l.p ? `<span class="${cls}">${esc(l.p)} </span>` : ''
-      return prompt + (l.out ? `<span class="o">${esc(l.code)}</span>` : esc(l.code))
-    })
-    .join('\n')
-
-// Mirrors the real admin UI served at /admin, rebuilt in markup so it stays crisp at any DPI and
-// cannot fall out of sync with a stale PNG. Swap for the demo GIF once that is recorded.
-const demoFlags = [
-  { key: 'checkout-v2', state: 'on', badge: '25%', desc: 'Redesigned checkout flow', pct: 25 },
-  { key: 'eu-cookie-banner', state: 'on', badge: 'ON', desc: 'Consent banner for EU visitors', pct: 100, rule: '1 rule' },
-  { key: 'search-rerank', state: 'on', badge: '50%', desc: 'ML reranking on search results', pct: 50 },
-  { key: 'pricing-page-q3', state: 'off', badge: 'DISABLED', desc: 'Q3 pricing experiment', pct: 0 },
+const sustain = [
+  ['Apache-2.0', 'Anyone can fork it and keep it alive. No CLA, no rug-pull clause.'],
+  ['Your flags, your storage', "Your KV, your Redis, your Postgres. This project's health never touches your data."],
+  ['An open protocol', 'The API is OFREP. To leave, point the same OpenFeature providers elsewhere. No rewrite.'],
+  ['Eject whenever', 'flaghoist eject hands you a self-contained TypeScript project you own outright.'],
 ]
 ---
 
@@ -114,19 +109,18 @@ const demoFlags = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Flaghoist — feature flags at the edge</title>
+    <title>Flaghoist: feature flags at the edge</title>
     <meta
       name="description"
-      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill — and every language with an OpenFeature SDK works on day one."
+      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill, and every language with an OpenFeature SDK works on day one."
     />
     <link rel="canonical" href="https://flaghoist.dev/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- Social share cards. Without these, a link posted to HN/X/Slack renders as bare text. -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://flaghoist.dev/" />
     <meta property="og:site_name" content="Flaghoist" />
-    <meta property="og:title" content="Flaghoist — feature flags at the edge" />
+    <meta property="og:title" content="Flaghoist: feature flags at the edge" />
     <meta
       property="og:description"
       content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill."
@@ -135,28 +129,60 @@ const demoFlags = [
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Flaghoist — feature flags at the edge" />
+    <meta name="twitter:title" content="Flaghoist: feature flags at the edge" />
     <meta
       name="twitter:description"
       content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill."
     />
     <meta name="twitter:image" content="https://flaghoist.dev/og.png" />
-    <meta name="theme-color" content="#0B1E3A" />
+    <meta name="theme-color" content="#f7f4ec" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#071426" media="(prefers-color-scheme: dark)" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,600&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
-      rel="stylesheet"
+    <script is:inline>
+      // Apply a stored theme choice before first paint, so a reader who picked light never sees a
+      // dark flash on the way in. No stored choice means no attribute, and the page follows the OS.
+      try {
+        const saved = localStorage.getItem('flaghoist-theme')
+        if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved
+      } catch {
+        /* private mode: fall through to the system preference */
+      }
+    </script>
+
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'Flaghoist',
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Cloudflare Workers, Node.js, Bun, Deno',
+        url: 'https://flaghoist.dev/',
+        description:
+          'Open-source, OpenFeature-native feature flags you self-host. No server, no database, no bill.',
+        license: 'https://www.apache.org/licenses/LICENSE-2.0',
+        isAccessibleForFree: true,
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      })}
     />
   </head>
 
   <body>
+    <script is:inline>
+      // Gate the reveal animation on JS being alive. Without this the opacity:0 start state lives in
+      // CSS, so a reader with JS disabled or a failed bundle gets a blank page, and the hero H1
+      // starts invisible for LCP. Reduced-motion readers never opt in at all.
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('reveal-ready')
+      }
+    </script>
+
+    <div class="grain" aria-hidden="true"></div>
     <a class="skip" href="#main">Skip to content</a>
 
     <nav class="topnav">
       <a class="brand" href="/">
-        <svg width="24" height="24" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 64 64" fill="none" aria-hidden="true">
           <circle cx="16" cy="9" r="3" fill="currentColor"></circle>
           <rect x="14.25" y="9" width="3.5" height="48" rx="1.75" fill="currentColor"></rect>
           <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="var(--signal)"></path>
@@ -164,6 +190,10 @@ const demoFlags = [
         <span>Flag<span class="accent">hoist</span></span>
       </a>
       <div class="nav-links">
+        <button type="button" class="theme-btn" data-theme-toggle aria-label="Switch theme">
+          <span class="i-sun" set:html={sunIcon} />
+          <span class="i-moon" set:html={moonIcon} />
+        </button>
         <a href="https://docs.flaghoist.dev">Docs</a>
         <a class="nav-gh" href="https://github.com/flaghoist/flaghoist">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -177,135 +207,69 @@ const demoFlags = [
     </nav>
 
     <main id="main">
-      <!-- ── Hero: asymmetric, so the terminal shares the fold instead of falling below it ── -->
       <header class="hero">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <p class="eyebrow"><span class="pip"></span>Open source · Apache-2.0 · OpenFeature-native</p>
-            <h1>Feature flags<br />at <span class="accent">the edge.</span></h1>
-            <p class="lede">
-              No server. No database. No bill. Self-host your own flag service in five minutes — and
-              use it from every language with an OpenFeature SDK, on day one.
+            <p class="eyebrow" data-reveal>Open source, Apache-2.0</p>
+            <h1 data-reveal>Feature flags<br />at <span class="accent">the edge.</span></h1>
+            <p class="lede" data-reveal>
+              No server. No database. No bill. Self-host your flag service in five minutes, and drive
+              it from any OpenFeature SDK.
             </p>
-            <div class="cta">
+            <div class="cta" data-reveal>
               <a href="https://github.com/flaghoist/flaghoist" class="btn btn-primary">Get started</a>
               <a href="https://docs.flaghoist.dev" class="btn btn-ghost">Read the docs</a>
             </div>
-            <p class="hero-fine">Free forever on the Cloudflare free tier. No account with us — there is no us.</p>
           </div>
 
-          <div class="terminal" role="img" aria-label="Terminal: npm create flaghoist@latest team-flags, then cd team-flags and npx flaghoist deploy, which prints the deployed URL.">
-            <div class="term-bar"><span></span><span></span><span></span><em>bash</em></div>
-            <pre><code><span class="c"># Stand up your own flag service — once, for your team</span>
-<span class="p">$</span> npm create flaghoist@latest team-flags
-<span class="p">$</span> cd team-flags && npx flaghoist deploy
-
-<span class="c"># Deploying to Cloudflare Workers…</span>
-<span class="o">✓ https://team-flags.you.workers.dev</span>
-  <span class="c">read API · admin API · dashboard at /admin</span></code></pre>
-        </div>
+          <div data-reveal>
+            <FlagHoist />
+          </div>
         </div>
       </header>
 
-      <!-- ── Language strip: the OFREP payoff, stated once, quietly ── -->
+
       <section class="langs">
         <div class="wrap">
-          <p>Works today with every language that has an OpenFeature provider — no SDK from us:</p>
+          <p>Works today with every language that has an OpenFeature provider:</p>
           <ul>{languages.map((l) => <li>{l}</li>)}</ul>
         </div>
       </section>
 
-      <!-- ── Product proof: a dark band so the light UI floats off the page ── -->
       <section class="showcase">
-        <div class="wrap">
-          <div class="showcase-head">
+        <div class="wrap showcase-grid">
+          <figure class="shot" data-reveal>
+            <img
+              src="/shot-rules.png"
+              width="2560"
+              height="1720"
+              loading="lazy"
+              decoding="async"
+              alt="The Flaghoist rule builder, showing a targeting rule that serves the EU cookie banner to visitors whose country is DE, FR, ES or IT."
+            />
+          </figure>
+          <div class="showcase-copy" data-reveal>
             <h2>The dashboard ships <em>with the server.</em></h2>
             <p>
-              One deploy gives you the OFREP read API, the admin API, and this — served at
+              One deploy brings up the OFREP read API, the admin API and this, at
               <code>/admin</code>, inside your own infrastructure. There is no second service to run
-              and no SaaS console to log into.
+              and no vendor console to log into.
+            </p>
+            <p>
+              The rule you just built in the hero is the same rule shape this editor writes, evaluated
+              by the same engine.
             </p>
           </div>
-
-          <div class="screen" aria-hidden="true">
-            <div class="screen-chrome">
-              <span></span><span></span><span></span>
-              <div class="screen-url">team-flags.you.workers.dev/admin</div>
-            </div>
-
-            <div class="app">
-              <div class="app-bar">
-                <div class="app-brand">
-                  <svg width="15" height="15" viewBox="0 0 64 64" fill="none">
-                    <circle cx="16" cy="9" r="3" fill="var(--ink)"></circle>
-                    <rect x="14.25" y="9" width="3.5" height="48" rx="1.75" fill="var(--ink)"></rect>
-                    <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="var(--signal)"></path>
-                  </svg>
-                  <strong>Flag<span class="accent">hoist</span></strong>
-                  <span class="chip-admin">ADMIN</span>
-                </div>
-                <div class="app-actions">
-                  <span class="app-btn app-btn-primary">+ New flag</span>
-                </div>
-              </div>
-
-              <!-- Signal-flag bunting, as on the real dashboard. The viewBox is wide so the
-                   pattern tiles at roughly its natural size instead of being stretched. -->
-              <svg class="bunting" viewBox="0 0 1200 9" preserveAspectRatio="none" aria-hidden="true">
-                <defs>
-                  <pattern id="bunt" width="33" height="9" patternUnits="userSpaceOnUse">
-                    <polygon points="0,0 11,0 5.5,8.5" fill="#0B1E3A"></polygon>
-                    <polygon points="11,0 22,0 16.5,8.5" fill="#FF4A1F"></polygon>
-                    <polygon points="22,0 33,0 27.5,8.5" fill="#1D9E75"></polygon>
-                  </pattern>
-                </defs>
-                <rect width="1200" height="9" fill="url(#bunt)"></rect>
-              </svg>
-
-              <div class="app-body">
-                {
-                  demoFlags.map((f) => (
-                    <article class="flagrow">
-                      <div class="flagrow-main">
-                        <div class="flagrow-top">
-                          <code>{f.key}</code>
-                          <span class={`chip chip-${f.state}`}>{f.badge}</span>
-                          {f.rule && <span class="chip-rule">• {f.rule}</span>}
-                        </div>
-                        <p>{f.desc}</p>
-                        <div class="slider">
-                          <div class="track">
-                            <div class="fill" style={`width:${f.pct}%`} />
-                            <div class="knob" style={`left:${f.pct}%`} />
-                          </div>
-                          <span class="pct">{f.pct}%</span>
-                        </div>
-                      </div>
-                      <div class={`toggle ${f.state === 'on' ? 'is-on' : ''}`}>
-                        <span />
-                      </div>
-                    </article>
-                  ))
-                }
-              </div>
-            </div>
-          </div>
-
-          <p class="showcase-fine">
-            Toggle, set a rollout percentage, or build a targeting rule — no deploy, no code change.
-          </p>
         </div>
       </section>
 
-      <!-- ── Features: hairline grid, not cards. Numbers carry the structure ── -->
       <section class="features">
         <div class="wrap">
-          <h2 class="section-title">Built to be owned, not rented.</h2>
+          <h2 class="section-title" data-reveal>Built to be owned, not rented.</h2>
           <div class="fgrid">
             {
               features.map((f) => (
-                <article>
-                  <span class="fnum">{f.n}</span>
+                <article data-reveal>
                   <h3>{f.title}</h3>
                   <p>{f.body}</p>
                 </article>
@@ -315,12 +279,13 @@ const demoFlags = [
         </div>
       </section>
 
-      <!-- ── Comparison ── -->
       <section class="compare">
         <div class="wrap">
-          <h2 class="section-title">Why not just use X?</h2>
-          <p class="section-sub">An honest table — including the rows where Flaghoist loses today.</p>
-          <div class="table-wrap">
+          <h2 class="section-title" data-reveal>Why not just use X?</h2>
+          <p class="section-sub" data-reveal>
+            An honest table, including the rows where Flaghoist loses today.
+          </p>
+          <div class="table-wrap" data-reveal>
             <table>
               <thead>
                 <tr>{comparison[0].map((h, i) => <th class={i === lastCol ? 'us' : ''}>{h}</th>)}</tr>
@@ -344,29 +309,25 @@ const demoFlags = [
               </tbody>
             </table>
           </div>
-          <p class="build-it">
-            <strong>Why not just build it yourself?</strong> You can — a JSON blob in object storage gets
-            you 60% of the way. The other 40% is what's here: sticky SHA-256 rollouts that don't reshuffle
-            users on every deploy, ordered targeting rules, OFREP conformance so every OpenFeature SDK
-            works unmodified, an audit trail, and a UI your PM can use without a deploy.
+          <p class="build-it" data-reveal>
+            <strong>Why not just build it yourself?</strong> You can. A JSON blob in object storage gets
+            you 60% of the way. The other 40% is what is here: sticky SHA-256 rollouts that do not
+            reshuffle users on every deploy, ordered targeting rules, OFREP conformance so every
+            OpenFeature SDK works unmodified, an audit trail, and a UI your PM can use without a deploy.
           </p>
         </div>
       </section>
 
-      <!-- ── Quickstart: stepped rows. Full-width code, so nothing clips ── -->
       <section class="quickstart">
         <div class="wrap">
-          <h2 class="section-title">Five minutes, start to flag.</h2>
+          <h2 class="section-title" data-reveal>Five minutes, start to flag.</h2>
           <ol>
             {
               steps.map((s) => (
-                <li>
+                <li data-reveal>
                   <div class="step-head">
-                    <span class="step-n">{s.n}</span>
-                    <div>
-                      <h3>{s.title}</h3>
-                      <p>{s.note}</p>
-                    </div>
+                    <h3>{s.title}</h3>
+                    <p>{s.note}</p>
                   </div>
                   <pre><code set:html={renderLines(s.lines)} /></pre>
                 </li>
@@ -376,51 +337,41 @@ const demoFlags = [
         </div>
       </section>
 
-      <!-- ── Sustainability: asymmetric, quieter than the rest ── -->
       <section class="sustain">
         <div class="wrap sustain-grid">
-          <div class="sustain-lead">
-            <h2>Built by one person.<br /><em>Here's why that's safe.</em></h2>
+          <div class="sustain-lead" data-reveal>
+            <h2>Built by one person.<br /><em>Here is why that is safe.</em></h2>
             <p>
-              Weighing a single-maintainer project before you adopt it is fair. So here is exactly what
-              it means for you — and why it matters less here than it would elsewhere.
+              Weighing a single-maintainer project before you adopt it is fair. Here is exactly what it
+              means for you, and why it matters less here than it would elsewhere.
             </p>
           </div>
           <dl class="sustain-list">
-            <div>
-              <dt>Apache-2.0</dt>
-              <dd>Anyone can fork it and keep it alive. No CLA, no rug-pull clause.</dd>
-            </div>
-            <div>
-              <dt>Your flags, your storage</dt>
-              <dd>Your KV, your Redis, your Postgres. This project's health never touches your data.</dd>
-            </div>
-            <div>
-              <dt>An open protocol</dt>
-              <dd>The API is OFREP. To leave, point the same OpenFeature providers elsewhere — no rewrite.</dd>
-            </div>
-            <div>
-              <dt>Eject whenever</dt>
-              <dd><code>flaghoist eject</code> hands you a self-contained TypeScript project you own outright.</dd>
-            </div>
+            {
+              sustain.map(([term, def]) => (
+                <div data-reveal>
+                  <dt>{term}</dt>
+                  <dd>{def}</dd>
+                </div>
+              ))
+            }
           </dl>
         </div>
-        <p class="sustain-note wrap">
-          If this project stalled tomorrow, you'd keep running exactly what you're running today.
-          That's deliberate — it's the whole point of self-hosting on open protocols.
+        <p class="sustain-note wrap" data-reveal>
+          If this project stalled tomorrow, you would keep running exactly what you are running today.
+          That is deliberate. It is the whole point of self-hosting on open protocols.
         </p>
       </section>
 
-      <!-- ── Close ── -->
+
       <section class="final-cta">
         <div class="wrap">
-          <h2>Own your flags.</h2>
-          <p>Self-host it, read it, fork it. Never pay per seat for a toggle again.</p>
-          <div class="cta">
-            <a href="https://github.com/flaghoist/flaghoist" class="btn btn-primary btn-lg">Star it on GitHub</a>
-            <a href="https://docs.flaghoist.dev" class="btn btn-quiet btn-lg">Read the docs</a>
+          <h2 data-reveal>Own your flags.</h2>
+          <p data-reveal>Self-host it, read it, fork it. Never pay per seat for a toggle again.</p>
+          <div class="cta" data-reveal>
+            <a href="https://github.com/flaghoist/flaghoist" class="btn btn-primary btn-lg">Get started</a>
           </div>
-          <pre class="final-cmd"><code><span class="p">$</span> npm create flaghoist@latest team-flags</code></pre>
+          <pre class="final-cmd" data-reveal><code><span class="p">$</span> npm create flaghoist@latest team-flags</code></pre>
         </div>
       </section>
     </main>
@@ -440,51 +391,73 @@ const demoFlags = [
         </div>
         <nav class="foot-links" aria-label="Footer">
           <div>
-            <h4>Project</h4>
+            <h3>Project</h3>
             <a href="https://github.com/flaghoist/flaghoist">GitHub</a>
             <a href="https://github.com/flaghoist/flaghoist/issues">Issues</a>
             <a href="https://github.com/flaghoist/flaghoist/blob/main/LICENSE">License</a>
           </div>
           <div>
-            <h4>Docs</h4>
+            <h3>Docs</h3>
             <a href="https://docs.flaghoist.dev/quickstart/">Quickstart</a>
             <a href="https://docs.flaghoist.dev/self-hosting/">Self-hosting</a>
             <a href="https://docs.flaghoist.dev/api-reference/">API reference</a>
           </div>
           <div>
-            <h4>Standards</h4>
+            <h3>Standards</h3>
             <a href="https://openfeature.dev">OpenFeature</a>
             <a href="https://openfeature.dev/specification/appendix-c">OFREP spec</a>
           </div>
         </nav>
       </div>
       <div class="wrap foot-fine">
-        <p>Apache-2.0 · © Damilola Oluwafemi and the Flaghoist contributors</p>
+        <p>Apache-2.0. Copyright Damilola Oluwafemi and the Flaghoist contributors.</p>
         <p>Not affiliated with or endorsed by the OpenFeature project or the CNCF.</p>
       </div>
     </footer>
 
     <style is:global>
+      /* ── tokens: dark is the default, light is the variant ──────
+         One radius system: --r-sm controls, --r-md surfaces, --r-pill capsules. */
       :root {
-        --ink: #0b1e3a;
-        --ink-2: #17335c;
-        --ink-deep: #081729;
+        /* Both themes live in one token list via light-dark(). `color-scheme` decides which half
+           applies, so the toggle only has to change that single property, and native controls and
+           scrollbars follow along for free. */
+        color-scheme: light dark;
+
+        --navy: #0b1e3a;
         --signal: #ff4a1f;
-        --signal-ink: #a8331410;
-        --signal-text: #8c2e12;
         --sail: #f7f4ec;
-        --paper: #fffdf8;
-        --on: #1d9e75;
-        --slate: #6b7a90;
-        --slate-dim: #93a1b4;
-        --line: rgba(11, 30, 58, 0.12);
-        --line-soft: rgba(11, 30, 58, 0.07);
-        --line-dark: rgba(247, 244, 236, 0.13);
-        --font-display: 'Fraunces', Georgia, serif;
-        --font-ui: 'Archivo', system-ui, sans-serif;
-        --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-        --wrap: 1080px;
+        --green: #1d9e75;
+
+        --bg: light-dark(#f7f4ec, #071426);
+        --bg-raised: light-dark(#fffdf8, #0c1e35);
+        --bg-sunk: light-dark(#ece7db, #040d1a);
+        --text: light-dark(#0b1e3a, #f4f1e9);
+        --text-2: light-dark(#33507a, #b8c4d4);
+        --text-mute: light-dark(#5d6f88, #8496ab);
+        --line: light-dark(rgba(11, 30, 58, 0.14), rgba(247, 244, 236, 0.13));
+        --line-soft: light-dark(rgba(11, 30, 58, 0.08), rgba(247, 244, 236, 0.07));
+        --accent-wash: light-dark(rgba(255, 74, 31, 0.08), rgba(255, 74, 31, 0.12));
+        --accent-text: light-dark(#9c3616, #ff8b66);
+        --shadow-shot: 0 40px 90px -40px light-dark(rgba(11, 30, 58, 0.45), rgba(0, 0, 0, 0.9));
+
+        --r-sm: 8px;
+        --r-md: 14px;
+        --r-pill: 999px;
+
+        --font-sans: 'Geist Sans', system-ui, sans-serif;
+        --font-mono: 'Geist Mono', ui-monospace, monospace;
+        --wrap: 1140px;
       }
+
+      /* An explicit choice pins the scheme; with no choice stored the media default above wins. */
+      :root[data-theme='light'] {
+        color-scheme: light;
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+      }
+
       * {
         box-sizing: border-box;
       }
@@ -493,9 +466,9 @@ const demoFlags = [
       }
       body {
         margin: 0;
-        font-family: var(--font-ui);
-        color: var(--ink);
-        background: var(--sail);
+        font-family: var(--font-sans);
+        color: var(--text);
+        background: var(--bg);
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
         overflow-x: hidden;
@@ -506,16 +479,21 @@ const demoFlags = [
       }
       h1,
       h2,
-      h3,
-      h4 {
+      h3 {
         margin: 0;
         font-weight: 600;
+        letter-spacing: -0.022em;
       }
       p {
         margin: 0;
       }
       code {
         font-family: var(--font-mono);
+      }
+      img {
+        display: block;
+        max-width: 100%;
+        height: auto;
       }
       .accent {
         color: var(--signal);
@@ -525,6 +503,14 @@ const demoFlags = [
         margin: 0 auto;
         padding-inline: 1.5rem;
       }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
       .skip {
         position: absolute;
         left: -9999px;
@@ -532,62 +518,86 @@ const demoFlags = [
       .skip:focus {
         left: 1rem;
         top: 1rem;
-        z-index: 50;
-        background: var(--ink);
-        color: var(--sail);
+        z-index: 60;
+        background: var(--signal);
+        color: var(--navy);
         padding: 0.6rem 1rem;
-        border-radius: 8px;
+        border-radius: var(--r-sm);
+      }
+      :focus-visible {
+        outline: 2px solid var(--signal);
+        outline-offset: 3px;
+        border-radius: 2px;
       }
 
-      /* ── buttons ───────────────────────────────────────────── */
+      /* Grain: fixed and inert, so it never repaints on scroll. */
+      .grain {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        pointer-events: none;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+
+      /* ── motion ──────────────────────────────────────────────── */
+      .reveal-ready [data-reveal] {
+        opacity: 0;
+        transform: translateY(14px);
+        transition:
+          opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+          transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+        transition-delay: var(--d, 0ms);
+      }
+      .reveal-ready [data-reveal].in {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* ── buttons ─────────────────────────────────────────────── */
       .btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.93rem;
+        font-size: 0.94rem;
         font-weight: 600;
-        border-radius: 10px;
-        padding: 0.72rem 1.25rem;
+        border-radius: var(--r-sm);
+        padding: 0.72rem 1.3rem;
         border: 1px solid transparent;
+        white-space: nowrap;
         transition:
           transform 0.12s ease,
           box-shadow 0.2s ease,
-          background 0.2s ease;
-        white-space: nowrap;
+          border-color 0.2s ease;
       }
       .btn-lg {
-        padding: 0.85rem 1.6rem;
+        padding: 0.88rem 1.7rem;
         font-size: 1rem;
       }
+      /* Ink on signal orange is 4.96:1, clearing AA for normal-size text. White on the same orange
+         is 3.36:1, and a 15px semibold label is not WCAG large text, so white would fail. */
       .btn-primary {
         background: var(--signal);
-        color: #fff;
-        box-shadow: 0 6px 18px -8px rgba(255, 74, 31, 0.85);
+        color: var(--navy);
+        box-shadow: 0 10px 30px -12px rgba(255, 74, 31, 0.85);
       }
       .btn-primary:hover {
         transform: translateY(-1px);
-        box-shadow: 0 12px 24px -10px rgba(255, 74, 31, 0.9);
+        box-shadow: 0 16px 36px -14px rgba(255, 74, 31, 0.95);
       }
       .btn-ghost {
         border-color: var(--line);
-        background: var(--paper);
+        background: var(--bg-raised);
+        color: var(--text);
       }
       .btn-ghost:hover {
-        border-color: var(--ink);
-      }
-      .btn-quiet {
-        border-color: var(--line-dark);
-        color: var(--sail);
-      }
-      .btn-quiet:hover {
-        background: rgba(247, 244, 236, 0.08);
+        border-color: var(--text);
       }
       .btn:active {
-        transform: translateY(1px);
+        transform: scale(0.98);
       }
 
-      /* ── nav ───────────────────────────────────────────────── */
-      /* Scoped: the footer also contains a <nav>, which must not inherit any of this. */
+      /* ── nav ─────────────────────────────────────────────────── */
       .topnav {
         position: sticky;
         top: 0;
@@ -598,34 +608,32 @@ const demoFlags = [
         gap: 1rem;
         max-width: var(--wrap);
         margin: 0 auto;
-        padding: 1rem 1.5rem;
-        /* Near-opaque on purpose: at lower alpha the dark bands below smear through as grey. */
-        background: color-mix(in srgb, var(--sail) 97%, transparent);
-        backdrop-filter: blur(10px);
-        border-bottom: 1px solid transparent;
+        height: 68px;
+        padding-inline: 1.5rem;
+        background: color-mix(in srgb, var(--bg) 94%, transparent);
+        backdrop-filter: blur(12px);
       }
       .brand {
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
-        font-family: var(--font-display);
-        font-size: 1.25rem;
-        font-weight: 700;
-        letter-spacing: -0.01em;
+        font-size: 1.12rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
       }
       .nav-links {
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        font-weight: 500;
+        gap: 0.35rem;
         font-size: 0.9rem;
+        font-weight: 500;
       }
       .nav-links > a:first-child {
         padding: 0.5rem 0.8rem;
-        border-radius: 8px;
+        border-radius: var(--r-sm);
       }
       .nav-links > a:first-child:hover {
-        background: rgba(11, 30, 58, 0.05);
+        background: var(--accent-wash);
       }
       .nav-gh {
         display: inline-flex;
@@ -633,182 +641,297 @@ const demoFlags = [
         gap: 0.45rem;
         padding: 0.5rem 0.9rem;
         border: 1px solid var(--line);
-        border-radius: 8px;
-        background: var(--paper);
+        border-radius: var(--r-sm);
+        background: var(--bg-raised);
         font-weight: 600;
       }
       .nav-gh:hover {
-        border-color: var(--ink);
+        border-color: var(--text);
+      }
+      .theme-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: var(--r-sm);
+        background: none;
+        color: var(--text-2);
+        cursor: pointer;
+        transition:
+          color 0.15s ease,
+          background 0.15s ease;
+      }
+      .theme-btn:hover {
+        color: var(--text);
+        background: var(--accent-wash);
+      }
+      .theme-btn svg {
+        width: 17px;
+        height: 17px;
+        display: block;
+      }
+      /* Show the icon for the theme the button switches TO. Three states: no stored choice (follow
+         the OS), explicit light, explicit dark. */
+      .i-sun {
+        display: none;
+      }
+      .i-moon {
+        display: block;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme]) .i-sun {
+          display: block;
+        }
+        :root:not([data-theme]) .i-moon {
+          display: none;
+        }
+      }
+      :root[data-theme='dark'] .i-sun {
+        display: block;
+      }
+      :root[data-theme='dark'] .i-moon {
+        display: none;
+      }
+      :root[data-theme='light'] .i-sun {
+        display: none;
+      }
+      :root[data-theme='light'] .i-moon {
+        display: block;
       }
 
-      /* ── hero ──────────────────────────────────────────────── */
+      /* ── hero ────────────────────────────────────────────────── */
       .hero {
-        position: relative;
-        padding: clamp(2rem, 6vw, 4.5rem) 0 clamp(2.5rem, 5vw, 4rem);
-        background-image: radial-gradient(rgba(11, 30, 58, 0.06) 1px, transparent 1px);
-        background-size: 26px 26px;
-        -webkit-mask-image: linear-gradient(#000 70%, transparent);
-        mask-image: linear-gradient(#000 70%, transparent);
-      }
-      .hero::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
+        padding: clamp(1.5rem, 4vw, 3.5rem) 0 clamp(2.5rem, 5vw, 4rem);
       }
       .hero-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
-        gap: clamp(2rem, 5vw, 3.75rem);
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        gap: clamp(2rem, 5vw, 3.5rem);
         align-items: center;
       }
-      .hero-copy,
-      .terminal {
+      .hero-copy {
         min-width: 0;
       }
       .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.55rem;
-        font-size: 0.74rem;
-        font-weight: 600;
-        letter-spacing: 0.13em;
-        text-transform: uppercase;
-        color: var(--slate);
-        margin-bottom: 1.1rem;
-      }
-      .pip {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--signal);
-        box-shadow: 0 0 0 0 rgba(255, 74, 31, 0.55);
-        animation: pulse 2.6s ease-out infinite;
-      }
-      @keyframes pulse {
-        0% {
-          box-shadow: 0 0 0 0 rgba(255, 74, 31, 0.5);
-        }
-        70% {
-          box-shadow: 0 0 0 8px rgba(255, 74, 31, 0);
-        }
-        100% {
-          box-shadow: 0 0 0 0 rgba(255, 74, 31, 0);
-        }
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: var(--text-mute);
+        margin-bottom: 1rem;
       }
       .hero h1 {
-        font-family: var(--font-display);
-        font-size: clamp(2.7rem, 5.6vw, 4.15rem);
-        line-height: 1.0;
-        letter-spacing: -0.028em;
-        font-weight: 700;
-        margin-bottom: 1.15rem;
+        font-size: clamp(2.6rem, 5vw, 3.9rem);
+        line-height: 1.03;
+        font-weight: 600;
+        margin-bottom: 1.1rem;
       }
       .lede {
-        font-size: clamp(1.02rem, 1.35vw, 1.13rem);
-        color: var(--ink-2);
+        font-size: clamp(1rem, 1.3vw, 1.12rem);
+        color: var(--text-2);
         max-width: 34em;
-        margin-bottom: 1.75rem;
+        margin-bottom: 1.8rem;
       }
       .cta {
         display: flex;
         gap: 0.7rem;
         flex-wrap: wrap;
       }
-      .hero-fine {
-        margin-top: 1.15rem;
-        font-size: 0.83rem;
-        color: var(--slate);
+
+      /* ── the live hoist ──────────────────────────────────────── */
+      .hoistdemo {
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        background: color-mix(in srgb, var(--bg-raised) 90%, transparent);
+        padding: 1.1rem 1.2rem 1.2rem;
+        box-shadow: var(--shadow-shot);
+      }
+      .hoist-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.9rem;
+      }
+      .hoist-key {
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--text);
+      }
+      .hoist-count {
+        font-family: var(--font-mono);
+        font-size: 0.74rem;
+        color: var(--text-mute);
+      }
+      .hoist-grid {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        gap: 0.3rem;
+      }
+      .fl svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .fl-pole {
+        fill: var(--text-mute);
+        opacity: 0.5;
+      }
+      /* Lowered: the cloth droops to the foot of the pole and desaturates. */
+      .fl-cloth {
+        fill: var(--text-mute);
+        opacity: 0.22;
+        transform-box: fill-box;
+        transform-origin: 0% 50%;
+        transform: scaleX(0.34) translateY(30%);
+        transition:
+          transform 0.42s cubic-bezier(0.34, 1.4, 0.5, 1),
+          fill 0.3s ease,
+          opacity 0.3s ease;
+      }
+      .fl.up .fl-cloth {
+        fill: var(--signal);
+        opacity: 1;
+        transform: none;
+      }
+      /* Raised by a targeting rule rather than the percentage: flown in the semantic green. */
+      .fl.up.by-rule .fl-cloth {
+        fill: var(--green);
+      }
+      .hoistdemo.is-off .fl-cloth {
+        transform: scaleX(0.2) translateY(38%);
       }
 
-      /* ── terminal ──────────────────────────────────────────── */
-      .terminal {
-        background: var(--ink);
-        border-radius: 14px;
-        overflow: hidden;
-        box-shadow:
-          0 30px 60px -30px rgba(11, 30, 58, 0.55),
-          0 0 0 1px rgba(11, 30, 58, 0.06);
+      .hoist-controls {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.75rem 1.1rem;
+        align-items: center;
+        margin-top: 1.15rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--line-soft);
       }
-      .term-bar {
+      .ctl {
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        padding: 0.7rem 0.9rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        gap: 0.6rem;
+        font-size: 0.79rem;
+        color: var(--text-2);
       }
-      .term-bar span {
-        width: 10px;
-        height: 10px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.22);
+      .ctl-range {
+        grid-column: 1 / -1;
       }
-      .term-bar em {
-        margin-left: auto;
-        font-style: normal;
+      .ctl-range span {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .ctl output {
         font-family: var(--font-mono);
-        font-size: 0.7rem;
-        color: rgba(247, 244, 236, 0.42);
       }
-      .terminal pre {
-        margin: 0;
-        padding: 1.15rem 1.2rem 1.35rem;
-        overflow-x: auto;
-        font-family: var(--font-mono);
-        font-size: 0.795rem;
-        line-height: 1.85;
-        color: #e7ecf3;
+      .ctl-switch:last-of-type {
+        grid-column: 1 / -1;
       }
-      .terminal .p {
-        color: var(--signal);
+      .sw {
+        flex: none;
+        width: 34px;
+        height: 19px;
+        border-radius: var(--r-pill);
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        background: color-mix(in srgb, var(--text-mute) 45%, transparent);
+        position: relative;
+        transition: background 0.22s ease;
       }
-      .terminal .c {
-        color: #7f92ab;
+      .sw span {
+        position: absolute;
+        top: 2.5px;
+        left: 2.5px;
+        width: 14px;
+        height: 14px;
+        border-radius: var(--r-pill);
+        background: var(--bg-raised);
+        transition: transform 0.22s ease;
       }
-      .terminal .o {
-        color: #4fd1a0;
+      .sw.on {
+        background: var(--green);
+      }
+      .sw.on span {
+        transform: translateX(15px);
+      }
+      input[type='range'] {
+        flex: 1;
+        min-width: 0;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 3px;
+        border-radius: var(--r-pill);
+        background: color-mix(in srgb, var(--text-mute) 40%, transparent);
+        cursor: pointer;
+      }
+      input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 15px;
+        height: 15px;
+        border-radius: var(--r-pill);
+        background: var(--signal);
+        border: 0;
+        cursor: pointer;
+      }
+      input[type='range']::-moz-range-thumb {
+        width: 15px;
+        height: 15px;
+        border-radius: var(--r-pill);
+        background: var(--signal);
+        border: 0;
+        cursor: pointer;
+      }
+      .hoist-note {
+        margin-top: 0.9rem;
+        font-size: 0.74rem;
+        color: var(--text-mute);
+        min-height: 2.2em;
       }
 
-      /* ── section rhythm ────────────────────────────────────── */
+      /* ── sections ────────────────────────────────────────────── */
       section {
         padding-block: clamp(3.25rem, 7vw, 5.5rem);
       }
       .section-title {
-        font-family: var(--font-display);
-        font-size: clamp(1.85rem, 3.4vw, 2.7rem);
-        letter-spacing: -0.02em;
-        line-height: 1.1;
+        font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+        line-height: 1.12;
         text-align: center;
-        font-weight: 700;
+        font-weight: 600;
       }
       .section-sub {
         text-align: center;
-        color: var(--slate);
+        color: var(--text-mute);
         margin: 0.7rem auto 0;
         max-width: 42em;
       }
 
-      /* ── language strip ────────────────────────────────────── */
       .langs {
-        padding-block: clamp(1.5rem, 3vw, 2.25rem);
-        border-block: 1px solid var(--line-soft);
-        background: var(--paper);
+        padding-block: clamp(1.4rem, 3vw, 2rem);
+        border-bottom: 1px solid var(--line-soft);
+        background: var(--bg-raised);
       }
       .langs .wrap {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.65rem 1.4rem;
+        gap: 0.6rem 1.3rem;
         flex-wrap: wrap;
       }
       .langs p {
-        color: var(--slate);
-        font-size: 0.86rem;
+        color: var(--text-mute);
+        font-size: 0.87rem;
       }
       .langs ul {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.45rem;
+        gap: 0.4rem;
         list-style: none;
         padding: 0;
         margin: 0;
@@ -816,309 +939,110 @@ const demoFlags = [
       .langs li {
         font-family: var(--font-mono);
         font-size: 0.75rem;
-        padding: 0.28rem 0.62rem;
+        padding: 0.26rem 0.6rem;
         border: 1px solid var(--line);
-        border-radius: 999px;
-        color: var(--ink-2);
+        border-radius: var(--r-pill);
+        color: var(--text-2);
       }
 
-      /* ── showcase (dark band) ──────────────────────────────── */
-      .showcase {
-        background: var(--ink);
-        color: var(--sail);
-        background-image: radial-gradient(rgba(247, 244, 236, 0.06) 1px, transparent 1px);
-        background-size: 30px 30px;
+      /* ── showcase ────────────────────────────────────────────── */
+      .showcase-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        gap: clamp(2rem, 5vw, 4rem);
+        align-items: center;
       }
-      .showcase-head {
-        max-width: 46em;
-        margin: 0 auto 2.6rem;
-        text-align: center;
+      .shot {
+        margin: 0;
+        min-width: 0;
+        border-radius: var(--r-md);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow-shot);
+        background: var(--bg-raised);
       }
-      .showcase-head h2 {
-        font-family: var(--font-display);
-        font-size: clamp(1.85rem, 3.4vw, 2.7rem);
-        letter-spacing: -0.02em;
-        line-height: 1.1;
-        font-weight: 700;
+      .showcase-copy h2 {
+        font-size: clamp(1.7rem, 3vw, 2.35rem);
+        line-height: 1.12;
+        font-weight: 600;
       }
-      .showcase-head h2 em {
+      .showcase-copy h2 em {
         font-style: italic;
         color: var(--signal);
+        line-height: 1.15;
+        display: inline-block;
+        padding-bottom: 0.08em;
       }
-      .showcase-head p {
-        margin-top: 0.9rem;
-        color: #b9c2d0;
+      .showcase-copy p {
+        margin-top: 1rem;
+        color: var(--text-2);
+        font-size: 0.97rem;
       }
-      .showcase-head code {
+      .showcase-copy code {
         font-size: 0.9em;
-        background: rgba(247, 244, 236, 0.1);
+        background: var(--accent-wash);
         padding: 0.1rem 0.35rem;
-        border-radius: 5px;
-      }
-      .showcase-fine {
-        margin-top: 1.5rem;
-        text-align: center;
-        font-size: 0.86rem;
-        color: var(--slate-dim);
-      }
-
-      /* the fake browser + app */
-      .screen {
-        border-radius: 14px;
-        overflow: hidden;
-        background: var(--sail);
-        /* The band around this is dark; re-assert ink so the UI inside reads as its own surface. */
-        color: var(--ink);
-        box-shadow:
-          0 40px 80px -30px rgba(0, 0, 0, 0.6),
-          0 0 0 1px rgba(247, 244, 236, 0.1);
-      }
-      .screen-chrome {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.6rem 0.85rem;
-        background: #e9e4d8;
-        border-bottom: 1px solid rgba(11, 30, 58, 0.08);
-      }
-      .screen-chrome > span {
-        width: 9px;
-        height: 9px;
-        border-radius: 999px;
-        background: rgba(11, 30, 58, 0.18);
-      }
-      .screen-url {
-        margin-left: 0.6rem;
-        flex: 1;
-        max-width: 320px;
-        font-family: var(--font-mono);
-        font-size: 0.68rem;
-        color: var(--slate);
-        background: var(--paper);
-        border-radius: 6px;
-        padding: 0.22rem 0.6rem;
-      }
-      .app {
-        background: var(--sail);
-      }
-      .app-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.65rem 0.95rem;
-      }
-      .app-brand {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        font-family: var(--font-display);
-        font-size: 0.95rem;
-      }
-      .chip-admin {
-        font-family: var(--font-ui);
-        font-size: 0.55rem;
-        font-weight: 700;
-        letter-spacing: 0.1em;
-        color: var(--slate);
-        border: 1px solid var(--line);
-        border-radius: 4px;
-        padding: 0.08rem 0.3rem;
-      }
-      .app-btn {
-        font-size: 0.68rem;
-        font-weight: 600;
-        padding: 0.32rem 0.6rem;
-        border-radius: 6px;
-      }
-      .app-btn-primary {
-        background: var(--signal);
-        color: #fff;
-      }
-      .bunting {
-        display: block;
-        width: 100%;
-        height: 9px;
-      }
-      .app-body {
-        padding: 0.9rem;
-        display: grid;
-        gap: 0.6rem;
-      }
-      .flagrow {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        background: var(--paper);
-        border: 1px solid var(--line-soft);
-        border-radius: 9px;
-        padding: 0.7rem 0.85rem;
-      }
-      .flagrow-main {
-        flex: 1;
-        min-width: 0;
-      }
-      .flagrow-top {
-        display: flex;
-        align-items: center;
-        gap: 0.45rem;
-        flex-wrap: wrap;
-      }
-      .flagrow-top code {
-        font-size: 0.79rem;
-        font-weight: 700;
-      }
-      .chip {
-        font-size: 0.55rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        padding: 0.1rem 0.32rem;
         border-radius: 4px;
       }
-      .chip-on {
-        background: rgba(29, 158, 117, 0.16);
-        color: #12724f;
-      }
-      .chip-off {
-        background: rgba(11, 30, 58, 0.08);
-        color: var(--slate);
-      }
-      .chip-rule {
-        font-size: 0.6rem;
-        color: var(--slate);
-      }
-      .flagrow p {
-        font-size: 0.68rem;
-        color: var(--slate);
-        margin: 0.15rem 0 0.45rem;
-      }
-      .slider {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-      }
-      .track {
-        position: relative;
-        flex: 1;
-        height: 3px;
-        border-radius: 999px;
-        background: rgba(11, 30, 58, 0.12);
-      }
-      .fill {
-        position: absolute;
-        inset: 0 auto 0 0;
-        background: var(--signal);
-        border-radius: 999px;
-      }
-      .knob {
-        position: absolute;
-        top: 50%;
-        width: 9px;
-        height: 9px;
-        border-radius: 999px;
-        background: var(--signal);
-        transform: translate(-50%, -50%);
-      }
-      .pct {
-        font-family: var(--font-mono);
-        font-size: 0.63rem;
-        color: var(--signal);
-        min-width: 2.4rem;
-      }
-      .toggle {
-        flex: none;
-        width: 34px;
-        height: 19px;
-        border-radius: 999px;
-        background: rgba(11, 30, 58, 0.16);
-        position: relative;
-        transition: background 0.25s ease;
-      }
-      .toggle span {
-        position: absolute;
-        top: 2.5px;
-        left: 2.5px;
-        width: 14px;
-        height: 14px;
-        border-radius: 999px;
-        background: #fff;
-        transition: transform 0.25s ease;
-      }
-      .toggle.is-on {
-        background: var(--on);
-      }
-      .toggle.is-on span {
-        transform: translateX(15px);
-      }
 
-      /* ── features (hairline grid) ──────────────────────────── */
+      /* ── features ────────────────────────────────────────────── */
       .fgrid {
         margin-top: 2.75rem;
         display: grid;
-        /* min(270px, 100%) so the track can still collapse on very narrow screens. */
-        grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
-        gap: 0;
+        grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
         border-top: 1px solid var(--line);
         border-left: 1px solid var(--line);
       }
       .fgrid article {
-        padding: 1.6rem 1.5rem 1.8rem;
+        padding: 1.7rem 1.6rem 1.9rem;
         border-right: 1px solid var(--line);
         border-bottom: 1px solid var(--line);
         transition: background 0.2s ease;
       }
       .fgrid article:hover {
-        background: var(--paper);
-      }
-      .fnum {
-        font-family: var(--font-mono);
-        font-size: 0.7rem;
-        font-weight: 700;
-        color: var(--signal);
+        background: var(--bg-raised);
       }
       .fgrid h3 {
-        font-size: 1.1rem;
-        margin: 0.5rem 0 0.45rem;
-        letter-spacing: -0.01em;
+        font-size: 1.06rem;
+        margin-bottom: 0.5rem;
       }
       .fgrid p {
-        font-size: 0.9rem;
-        color: var(--ink-2);
+        font-size: 0.92rem;
+        color: var(--text-2);
       }
 
-      /* ── comparison ────────────────────────────────────────── */
+      /* ── comparison ──────────────────────────────────────────── */
       .compare {
-        background: var(--paper);
+        background: var(--bg-raised);
         border-block: 1px solid var(--line-soft);
       }
       .table-wrap {
         overflow-x: auto;
         margin-top: 2.2rem;
         border: 1px solid var(--line);
-        border-radius: 12px;
-        background: var(--sail);
+        border-radius: var(--r-md);
+        background: var(--bg);
       }
       table {
         width: 100%;
         border-collapse: collapse;
         font-size: 0.87rem;
-        min-width: 720px;
+        min-width: 740px;
       }
       th,
       td {
-        padding: 0.75rem 0.95rem;
+        padding: 0.78rem 1rem;
         text-align: left;
         border-bottom: 1px solid var(--line-soft);
       }
       thead th {
         font-weight: 600;
         font-size: 0.78rem;
-        letter-spacing: 0.02em;
-        color: var(--slate);
-        background: rgba(11, 30, 58, 0.025);
+        color: var(--text-mute);
       }
       tbody th {
         font-weight: 600;
-        color: var(--ink-2);
+        color: var(--text-2);
         white-space: nowrap;
       }
       tbody tr:last-child th,
@@ -1126,116 +1050,102 @@ const demoFlags = [
         border-bottom: 0;
       }
       .us {
-        background: var(--signal-ink);
+        background: var(--accent-wash);
         font-weight: 600;
-        color: var(--signal-text);
+        color: var(--accent-text);
       }
       thead .us {
         color: var(--signal);
-        background: rgba(255, 74, 31, 0.1);
       }
       td.us.caveat {
         background: transparent;
-        color: var(--slate);
+        color: var(--text-mute);
         font-weight: 500;
       }
       .build-it {
         max-width: 62ch;
         margin: 2rem auto 0;
         font-size: 0.93rem;
-        color: var(--ink-2);
+        color: var(--text-2);
         text-align: center;
       }
 
-      /* ── quickstart (stepped) ──────────────────────────────── */
+      /* ── quickstart ──────────────────────────────────────────── */
       .quickstart ol {
         list-style: none;
         padding: 0;
         margin: 2.75rem auto 0;
-        max-width: 760px;
+        max-width: 780px;
         display: grid;
-        /* minmax(0, …) rather than 1fr: grid items default to min-width:auto, so without this
-           the card refuses to shrink below its code block's min-content width and overflows. */
         grid-template-columns: minmax(0, 1fr);
-        gap: 1.4rem;
+        gap: 1.3rem;
       }
       .quickstart li {
         min-width: 0;
         border: 1px solid var(--line);
-        border-radius: 13px;
-        padding: 1.4rem 1.5rem 1.5rem;
-        background: var(--paper);
-      }
-      .step-head > div {
-        min-width: 0;
+        border-radius: var(--r-md);
+        padding: 1.5rem 1.6rem 1.6rem;
+        background: var(--bg-raised);
       }
       .step-head {
-        display: flex;
-        gap: 1rem;
-        align-items: baseline;
-      }
-      .step-n {
-        font-family: var(--font-mono);
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: var(--signal);
-        flex: none;
+        min-width: 0;
       }
       .quickstart h3 {
-        font-size: 1.1rem;
-        letter-spacing: -0.01em;
+        font-size: 1.08rem;
       }
-      .quickstart .step-head p {
-        margin-top: 0.35rem;
-        font-size: 0.9rem;
-        color: var(--ink-2);
+      .step-head p {
+        margin-top: 0.4rem;
+        font-size: 0.91rem;
+        color: var(--text-2);
       }
       .quickstart pre {
         margin: 1.1rem 0 0;
         max-width: 100%;
-        background: var(--ink);
-        color: #e7ecf3;
-        border-radius: 9px;
+        background: var(--bg-sunk);
+        color: var(--text);
+        border: 1px solid var(--line-soft);
+        border-radius: var(--r-sm);
         padding: 0.95rem 1.05rem;
         overflow-x: auto;
         font-family: var(--font-mono);
-        font-size: 0.795rem;
+        font-size: 0.79rem;
         line-height: 1.75;
       }
-      .quickstart .p {
+      .quickstart .p,
+      .final-cmd .p {
         color: var(--signal);
       }
       .quickstart .o {
-        color: #4fd1a0;
+        color: var(--green);
       }
 
-      /* ── sustainability ────────────────────────────────────── */
+      /* ── sustainability ──────────────────────────────────────── */
       .sustain-grid {
         display: grid;
-        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
         gap: clamp(2rem, 5vw, 4rem);
         align-items: start;
       }
       .sustain-lead h2 {
-        font-family: var(--font-display);
-        font-size: clamp(1.7rem, 3vw, 2.35rem);
-        line-height: 1.12;
-        letter-spacing: -0.02em;
-        font-weight: 700;
+        font-size: clamp(1.7rem, 3vw, 2.3rem);
+        line-height: 1.14;
+        font-weight: 600;
       }
       .sustain-lead h2 em {
         font-style: italic;
         color: var(--signal);
+        line-height: 1.15;
+        display: inline-block;
+        padding-bottom: 0.08em;
       }
       .sustain-lead p {
         margin-top: 1rem;
-        color: var(--ink-2);
+        color: var(--text-2);
         font-size: 0.95rem;
       }
       .sustain-list {
         margin: 0;
         display: grid;
-        gap: 0;
       }
       .sustain-list > div {
         padding: 1.05rem 0;
@@ -1246,48 +1156,34 @@ const demoFlags = [
       }
       .sustain-list dt {
         font-weight: 600;
-        font-size: 0.98rem;
+        font-size: 0.97rem;
       }
       .sustain-list dd {
         margin: 0.3rem 0 0;
-        font-size: 0.9rem;
-        color: var(--ink-2);
-      }
-      .sustain-list code {
-        font-size: 0.85em;
-        background: rgba(11, 30, 58, 0.06);
-        padding: 0.08rem 0.32rem;
-        border-radius: 5px;
+        font-size: 0.91rem;
+        color: var(--text-2);
       }
       .sustain-note {
-        margin-top: 2.5rem;
+        margin: 2.5rem auto 0;
         text-align: center;
         font-size: 0.95rem;
-        color: var(--ink-2);
+        color: var(--text-2);
         max-width: 60ch;
       }
-      .sustain-note.wrap {
-        margin-inline: auto;
-      }
 
-      /* ── final CTA ─────────────────────────────────────────── */
+      /* ── final CTA ───────────────────────────────────────────── */
       .final-cta {
-        background: var(--ink-deep);
-        color: var(--sail);
+        position: relative;
         text-align: center;
-        background-image: radial-gradient(rgba(247, 244, 236, 0.06) 1px, transparent 1px);
-        background-size: 30px 30px;
+        background: var(--bg-sunk);
       }
       .final-cta h2 {
-        font-family: var(--font-display);
-        font-style: italic;
-        font-size: clamp(2.1rem, 4.6vw, 3.3rem);
-        letter-spacing: -0.02em;
+        font-size: clamp(2rem, 4.2vw, 3rem);
         font-weight: 600;
       }
       .final-cta p {
-        margin: 0.75rem 0 1.85rem;
-        color: #b9c2d0;
+        margin: 0.8rem 0 1.9rem;
+        color: var(--text-2);
       }
       .final-cta .cta {
         justify-content: center;
@@ -1299,23 +1195,20 @@ const demoFlags = [
         overflow-x: auto;
         font-family: var(--font-mono);
         font-size: 0.82rem;
-        color: #cfd8e4;
-        background: rgba(0, 0, 0, 0.28);
-        border: 1px solid var(--line-dark);
-        border-radius: 9px;
+        color: var(--text-2);
+        background: color-mix(in srgb, var(--bg) 70%, transparent);
+        border: 1px solid var(--line);
+        border-radius: var(--r-sm);
         padding: 0.7rem 1.1rem;
       }
-      .final-cmd .p {
-        color: var(--signal);
-      }
 
-      /* ── footer ────────────────────────────────────────────── */
+      /* ── footer ──────────────────────────────────────────────── */
       footer {
-        background: var(--ink-deep);
-        color: var(--slate-dim);
-        border-top: 1px solid var(--line-dark);
+        background: var(--bg-sunk);
+        color: var(--text-2);
+        border-top: 1px solid var(--line);
         padding-block: 2.75rem 2rem;
-        font-size: 0.87rem;
+        font-size: 0.88rem;
       }
       .foot-grid {
         display: flex;
@@ -1324,24 +1217,21 @@ const demoFlags = [
         flex-wrap: wrap;
       }
       footer .brand {
-        color: var(--sail);
-        font-size: 1.15rem;
+        color: var(--text);
       }
       .foot-tag {
         margin-top: 0.5rem;
-        color: var(--slate-dim);
       }
       .foot-links {
         display: flex;
         gap: clamp(1.75rem, 5vw, 3.5rem);
         flex-wrap: wrap;
       }
-      .foot-links h4 {
-        color: var(--sail);
-        font-size: 0.72rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        margin-bottom: 0.65rem;
+      .foot-links h3 {
+        color: var(--text);
+        font-size: 0.82rem;
+        font-weight: 600;
+        margin-bottom: 0.6rem;
       }
       .foot-links a {
         display: block;
@@ -1349,40 +1239,32 @@ const demoFlags = [
         transition: color 0.15s ease;
       }
       .foot-links a:hover {
-        color: var(--sail);
+        color: var(--text);
       }
       .foot-fine {
         margin-top: 2.5rem;
         padding-top: 1.4rem;
-        border-top: 1px solid var(--line-dark);
-        font-size: 0.78rem;
-        opacity: 0.75;
+        border-top: 1px solid var(--line);
+        font-size: 0.79rem;
+        /* --text-mute on the sunk surface measures 4.16:1 in light mode, under the AA floor. */
+        color: var(--text-2);
       }
       .foot-fine p + p {
         margin-top: 0.25rem;
       }
 
-      /* ── responsive ────────────────────────────────────────── */
+      /* ── responsive ──────────────────────────────────────────── */
       @media (max-width: 900px) {
         .hero-grid,
+        .showcase-grid,
         .sustain-grid {
-          grid-template-columns: 1fr;
+          grid-template-columns: minmax(0, 1fr);
         }
-        .hero {
-          padding-top: 1.25rem;
-          text-align: left;
-        }
-        .terminal {
-          margin-top: 0.5rem;
+        .showcase .shot {
+          order: 2;
         }
       }
       @media (max-width: 560px) {
-        .brand {
-          font-size: 1.1rem;
-        }
-        .nav-links {
-          font-size: 0.85rem;
-        }
         .nav-gh span {
           display: none;
         }
@@ -1395,12 +1277,12 @@ const demoFlags = [
         .langs .wrap {
           justify-content: flex-start;
         }
-        .terminal pre,
-        .quickstart pre {
-          font-size: 0.72rem;
+        .hoist-grid {
+          grid-template-columns: repeat(8, 1fr);
         }
-        .step-head {
-          gap: 0.7rem;
+        .quickstart pre,
+        .final-cmd {
+          font-size: 0.72rem;
         }
       }
 
@@ -1408,15 +1290,79 @@ const demoFlags = [
         html {
           scroll-behavior: auto;
         }
-        .pip {
-          animation: none;
+        .reveal-ready [data-reveal] {
+          opacity: 1;
+          transform: none;
+          transition: none;
         }
         .btn,
-        .toggle,
-        .toggle span {
+        .fl-cloth,
+        .sw,
+        .sw span {
           transition: none;
         }
       }
     </style>
+
+    <script>
+      // Theme toggle. The stored value is the reader's override; clearing it is not offered, so the
+      // first click simply pins whichever theme they are not currently looking at.
+      const root = document.documentElement
+      const toggle = document.querySelector<HTMLButtonElement>('[data-theme-toggle]')
+
+      const resolved = () =>
+        root.dataset.theme ??
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+
+      const label = () => {
+        toggle?.setAttribute(
+          'aria-label',
+          resolved() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+        )
+      }
+
+      toggle?.addEventListener('click', () => {
+        const next = resolved() === 'dark' ? 'light' : 'dark'
+        root.dataset.theme = next
+        try {
+          localStorage.setItem('flaghoist-theme', next)
+        } catch {
+          /* private mode: the choice just does not persist */
+        }
+        label()
+      })
+
+      // Keep the label honest if the OS flips while no explicit choice is stored.
+      window
+        .matchMedia('(prefers-color-scheme: dark)')
+        .addEventListener('change', () => {
+          if (!root.dataset.theme) label()
+        })
+
+      label()
+
+      // Reveal-on-enter. IntersectionObserver only: no scroll listeners, no per-frame work.
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const targets = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'))
+
+      if (reduce || !('IntersectionObserver' in window)) {
+        targets.forEach((el) => el.classList.add('in'))
+      } else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return
+              const el = entry.target as HTMLElement
+              const sibs = Array.from(el.parentElement?.children ?? [])
+              el.style.setProperty('--d', `${Math.min(sibs.indexOf(el), 5) * 70}ms`)
+              el.classList.add('in')
+              io.unobserve(el)
+            })
+          },
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.15 },
+        )
+        targets.forEach((el) => io.observe(el))
+      }
+    </script>
   </body>
 </html>

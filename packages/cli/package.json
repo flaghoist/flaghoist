@@ -29,7 +29,7 @@
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "smol-toml": "^1.7.1"
+    "smol-toml": "^1.8.0"
   },
   "devDependencies": {
     "@flaghoist/adapter-memory": "workspace:*",

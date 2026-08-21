@@ -20,7 +20,14 @@ import {
   type FlaghoistConfig,
   type StorageKind,
 } from './config'
-import { generatePackageJson, generateWorkerEntry, generateWranglerToml } from './generate'
+import {
+  fillKvNamespaceId,
+  generatePackageJson,
+  generateWorkerEntry,
+  generateWranglerToml,
+  needsKvNamespace,
+  parseKvNamespaceId,
+} from './generate'
 
 const VERSION = '0.0.0'
 
@@ -158,12 +165,56 @@ function runEject(): void {
   if (existsSync('src/index.ts')) throw new Error('src/index.ts already exists — already ejected?')
   writeProject(config, '.')
   console.log('Ejected to a code project you own: src/index.ts, wrangler.toml, package.json')
+  if (config.storage === 'cloudflare-kv') {
+    console.log('Create your KV namespace and paste the id into wrangler.toml:')
+    console.log('  npx wrangler kv namespace create FLAGS')
+  }
   console.log('Edit src/index.ts freely, then: npm install && npx wrangler deploy')
+}
+
+/**
+ * Create the KV namespace the generated `wrangler.toml` points at, and write its id back.
+ *
+ * Without this the very first command in the quickstart fails: a fresh project carries a
+ * placeholder id, and wrangler refuses it. Only runs when the placeholder is still there, so an
+ * id the user pasted in themselves is never touched.
+ */
+function ensureKvNamespace(config: FlaghoistConfig): void {
+  if (config.storage !== 'cloudflare-kv') return
+  const toml = readFileSync('wrangler.toml', 'utf8')
+  if (!needsKvNamespace(toml)) return
+
+  console.log('Creating the FLAGS KV namespace...')
+  // stdin and stderr stay attached so wrangler can prompt for login and show its own errors;
+  // stdout is captured because the namespace id is in it, then echoed so nothing is hidden.
+  const created = spawnSync('npx', ['wrangler', 'kv', 'namespace', 'create', 'FLAGS'], {
+    stdio: ['inherit', 'pipe', 'inherit'],
+    encoding: 'utf8',
+  })
+  const output = created.stdout ?? ''
+  if (output) process.stdout.write(output)
+
+  if (created.status !== 0) {
+    throw new Error(
+      'Could not create the KV namespace. Run `npx wrangler kv namespace create FLAGS` yourself, ' +
+        'then paste the id into wrangler.toml.',
+    )
+  }
+  const id = parseKvNamespaceId(output)
+  if (!id) {
+    throw new Error(
+      'Created the namespace but could not read its id from wrangler output. Paste the id above ' +
+        'into wrangler.toml, then run `flaghoist deploy` again.',
+    )
+  }
+  writeFileSync('wrangler.toml', fillKvNamespaceId(toml, id))
+  console.log(`Bound FLAGS to namespace ${id} in wrangler.toml`)
 }
 
 function runDeploy(): void {
   const config = loadConfig()
   if (!existsSync('src/index.ts')) writeProject(config, '.')
+  ensureKvNamespace(config)
   console.log('Deploying with wrangler...')
   const result = spawnSync('npx', ['wrangler', 'deploy'], { stdio: 'inherit' })
   process.exit(result.status ?? 0)

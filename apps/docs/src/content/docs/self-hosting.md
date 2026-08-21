@@ -25,6 +25,12 @@ npx flaghoist deploy
 
 The CLI generates a Worker from the config and hands off to `wrangler`. You own no code.
 
+On the default `cloudflare-kv` storage, the first deploy also creates the KV namespace the Worker
+binds to, by running `wrangler kv namespace create FLAGS` in your account, and writes the id it gets
+back into `wrangler.toml`. Later deploys see a real id there and leave it alone, so the namespace is
+created once and your flags survive every deploy after it. To use a namespace you already have, put
+its id in `wrangler.toml` yourself and the step is skipped.
+
 ## Model A: eject to a code project
 
 When you need a custom adapter, custom auth, or middleware, drop to a project you own:
@@ -33,8 +39,15 @@ When you need a custom adapter, custom auth, or middleware, drop to a project yo
 npx flaghoist eject
 ```
 
-This writes `src/index.ts`, `wrangler.toml`, and `package.json`. The entrypoint composes the server
-explicitly:
+This writes `src/index.ts`, `wrangler.toml`, and `package.json`. Ejecting hands you the wrangler
+commands too, so on `cloudflare-kv` create the namespace once and paste the id into
+`wrangler.toml`:
+
+```bash
+npx wrangler kv namespace create FLAGS
+```
+
+The entrypoint composes the server explicitly:
 
 ```ts
 import { cloudflareKV } from '@flaghoist/adapter-cloudflare-kv'

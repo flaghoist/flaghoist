@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, type FlaghoistConfig } from '../src/config'
-import { generatePackageJson, generateWorkerEntry, generateWranglerToml } from '../src/generate'
+import {
+  fillKvNamespaceId,
+  generatePackageJson,
+  generateWorkerEntry,
+  generateWranglerToml,
+  needsKvNamespace,
+  parseKvNamespaceId,
+} from '../src/generate'
 
 describe('generateWorkerEntry', () => {
   it('composes a cloudflare-kv + bearer-token worker', () => {
@@ -50,6 +57,61 @@ describe('generateWranglerToml', () => {
     const toml = generateWranglerToml(DEFAULT_CONFIG)
     expect(toml).toContain('kv_namespaces')
     expect(toml).toContain('binding = "FLAGS"')
+  })
+
+  it('leaves a placeholder id that deploy knows to fill', () => {
+    expect(needsKvNamespace(generateWranglerToml(DEFAULT_CONFIG))).toBe(true)
+  })
+
+  it('needs no namespace on storage that does not use KV', () => {
+    expect(needsKvNamespace(generateWranglerToml({ ...DEFAULT_CONFIG, storage: 'redis' }))).toBe(
+      false,
+    )
+  })
+})
+
+describe('fillKvNamespaceId', () => {
+  const id = '0f2ac74b498b48028cb68387c421e279'
+
+  it('binds the real id and drops the how-to comment', () => {
+    const filled = fillKvNamespaceId(generateWranglerToml(DEFAULT_CONFIG), id)
+    expect(filled).toContain(`id = "${id}"`)
+    expect(filled).toContain('binding = "FLAGS"')
+    expect(filled).not.toContain('npx wrangler kv namespace create')
+  })
+
+  it('leaves nothing for a second deploy to redo', () => {
+    const filled = fillKvNamespaceId(generateWranglerToml(DEFAULT_CONFIG), id)
+    expect(needsKvNamespace(filled)).toBe(false)
+  })
+})
+
+describe('parseKvNamespaceId', () => {
+  const id = '0f2ac74b498b48028cb68387c421e279'
+
+  it('reads the id out of the TOML block wrangler prints', () => {
+    const output = [
+      '🌀 Creating namespace with title "team-flags-FLAGS"',
+      '✨ Success!',
+      'Add the following to your configuration file in your kv_namespaces array:',
+      '[[kv_namespaces]]',
+      'binding = "FLAGS"',
+      `id = "${id}"`,
+    ].join('\n')
+    expect(parseKvNamespaceId(output)).toBe(id)
+  })
+
+  it('reads a JSON-shaped id too', () => {
+    expect(parseKvNamespaceId(`{"title":"team-flags-FLAGS","id":"${id}"}`)).toBe(id)
+  })
+
+  it('falls back to a bare id, so a reworded success message still works', () => {
+    expect(parseKvNamespaceId(`Created namespace ${id} in account 1234`)).toBe(id)
+  })
+
+  it('returns undefined rather than guessing when there is no id', () => {
+    expect(parseKvNamespaceId('✘ [ERROR] You need to login first.')).toBeUndefined()
+    expect(parseKvNamespaceId('')).toBeUndefined()
   })
 })
 

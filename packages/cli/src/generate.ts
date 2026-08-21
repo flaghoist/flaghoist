@@ -81,6 +81,12 @@ export default createFlagServer((env) => ({
 `
 }
 
+/**
+ * Sentinel id written into a fresh `wrangler.toml`. `flaghoist deploy` creates the real namespace
+ * and swaps it in; until then it is a placeholder that wrangler will reject.
+ */
+export const KV_NAMESPACE_PLACEHOLDER = '<your-kv-namespace-id>'
+
 /** Generate a `wrangler.toml` for deploying the Worker. */
 export function generateWranglerToml(config: FlaghoistConfig): string {
   const lines = [
@@ -91,13 +97,43 @@ export function generateWranglerToml(config: FlaghoistConfig): string {
   if (config.storage === 'cloudflare-kv') {
     lines.push(
       '',
-      '# Create with: npx wrangler kv namespace create FLAGS',
+      '# Created for you by `flaghoist deploy`, or by: npx wrangler kv namespace create FLAGS',
       'kv_namespaces = [',
-      `  { binding = "FLAGS", id = "<your-kv-namespace-id>" }`,
+      `  { binding = "FLAGS", id = ${JSON.stringify(KV_NAMESPACE_PLACEHOLDER)} }`,
       ']',
     )
   }
   return `${lines.join('\n')}\n`
+}
+
+/** True when `wrangler.toml` still carries the placeholder id rather than a real namespace. */
+export function needsKvNamespace(toml: string): boolean {
+  return toml.includes(KV_NAMESPACE_PLACEHOLDER)
+}
+
+/** Swap the placeholder for a real namespace id, dropping the now-answered how-to comment. */
+export function fillKvNamespaceId(toml: string, id: string): string {
+  return toml
+    .replace(/^# Created for you by `flaghoist deploy`.*\n/m, '')
+    .replaceAll(KV_NAMESPACE_PLACEHOLDER, id)
+}
+
+/**
+ * Pull the namespace id out of `wrangler kv namespace create` output. Wrangler prints a TOML
+ * block for humans to paste; newer versions can print JSON. Accept either, and fall back to any
+ * bare 32-char hex id so a cosmetic change to their output does not break the deploy.
+ */
+export function parseKvNamespaceId(output: string): string | undefined {
+  const patterns = [
+    /\bid\s*=\s*"([0-9a-f]{32})"/i,
+    /"id"\s*:\s*"([0-9a-f]{32})"/i,
+    /\b([0-9a-f]{32})\b/i,
+  ]
+  for (const re of patterns) {
+    const match = re.exec(output)
+    if (match) return match[1]
+  }
+  return undefined
 }
 
 /** Generate a `package.json` for the ejected Worker project. */

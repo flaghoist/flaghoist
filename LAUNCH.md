@@ -4,7 +4,7 @@ The path from "the code is done" to "Flaghoist is live and getting used." Work t
 Phase 0 is a hard gate. Items marked **(you)** can only be done by the founder (accounts,
 purchases, decisions); the rest are code/CI/deploy.
 
-Repo state (last synced 2026-08-21): all 8 build checkpoints complete; 196 tests green across 12
+Repo state (last synced 2026-08-21): all 8 build checkpoints complete; 204 tests green across 12
 packages (27 test files); OSS
 hygiene in place (LICENSE, NOTICE, SECURITY.md, CONTRIBUTING, CODE_OF_CONDUCT, threat-model, CI,
 release workflow, Dependabot, FUNDING.yml). `main` is pushed and current on
@@ -114,13 +114,15 @@ in chat history.
       engine, admin console recomposed (and no longer calling Google for fonts), brand kit
       reconciled with what ships, and the docs site rebranded and overhauled. All committed and
       pushed.
-- [ ] **Fix the KV namespace placeholder in the quickstart path.** `generateWranglerToml` writes
-      `id = "<your-kv-namespace-id>"` literally, so on the default `cloudflare-kv` storage the very
-      first command in the README (`npx flaghoist deploy`) fails until the user runs
-      `npx wrangler kv namespace create FLAGS` and pastes the id. A comment in the generated
-      `wrangler.toml` points at it, but neither `create-flaghoist`'s "Next:" output nor the README
-      quickstart mentions the step. Found 2026-08-21 while tracing the new-user path; hits earlier in
-      the funnel than the `/admin` gap did.
+- [x] **Fix the KV namespace placeholder in the quickstart path. Done (2026-08-21).** A fresh
+      `wrangler.toml` carried `id = "<your-kv-namespace-id>"` literally, so on the default
+      `cloudflare-kv` storage the first command in the README (`npx flaghoist deploy`) failed until
+      the user ran `npx wrangler kv namespace create FLAGS` and pasted the id, which nothing told
+      them to do. `deploy` now creates the namespace and writes the id back itself, only while the
+      placeholder is present, so a pasted id is never overwritten and repeat deploys reuse the
+      namespace. Failure and unreadable-output paths stop with the manual command instead of
+      continuing into a doomed deploy. `eject` prints the command, and `self-hosting.md` documents
+      the behaviour. The README quickstart now works as written, unchanged.
 - [ ] **Consider woff2 for the embedded dashboard fonts.** The single-file build inlines three
       `font/woff` faces as base64, which is 229KB of the 332KB bundle. woff2 would cut most of that.
       Not a blocker: 332KB raw is 211KB gzipped, against a 3MB Worker limit.

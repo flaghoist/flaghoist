@@ -28,8 +28,7 @@ import {
   needsKvNamespace,
   parseKvNamespaceId,
 } from './generate'
-
-const VERSION = '0.0.0'
+import { VERSION } from './version'
 
 function writeFileSafe(path: string, content: string): void {
   mkdirSync(dirname(path) || '.', { recursive: true })

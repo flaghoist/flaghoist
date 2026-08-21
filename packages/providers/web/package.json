@@ -1,6 +1,6 @@
 {
   "name": "@flaghoist/provider-web",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenFeature web SDK provider for Flaghoist — a pre-wired OFREP provider for browser/client apps.",
   "license": "Apache-2.0",
   "type": "module",

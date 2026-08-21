@@ -38,4 +38,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+          # Provenance is off because npm can only attest it from a public repo, and this one is
+          # deliberately private through the alpha. Turn it back on at the public flip; the
+          # id-token permission above is already in place for it. Tracked in LAUNCH.md Phase 2.
+          # NPM_CONFIG_PROVENANCE: true

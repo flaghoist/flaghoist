@@ -67,14 +67,26 @@ in chat history.
       rewrite breaks `.d.ts` generation in core, provider-node and provider-web.
 - [x] Seed the tracker: 3 new labels, **7 `good first issue`s** (#19–#25), plus #26 and the tracked
       maintainer TODOs #27–#33.
-- [ ] **Flip the repo to public.** Everything above is deliberately done first.
+- [ ] **Flip the repo to public.** Everything above is deliberately done first. **No longer blocks
+      the npm release**: the decision (2026-08-21) is to publish 0.1.0 and run the alpha while the
+      repo stays private, so `NPM_CONFIG_PROVENANCE` is commented out in
+      `.github/workflows/release.yml`. Note that publishing makes the built code public on npm
+      regardless; a private repo only keeps history, issues and unpublished files back.
+- [ ] **Restore npm provenance at the public flip.** Uncomment `NPM_CONFIG_PROVENANCE: true` in
+      `.github/workflows/release.yml`. npm can only attest provenance from a public repo, so this
+      has to wait for the flip and takes effect on the first release after it. The `id-token: write`
+      permission is already in place.
 - [ ] Turn on **branch protection** for `main` (require CI + review) — do this _after_ the flip, and
       after any remaining Dependabot merges, or it blocks them.
 - [ ] **(you)** Enable **GitHub Discussions** (Settings → Features) once public.
 - [ ] Add the **`NPM_TOKEN`** secret for the release workflow (`.github/workflows/release.yml`,
-      Changesets → npm publish with provenance).
-- [ ] Cut **v0.1.0**: `pnpm changeset` → `pnpm version-packages` → merge → release workflow
-      publishes `@flaghoist/*` to npm.
+      Changesets → npm publish). An automation token with publish rights on the `flaghoist` org
+      **and** on the unscoped `flaghoist` name.
+- [ ] Cut **v0.1.0**: push to `main` → the workflow opens a Version Packages PR → merge it → the
+      workflow publishes. All **11** publishable packages go out together at 0.1.0; they are only
+      useful as a set, and a missing one is an install failure for whoever picked that adapter.
+      Changesets are staged and `changeset status` confirms the list. Do **not** enable branch
+      protection until after this PR merges, or it blocks Changesets from merging its own PR.
 - [ ] Smoke-test a published install in a clean dir:
       `npm create flaghoist@latest smoke` → `npx flaghoist deploy`.
 

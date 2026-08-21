@@ -4,10 +4,17 @@ The path from "the code is done" to "Flaghoist is live and getting used." Work t
 Phase 0 is a hard gate. Items marked **(you)** can only be done by the founder (accounts,
 purchases, decisions); the rest are code/CI/deploy.
 
-Repo state at the time of writing: all 8 build checkpoints complete and committed; ~150 tests
-green; OSS hygiene in place (LICENSE, NOTICE, SECURITY.md, CONTRIBUTING, CODE_OF_CONDUCT,
-threat-model, CI, release workflow, Dependabot, FUNDING.yml). **Nothing is pushed to a remote and
-no packages are published yet.**
+Repo state (last synced 2026-08-21): all 8 build checkpoints complete; ~150 tests green; OSS
+hygiene in place (LICENSE, NOTICE, SECURITY.md, CONTRIBUTING, CODE_OF_CONDUCT, threat-model, CI,
+release workflow, Dependabot, FUNDING.yml). `main` is pushed and current on
+`flaghoist/flaghoist`, which is **still private**. On npm only the `flaghoist@0.0.1` placeholder
+exists — **no `@flaghoist/*` package is published yet**, and one changeset
+(`create-flaghoist` + `flaghoist`, minor) is staged for v0.1.0.
+
+The public surfaces have all had their design pass: landing page, admin dashboard, brand kit, and
+docs site. **The one thing standing between here and flipping the repo public is the demo GIF** —
+`README.md` already embeds `./brand/demo.gif`, and that file does not exist yet, so the README
+renders a broken image to the first visitor.
 
 ---
 
@@ -86,14 +93,20 @@ in chat history.
 ## Phase 4 — Pre-launch polish (engineering)
 
 - [ ] **README demo GIF** — record `flaghoist deploy` → create a flag → toggle it in the dashboard →
-      app flips. This is the single highest-leverage asset for the launch.
+      app flips. This is the single highest-leverage asset for the launch, and it is now also a
+      **blocker on going public**: `README.md` embeds `./brand/demo.gif`, which does not exist yet.
+      Either record it or drop the `<img>` before the repo flips.
 - [ ] **Embed the dashboard into the deploy template** so `flaghoist deploy` / `eject` ship the
       admin UI at `/admin` out of the box. The server already supports `config.dashboard`; what's
       missing is wiring the built dashboard HTML into the generated Worker. (Deferred from CP7.)
 - [x] **Publish a `create-flaghoist` package** so `npm create flaghoist` works — built, tested, and
       wired into the README, docs, and landing page. Ships with v0.1.0. ([#27](https://github.com/flaghoist/flaghoist/issues/27))
-- [ ] **Convert the tracked TODOs to GitHub issues** (once the repo exists) — see the list below.
-- [ ] **Seed `good first issue` labels** — adapters and language guides are ideal (see below).
+- [x] **Convert the tracked TODOs to GitHub issues** — filed as #27–#33 (see the list below).
+- [x] **Seed `good first issue` labels** — 7 filed (#19–#25) plus #26; 3 new labels created.
+- [x] **Design pass over every public surface** — landing page rebuilt around the real evaluation
+      engine, admin console recomposed (and no longer calling Google for fonts), brand kit
+      reconciled with what ships, and the docs site rebranded and overhauled. All committed and
+      pushed.
 - [ ] Decide whether the **Miniflare real-KV test** (#9) is pre- or post-launch (recommended:
       post — the adapter is well-covered by the conformance suite already).
 
@@ -142,12 +155,12 @@ All filed on the repo. Kept here as a map so the launch plan and the tracker don
 - [ ] [#28](https://github.com/flaghoist/flaghoist/issues/28) — `@flaghoist/mcp`, the MCP server.
       Fast-follow a few weeks after launch, as its own moment. Needs `@flaghoist/admin-client`
       extracted first (the CLI's client is bin-only; the dashboard has a second copy).
-- [ ] [#29](https://github.com/flaghoist/flaghoist/issues/29) — dashboard API: surface the server's
-      `.error` message instead of raw response text.
-- [ ] [#30](https://github.com/flaghoist/flaghoist/issues/30) — dashboard API: normalize every
-      failure to `ApiError`.
-- [ ] [#31](https://github.com/flaghoist/flaghoist/issues/31) — dashboard: return to the token gate
-      on a mid-session 401.
+- [x] [#29](https://github.com/flaghoist/flaghoist/issues/29) — dashboard API: surface the server's
+      `.error` message instead of raw response text. **Done** in the dashboard recompose.
+- [x] [#30](https://github.com/flaghoist/flaghoist/issues/30) — dashboard API: normalize every
+      failure to `ApiError`. **Done** in the dashboard recompose.
+- [x] [#31](https://github.com/flaghoist/flaghoist/issues/31) — dashboard: return to the token gate
+      on a mid-session 401. **Done** in the dashboard recompose.
 - [ ] [#32](https://github.com/flaghoist/flaghoist/issues/32) — flags: optimistic concurrency
       (ETag/version) and pagination for the admin API.
 - [ ] [#33](https://github.com/flaghoist/flaghoist/issues/33) — test `adapter-cloudflare-kv` against

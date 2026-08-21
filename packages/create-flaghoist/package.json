@@ -1,7 +1,7 @@
 {
   "name": "create-flaghoist",
   "version": "0.1.0",
-  "description": "Scaffold a Flaghoist feature-flag service — the package behind `npm create flaghoist`.",
+  "description": "Scaffold a Flaghoist feature-flag service \u2014 the package behind `npm create flaghoist`.",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
@@ -30,5 +30,14 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/create-flaghoist"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

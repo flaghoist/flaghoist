@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/vue",
   "version": "0.1.0",
-  "description": "Vue 3 bindings for Flaghoist — the useFeatureFlag() composable and a pre-wired FlaghoistProvider.",
+  "description": "Vue 3 bindings for Flaghoist \u2014 the useFeatureFlag() composable and a pre-wired FlaghoistProvider.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -44,5 +44,22 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "feature-flags",
+    "openfeature",
+    "composable",
+    "ofrep"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/vue"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

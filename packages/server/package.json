@@ -60,5 +60,22 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "keywords": [
+    "feature-flags",
+    "openfeature",
+    "ofrep",
+    "hono",
+    "cloudflare-workers",
+    "self-hosted"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

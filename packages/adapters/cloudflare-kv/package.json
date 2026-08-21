@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/adapter-cloudflare-kv",
   "version": "0.1.0",
-  "description": "Cloudflare Workers KV StorageAdapter for Flaghoist — the default storage backend.",
+  "description": "Cloudflare Workers KV StorageAdapter for Flaghoist \u2014 the default storage backend.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -40,5 +40,20 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "keywords": [
+    "feature-flags",
+    "storage",
+    "cloudflare",
+    "workers-kv"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/adapters/cloudflare-kv"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/provider-web",
   "version": "0.1.0",
-  "description": "OpenFeature web SDK provider for Flaghoist — a pre-wired OFREP provider for browser/client apps.",
+  "description": "OpenFeature web SDK provider for Flaghoist \u2014 a pre-wired OFREP provider for browser/client apps.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -42,5 +42,21 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "keywords": [
+    "openfeature",
+    "ofrep",
+    "feature-flags",
+    "provider",
+    "browser"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/providers/web"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

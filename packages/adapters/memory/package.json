@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/adapter-memory",
   "version": "0.1.0",
-  "description": "In-memory StorageAdapter for Flaghoist — development, tests, and fallback defaults.",
+  "description": "In-memory StorageAdapter for Flaghoist \u2014 development, tests, and fallback defaults.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -40,5 +40,20 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "keywords": [
+    "feature-flags",
+    "storage",
+    "in-memory",
+    "testing"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/adapters/memory"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

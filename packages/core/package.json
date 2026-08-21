@@ -34,5 +34,21 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "keywords": [
+    "feature-flags",
+    "feature-toggles",
+    "evaluation",
+    "targeting",
+    "percentage-rollout"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

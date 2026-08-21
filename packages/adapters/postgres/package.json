@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/adapter-postgres",
   "version": "0.1.0",
-  "description": "Postgres StorageAdapter for Flaghoist — stores flags in a jsonb table via any node-postgres client.",
+  "description": "Postgres StorageAdapter for Flaghoist \u2014 stores flags in a jsonb table via any node-postgres client.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -41,5 +41,21 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "keywords": [
+    "feature-flags",
+    "storage",
+    "postgres",
+    "postgresql",
+    "jsonb"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flaghoist/flaghoist.git",
+    "directory": "packages/adapters/postgres"
+  },
+  "homepage": "https://github.com/flaghoist/flaghoist#readme",
+  "bugs": {
+    "url": "https://github.com/flaghoist/flaghoist/issues"
   }
 }

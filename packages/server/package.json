@@ -17,6 +17,23 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./dashboard": {
+      "import": {
+        "types": "./dist/dashboard.d.ts",
+        "default": "./dist/dashboard.js"
+      },
+      "require": {
+        "types": "./dist/dashboard.d.cts",
+        "default": "./dist/dashboard.cjs"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "dashboard": [
+        "./dist/dashboard.d.ts"
+      ]
     }
   },
   "files": [
@@ -27,9 +44,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
-    "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc --noEmit",
+    "build": "node scripts/embed-dashboard.mjs && tsup src/index.ts src/dashboard.ts --format esm,cjs --dts --clean",
+    "test": "node scripts/embed-dashboard.mjs && vitest run --passWithNoTests",
+    "typecheck": "node scripts/embed-dashboard.mjs && tsc --noEmit",
     "check:package": "publint --strict && attw --pack ."
   },
   "dependencies": {
@@ -38,7 +55,8 @@
     "jose": "^6.2.8"
   },
   "devDependencies": {
-    "@flaghoist/adapter-memory": "workspace:*"
+    "@flaghoist/adapter-memory": "workspace:*",
+    "@flaghoist/dashboard": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

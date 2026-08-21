@@ -280,6 +280,9 @@ importers:
       '@flaghoist/adapter-memory':
         specifier: workspace:*
         version: link:../adapters/memory
+      '@flaghoist/dashboard':
+        specifier: workspace:*
+        version: link:../../apps/dashboard
 
   packages/vue:
     dependencies:

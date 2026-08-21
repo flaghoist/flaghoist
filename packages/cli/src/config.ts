@@ -8,12 +8,15 @@ export interface FlaghoistConfig {
   storage: StorageKind
   auth: { admin: AdminAuthKind; read: 'api-key' }
   allowedOrigins?: string[]
+  /** Serve the admin dashboard at `/admin`. On by default. */
+  dashboard: boolean
 }
 
 export const DEFAULT_CONFIG: FlaghoistConfig = {
   name: 'team-flags',
   storage: 'cloudflare-kv',
   auth: { admin: 'bearer-token', read: 'api-key' },
+  dashboard: true,
 }
 
 /** Every storage backend selectable by name in `flaghoist.toml`. */
@@ -37,7 +40,10 @@ export function parseConfig(text: string): FlaghoistConfig {
   const allowedOrigins = Array.isArray(raw.allowedOrigins)
     ? raw.allowedOrigins.filter((x): x is string => typeof x === 'string')
     : undefined
-  return { name, storage, auth: { admin, read: 'api-key' }, allowedOrigins }
+  // Only an explicit `false` opts out, so configs written before the key existed keep the
+  // dashboard, which is the documented behaviour.
+  const dashboard = raw.dashboard !== false
+  return { name, storage, auth: { admin, read: 'api-key' }, allowedOrigins, dashboard }
 }
 
 /** Render a config back to `flaghoist.toml` text. */
@@ -49,6 +55,9 @@ export function serializeConfig(config: FlaghoistConfig): string {
   ]
   if (config.allowedOrigins && config.allowedOrigins.length > 0) {
     lines.push(`allowedOrigins = ${JSON.stringify(config.allowedOrigins)}`)
+  }
+  if (!config.dashboard) {
+    lines.push('dashboard = false')
   }
   lines.push(
     '',

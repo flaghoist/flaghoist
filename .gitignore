@@ -24,6 +24,9 @@ playwright/.cache/
 .dev.vars
 .dev.vars.*
 
+# Generated from apps/dashboard/dist by packages/server/scripts/embed-dashboard.mjs
+packages/server/src/dashboard.ts
+
 # Build tool caches
 .vite/
 .astro/

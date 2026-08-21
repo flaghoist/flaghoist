@@ -31,6 +31,18 @@ describe('generateWorkerEntry', () => {
     })
     expect(src).toContain('allowedOrigins: ["https://app.example.com"]')
   })
+
+  it('wires the dashboard in by default, so a fresh deploy answers /admin', () => {
+    const src = generateWorkerEntry(DEFAULT_CONFIG)
+    expect(src).toContain(`import { dashboardHtml } from '@flaghoist/server/dashboard'`)
+    expect(src).toContain('dashboard: dashboardHtml,')
+  })
+
+  it('omits both the import and the config line when the dashboard is off', () => {
+    const src = generateWorkerEntry({ ...DEFAULT_CONFIG, dashboard: false })
+    expect(src).not.toContain('@flaghoist/server/dashboard')
+    expect(src).not.toContain('dashboardHtml')
+  })
 })
 
 describe('generateWranglerToml', () => {

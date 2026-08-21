@@ -34,4 +34,22 @@ describe('config', () => {
     expect(parsed.name).toBe('team-flags')
     expect(parsed.auth.admin).toBe('bearer-token')
   })
+
+  it('defaults the dashboard on, and omits the key when it is', () => {
+    expect(DEFAULT_CONFIG.dashboard).toBe(true)
+    expect(parseConfig('name = "prod"').dashboard).toBe(true)
+    expect(serializeConfig(DEFAULT_CONFIG)).not.toContain('dashboard')
+  })
+
+  it('round-trips an explicit dashboard opt-out', () => {
+    const toml = serializeConfig({ ...DEFAULT_CONFIG, dashboard: false })
+    expect(toml).toContain('dashboard = false')
+    expect(parseConfig(toml).dashboard).toBe(false)
+  })
+
+  it('treats any non-false dashboard value as on', () => {
+    // Guards the upgrade path: a config written before the key existed must keep the UI.
+    expect(parseConfig('dashboard = "yes"').dashboard).toBe(true)
+    expect(parseConfig('').dashboard).toBe(true)
+  })
 })

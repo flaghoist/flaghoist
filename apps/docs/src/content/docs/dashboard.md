@@ -7,6 +7,9 @@ Every deploy serves a management UI at `/admin`, built from the same single-file
 generates. There is no separate service to run and no vendor console to sign into. It makes no
 request to anything outside your server: fonts, icons and styles are all inlined into that one file.
 
+It is on by default. Set `dashboard = false` in `flaghoist.toml` to deploy the read and admin APIs
+without it, and see [Self-hosting](/self-hosting/#serving-the-dashboard) for wiring it up by hand.
+
 ## Signing in
 
 Open `https://<your-server>/admin` and enter your server URL and admin token. The token is kept in
@@ -23,10 +26,10 @@ flags are in each state before you click.
 
 Keyboard shortcuts work anywhere on the page:
 
-| Key   | Action                          |
-| ----- | -------------------------------- |
-| `/`   | Focus search                     |
-| `n`   | Open the new-flag editor         |
+| Key   | Action                            |
+| ----- | --------------------------------- |
+| `/`   | Focus search                      |
+| `n`   | Open the new-flag editor          |
 | `Esc` | Clear search, or close the editor |
 
 ## Changing a flag

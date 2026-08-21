@@ -12,6 +12,7 @@ Your whole project is a `flaghoist.toml`:
 ```toml
 name = "team-flags"
 storage = "cloudflare-kv"
+dashboard = true
 
 [auth]
 admin = "bearer-token"
@@ -38,6 +39,7 @@ explicitly:
 ```ts
 import { cloudflareKV } from '@flaghoist/adapter-cloudflare-kv'
 import { apiKey, bearerToken, createFlagServer } from '@flaghoist/server'
+import { dashboardHtml } from '@flaghoist/server/dashboard'
 
 export default createFlagServer((env) => ({
   storage: cloudflareKV(env.FLAGS),
@@ -45,8 +47,12 @@ export default createFlagServer((env) => ({
     admin: bearerToken(env.ADMIN_TOKEN),
     read: apiKey(env.READ_API_KEY),
   },
+  dashboard: dashboardHtml,
 }))
 ```
+
+Every line is yours to change, including the dashboard import: drop it and `/admin` stops being
+served.
 
 ## Deploying off Cloudflare
 
@@ -72,11 +78,25 @@ VPC is reached from a Node/Bun/container deployment rather than from a Worker; H
 
 ## Serving the dashboard
 
-Pass a prebuilt dashboard build to serve the management UI at `/admin` from the same deploy:
+Both `flaghoist deploy` and `flaghoist eject` wire the dashboard in for you, so `/admin` works on a
+fresh deploy with nothing to configure. To ship the APIs without the UI, turn it off in
+`flaghoist.toml`:
+
+```toml
+dashboard = false
+```
+
+Composing the server yourself? Import the prebuilt bundle from its own entry point and pass it as
+`config.dashboard`:
 
 ```ts
+import { dashboardHtml } from '@flaghoist/server/dashboard'
+
 createFlagServer({ storage, auth, dashboard: dashboardHtml })
 ```
+
+It lives on a subpath rather than the package root, so a deploy that leaves it out never pulls the
+HTML into its bundle.
 
 ## Environments
 

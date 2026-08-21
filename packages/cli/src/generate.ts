@@ -61,11 +61,14 @@ export function generateWorkerEntry(config: FlaghoistConfig): string {
   const imports = [
     ...storage.imports,
     `import { ${serverImports.join(', ')} } from '@flaghoist/server'`,
+    // A subpath import, so a Worker built with `dashboard = false` never pulls the HTML in.
+    ...(config.dashboard ? [`import { dashboardHtml } from '@flaghoist/server/dashboard'`] : []),
   ].join('\n')
   const origins =
     config.allowedOrigins && config.allowedOrigins.length > 0
       ? `\n  allowedOrigins: ${JSON.stringify(config.allowedOrigins)},`
       : ''
+  const dashboard = config.dashboard ? '\n  dashboard: dashboardHtml,' : ''
   return `${imports}
 
 export default createFlagServer((env) => ({
@@ -73,7 +76,7 @@ export default createFlagServer((env) => ({
   auth: {
     admin: ${adminExpr(config.auth.admin)},
     read: apiKey(env.READ_API_KEY),
-  },${origins}
+  },${origins}${dashboard}
 }))
 `
 }

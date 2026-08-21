@@ -12,9 +12,8 @@ exists — **no `@flaghoist/*` package is published yet**, and one changeset
 (`create-flaghoist` + `flaghoist`, minor) is staged for v0.1.0.
 
 The public surfaces have all had their design pass: landing page, admin dashboard, brand kit, and
-docs site. **The one thing standing between here and flipping the repo public is the demo GIF** —
-`README.md` already embeds `./brand/demo.gif`, and that file does not exist yet, so the README
-renders a broken image to the first visitor.
+docs site. Nothing in the repo blocks the public flip on its own — the README's `demo.gif` embed sits
+inside an HTML comment, so the missing file renders nothing rather than a broken image.
 
 ---
 
@@ -92,13 +91,17 @@ in chat history.
 
 ## Phase 4 — Pre-launch polish (engineering)
 
-- [ ] **README demo GIF** — record `flaghoist deploy` → create a flag → toggle it in the dashboard →
-      app flips. This is the single highest-leverage asset for the launch, and it is now also a
-      **blocker on going public**: `README.md` embeds `./brand/demo.gif`, which does not exist yet.
-      Either record it or drop the `<img>` before the repo flips.
 - [ ] **Embed the dashboard into the deploy template** so `flaghoist deploy` / `eject` ship the
       admin UI at `/admin` out of the box. The server already supports `config.dashboard`; what's
       missing is wiring the built dashboard HTML into the generated Worker. (Deferred from CP7.)
+      **Do this first — the demo GIF depends on it.** `packages/cli/src/generate.ts` never sets
+      `cfg.dashboard`, so a Worker from a fresh `flaghoist deploy` answers `/admin` with
+      "Dashboard not configured" (404), while the README quickstart promises "your dashboard at
+      `/admin`". The advertised flow cannot be demonstrated, or honestly documented, until this ships.
+- [ ] **README demo GIF** — record `flaghoist deploy` → create a flag → toggle it in the dashboard →
+      app flips. The single highest-leverage asset for the launch. Blocked on the dashboard embed
+      above. Not a blocker on going public: the `<img>` is commented out in `README.md`, so the
+      missing file is invisible until it is uncommented.
 - [x] **Publish a `create-flaghoist` package** so `npm create flaghoist` works — built, tested, and
       wired into the README, docs, and landing page. Ships with v0.1.0. ([#27](https://github.com/flaghoist/flaghoist/issues/27))
 - [x] **Convert the tracked TODOs to GitHub issues** — filed as #27–#33 (see the list below).

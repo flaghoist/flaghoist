@@ -7,5 +7,13 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@flaghoist/dashboard", "@flaghoist/web", "@flaghoist/docs"]
+  "ignore": [
+    "@flaghoist/dashboard",
+    "@flaghoist/web",
+    "@flaghoist/docs",
+    "@flaghoist/example-vue",
+    "@flaghoist/example-node",
+    "@flaghoist/example-worker",
+    "@flaghoist/adapter-conformance"
+  ]
 }

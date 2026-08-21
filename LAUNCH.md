@@ -4,7 +4,8 @@ The path from "the code is done" to "Flaghoist is live and getting used." Work t
 Phase 0 is a hard gate. Items marked **(you)** can only be done by the founder (accounts,
 purchases, decisions); the rest are code/CI/deploy.
 
-Repo state (last synced 2026-08-21): all 8 build checkpoints complete; ~150 tests green; OSS
+Repo state (last synced 2026-08-21): all 8 build checkpoints complete; 196 tests green across 12
+packages (27 test files); OSS
 hygiene in place (LICENSE, NOTICE, SECURITY.md, CONTRIBUTING, CODE_OF_CONDUCT, threat-model, CI,
 release workflow, Dependabot, FUNDING.yml). `main` is pushed and current on
 `flaghoist/flaghoist`, which is **still private**. On npm only the `flaghoist@0.0.1` placeholder
@@ -17,15 +18,16 @@ inside an HTML comment, so the missing file renders nothing rather than a broken
 
 ---
 
-## Phase 0 — Legal (blocker; do not skip)
+## Phase 0 — Legal (cleared 2026-08-21)
 
-- [ ] **(you)** Check your employment / IP agreement for any claim over side projects or derived
+- [x] **(you)** Check your employment / IP agreement for any claim over side projects or derived
       work. Ideally get written acknowledgment that this OSS project is yours.
-- [ ] **(you)** Confirm the clean-room discipline held: all Flaghoist code was written fresh, no
+- [x] **(you)** Confirm the clean-room discipline held: all Flaghoist code was written fresh, no
       copying from the employer repo. (It was — the OSS design diverges substantially — but the
       go/no-go on publishing is yours.)
 
-> Everything below assumes Phase 0 is cleared.
+> **Phase 0 is cleared as of 2026-08-21.** The gate on everything public is lifted; the public flip
+> now waits only on the engineering items in Phase 4.
 
 ---
 
@@ -91,16 +93,18 @@ in chat history.
 
 ## Phase 4 — Pre-launch polish (engineering)
 
-- [ ] **Embed the dashboard into the deploy template** so `flaghoist deploy` / `eject` ship the
-      admin UI at `/admin` out of the box. The server already supports `config.dashboard`; what's
-      missing is wiring the built dashboard HTML into the generated Worker. (Deferred from CP7.)
-      **Do this first — the demo GIF depends on it.** `packages/cli/src/generate.ts` never sets
-      `cfg.dashboard`, so a Worker from a fresh `flaghoist deploy` answers `/admin` with
-      "Dashboard not configured" (404), while the README quickstart promises "your dashboard at
-      `/admin`". The advertised flow cannot be demonstrated, or honestly documented, until this ships.
+- [x] **Embed the dashboard into the deploy template** so `flaghoist deploy` / `eject` ship the
+      admin UI at `/admin` out of the box. **Done (2026-08-21).** `@flaghoist/server` now exports the
+      prebuilt single-file dashboard as `dashboardHtml` from the `@flaghoist/server/dashboard`
+      subpath, generated at build time from `apps/dashboard/dist/index.html` by
+      `packages/server/scripts/embed-dashboard.mjs`, and `packages/cli/src/generate.ts` imports it
+      into the generated Worker. A separate entry point, so a deploy that does not want the UI never
+      pulls the HTML into its bundle. New `dashboard` key in `flaghoist.toml` (default `true`) turns
+      it off. Changeset staged (`@flaghoist/server` + `flaghoist`, minor). Full chain green: 196
+      tests, build (15/15), typecheck (22/22), `check:packages` (22/22), `format:check`. The demo GIF is now unblocked.
 - [ ] **README demo GIF** — record `flaghoist deploy` → create a flag → toggle it in the dashboard →
-      app flips. The single highest-leverage asset for the launch. Blocked on the dashboard embed
-      above. Not a blocker on going public: the `<img>` is commented out in `README.md`, so the
+      app flips. The single highest-leverage asset for the launch. **Now unblocked**: the dashboard
+      embed above shipped, so the four-beat shot list can be recorded against shipped code. Not a blocker on going public: the `<img>` is commented out in `README.md`, so the
       missing file is invisible until it is uncommented.
 - [x] **Publish a `create-flaghoist` package** so `npm create flaghoist` works — built, tested, and
       wired into the README, docs, and landing page. Ships with v0.1.0. ([#27](https://github.com/flaghoist/flaghoist/issues/27))
@@ -110,6 +114,16 @@ in chat history.
       engine, admin console recomposed (and no longer calling Google for fonts), brand kit
       reconciled with what ships, and the docs site rebranded and overhauled. All committed and
       pushed.
+- [ ] **Fix the KV namespace placeholder in the quickstart path.** `generateWranglerToml` writes
+      `id = "<your-kv-namespace-id>"` literally, so on the default `cloudflare-kv` storage the very
+      first command in the README (`npx flaghoist deploy`) fails until the user runs
+      `npx wrangler kv namespace create FLAGS` and pastes the id. A comment in the generated
+      `wrangler.toml` points at it, but neither `create-flaghoist`'s "Next:" output nor the README
+      quickstart mentions the step. Found 2026-08-21 while tracing the new-user path; hits earlier in
+      the funnel than the `/admin` gap did.
+- [ ] **Consider woff2 for the embedded dashboard fonts.** The single-file build inlines three
+      `font/woff` faces as base64, which is 229KB of the 332KB bundle. woff2 would cut most of that.
+      Not a blocker: 332KB raw is 211KB gzipped, against a 3MB Worker limit.
 - [ ] Decide whether the **Miniflare real-KV test** (#9) is pre- or post-launch (recommended:
       post — the adapter is well-covered by the conformance suite already).
 

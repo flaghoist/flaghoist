@@ -38,6 +38,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # setup-node's registry-url writes an .npmrc holding _authToken=${NODE_AUTH_TOKEN} and
+          # points NPM_CONFIG_USERCONFIG at it, so the token has to arrive under that name too.
+          # With only NPM_TOKEN set the variable never expands, every request goes out
+          # unauthenticated, and npm answers 404 rather than 401 for scoped packages.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           # Provenance is off because npm can only attest it from a public repo, and this one is
           # deliberately private through the alpha. Turn it back on at the public flip; the
           # id-token permission above is already in place for it. Tracked in LAUNCH.md Phase 2.

@@ -1,7 +1,7 @@
 {
   "name": "@flaghoist/provider-node",
-  "version": "0.1.0",
-  "description": "OpenFeature server SDK provider for Flaghoist \u2014 a pre-wired OFREP provider for Node/server apps.",
+  "version": "0.1.1",
+  "description": "OpenFeature server SDK provider for Flaghoist — a pre-wired OFREP provider for Node/server apps.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",

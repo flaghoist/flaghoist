@@ -166,7 +166,7 @@ function runEject(): void {
   console.log('Ejected to a code project you own: src/index.ts, wrangler.toml, package.json')
   if (config.storage === 'cloudflare-kv') {
     console.log('Create your KV namespace and paste the id into wrangler.toml:')
-    console.log('  npx wrangler kv namespace create FLAGS')
+    console.log(`  npx wrangler kv namespace create ${config.name}-FLAGS`)
   }
   console.log('Edit src/index.ts freely, then: npm install && npx wrangler deploy')
 }
@@ -183,10 +183,14 @@ function ensureKvNamespace(config: FlaghoistConfig): void {
   const toml = readFileSync('wrangler.toml', 'utf8')
   if (!needsKvNamespace(toml)) return
 
-  console.log('Creating the FLAGS KV namespace...')
+  // Wrangler titles the namespace after the argument, and titles are unique per account, so a
+  // bare "FLAGS" collides with every Flaghoist project after the first. Scoping it to the project
+  // name keeps a second environment, or a second service, from failing on a name it never chose.
+  const title = `${config.name}-FLAGS`
+  console.log(`Creating the ${title} KV namespace...`)
   // stdin and stderr stay attached so wrangler can prompt for login and show its own errors;
   // stdout is captured because the namespace id is in it, then echoed so nothing is hidden.
-  const created = spawnSync('npx', ['wrangler', 'kv', 'namespace', 'create', 'FLAGS'], {
+  const created = spawnSync('npx', ['wrangler', 'kv', 'namespace', 'create', title], {
     stdio: ['inherit', 'pipe', 'inherit'],
     encoding: 'utf8',
   })
@@ -195,8 +199,8 @@ function ensureKvNamespace(config: FlaghoistConfig): void {
 
   if (created.status !== 0) {
     throw new Error(
-      'Could not create the KV namespace. Run `npx wrangler kv namespace create FLAGS` yourself, ' +
-        'then paste the id into wrangler.toml.',
+      `Could not create the KV namespace. Run \`npx wrangler kv namespace create ${title}\` ` +
+        'yourself, then paste the id into wrangler.toml.',
     )
   }
   const id = parseKvNamespaceId(output)
@@ -210,9 +214,29 @@ function ensureKvNamespace(config: FlaghoistConfig): void {
   console.log(`Bound FLAGS to namespace ${id} in wrangler.toml`)
 }
 
+/**
+ * Install the generated project's dependencies.
+ *
+ * The zero-config path writes a package.json and a Worker that imports from it, but the directory
+ * a fresh `npm create flaghoist` leaves behind has no node_modules, so wrangler's bundler cannot
+ * resolve `@flaghoist/server` and the deploy dies before it reaches Cloudflare. Skipped once the
+ * directory has been installed, so repeat deploys do not pay for it.
+ */
+function ensureDependencies(): void {
+  if (existsSync('node_modules')) return
+  console.log('Installing dependencies...')
+  const result = spawnSync('npm', ['install', '--no-audit', '--no-fund'], { stdio: 'inherit' })
+  if (result.status !== 0) {
+    throw new Error('`npm install` failed. Run it yourself, then `flaghoist deploy` again.')
+  }
+}
+
 function runDeploy(): void {
   const config = loadConfig()
   if (!existsSync('src/index.ts')) writeProject(config, '.')
+  // Dependencies first: this is where wrangler itself comes from, and the KV step below shells
+  // out to it.
+  ensureDependencies()
   ensureKvNamespace(config)
   console.log('Deploying with wrangler...')
   const result = spawnSync('npx', ['wrangler', 'deploy'], { stdio: 'inherit' })

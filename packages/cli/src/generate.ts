@@ -97,7 +97,7 @@ export function generateWranglerToml(config: FlaghoistConfig): string {
   if (config.storage === 'cloudflare-kv') {
     lines.push(
       '',
-      '# Created for you by `flaghoist deploy`, or by: npx wrangler kv namespace create FLAGS',
+      `# Created for you by \`flaghoist deploy\`, or by: npx wrangler kv namespace create ${config.name}-FLAGS`,
       'kv_namespaces = [',
       `  { binding = "FLAGS", id = ${JSON.stringify(KV_NAMESPACE_PLACEHOLDER)} }`,
       ']',

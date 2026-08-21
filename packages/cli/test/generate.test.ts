@@ -63,6 +63,13 @@ describe('generateWranglerToml', () => {
     expect(needsKvNamespace(generateWranglerToml(DEFAULT_CONFIG))).toBe(true)
   })
 
+  it('scopes the namespace title to the project, since titles collide per account', () => {
+    const toml = generateWranglerToml({ ...DEFAULT_CONFIG, name: 'staging-flags' })
+    expect(toml).toContain('kv namespace create staging-flags-FLAGS')
+    // The binding stays FLAGS; it is the account-wide title that has to be unique.
+    expect(toml).toContain('binding = "FLAGS"')
+  })
+
   it('needs no namespace on storage that does not use KV', () => {
     expect(needsKvNamespace(generateWranglerToml({ ...DEFAULT_CONFIG, storage: 'redis' }))).toBe(
       false,

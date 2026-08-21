@@ -1,6 +1,6 @@
 {
   "name": "@flaghoist/adapter-postgres",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Postgres StorageAdapter for Flaghoist — stores flags in a jsonb table via any node-postgres client.",
   "license": "Apache-2.0",
   "type": "module",

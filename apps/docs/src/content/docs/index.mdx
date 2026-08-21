@@ -1,17 +1,22 @@
 ---
 title: Flaghoist
-description: Feature flags at the edge — open-source, OpenFeature-native, self-hosted.
+description: Feature flags at the edge, open-source, OpenFeature-native, self-hosted.
 template: splash
 hero:
-  tagline: Feature flags at the edge. No server, no database, no bill. Self-host your own flag service in five minutes — and use it from every language with an OpenFeature SDK, on day one.
+  tagline: Feature flags at the edge. No server, no database, no bill. Self-host your own flag service in five minutes, and use it from every language with an OpenFeature SDK, on day one.
   actions:
     - text: Quickstart
       link: /quickstart/
       icon: right-arrow
       variant: primary
+    - text: flaghoist.dev
+      link: https://flaghoist.dev
+      icon: external
+      variant: secondary
     - text: View on GitHub
       link: https://github.com/flaghoist/flaghoist
       icon: external
+      variant: secondary
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components'
@@ -20,7 +25,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components'
 
 <CardGrid>
   <Card title="$0 idle" icon="rocket">
-    Runs on the Cloudflare free tier and scales to zero — no always-on server, no database
+    Runs on the Cloudflare free tier and scales to zero. No always-on server, no database
     bill, no subscription.
   </Card>
   <Card title="OpenFeature-native" icon="open-book">
@@ -28,11 +33,11 @@ import { Card, CardGrid } from '@astrojs/starlight/components'
     more work on day one with their standard providers.
   </Card>
   <Card title="Bring your own DB" icon="setting">
-    A storage adapter is four methods. Cloudflare KV, Redis, and Postgres ship today — or write
+    A storage adapter is four methods. Cloudflare KV, Redis, and Postgres ship today, or write
     your own against the conformance suite.
   </Card>
   <Card title="Targeting from day one" icon="approve-check">
-    Boolean flags, sticky percentage rollouts, and ordered targeting rules — with a visual rule
+    Boolean flags, sticky percentage rollouts, and ordered targeting rules, with a visual rule
     builder in the dashboard.
   </Card>
 </CardGrid>
@@ -41,10 +46,10 @@ import { Card, CardGrid } from '@astrojs/starlight/components'
 
 Flaghoist has two independent halves:
 
-- **The flag service** — deployed once for your team, on your own infrastructure. It stores flags
+- **The flag service**: deployed once for your team, on your own infrastructure. It stores flags
   in any fast database (Cloudflare KV by default) and exposes the OFREP read API, an admin API,
   and a management dashboard.
-- **Your apps** — install an OpenFeature provider (or use your language's official OFREP provider)
+- **Your apps**: install an OpenFeature provider (or use your language's official OFREP provider)
   and read flags. Your app never learns the word "Flaghoist."
 
 Continue to the [quickstart](/quickstart/), or read how it [fits together](/architecture/).

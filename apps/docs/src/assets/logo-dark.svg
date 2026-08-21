@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flaghoist">
+  <title>Flaghoist</title>
+  <!-- halyard / staff — sail instead of navy, so the mark reads against a dark surface -->
+  <circle cx="16" cy="9" r="3" fill="#F7F4EC" />
+  <line x1="16" y1="9" x2="16" y2="57" stroke="#F7F4EC" stroke-width="3.5" stroke-linecap="round" />
+  <!-- swallowtail signal flag -->
+  <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="#FF4A1F" />
+  <!-- fold accent -->
+  <path d="M16 31 L40.5 24 L52 32.5 L16 31 Z" fill="#F7F4EC" fill-opacity="0.18" />
+</svg>

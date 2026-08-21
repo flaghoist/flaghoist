@@ -9,7 +9,7 @@ your apps. After the service exists, adding a flag is a one-line CLI call plus a
 ## 1. Stand up the service (once, for your team)
 
 ```bash
-npm create flaghoist@latest team-flags   # writes flaghoist.toml — the entire project
+npm create flaghoist@latest team-flags   # writes flaghoist.toml, the entire project
 cd team-flags
 npx flaghoist deploy
 # → https://team-flags.you.workers.dev
@@ -46,7 +46,7 @@ From the terminal:
 npx flaghoist flag create new-checkout --desc "Redesigned checkout"
 ```
 
-Flags are created **disabled** — safe by default, so nothing ships until you turn it on. Or click
+Flags are created **disabled**, safe by default, so nothing ships until you turn it on. Or click
 **New flag** in the dashboard. Either way, no code change is required to register a flag.
 
 ## 4. Read it in your app
@@ -88,7 +88,7 @@ const newCheckout = useFeatureFlag('new-checkout')
 
 ## 5. Release it
 
-Toggle the flag on, drag the rollout to 25%, or add a targeting rule — from the dashboard or the
+Toggle the flag on, drag the rollout to 25%, or add a targeting rule, from the dashboard or the
 CLI, no deploy:
 
 ```bash

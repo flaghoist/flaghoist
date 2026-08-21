@@ -5,8 +5,8 @@ description: Guard the read and admin paths with API keys, bearer tokens, or OID
 
 Flaghoist has two authenticated paths, each with a pluggable verifier.
 
-- **Read path** — apps evaluating flags. Guarded by an API key.
-- **Admin path** — creating, changing, and deleting flags. Guarded by a bearer token or OIDC.
+- **Read path**: apps evaluating flags. Guarded by an API key.
+- **Admin path**: creating, changing, and deleting flags. Guarded by a bearer token or OIDC.
 
 ```ts
 createFlagServer((env) => ({
@@ -25,8 +25,8 @@ read: apiKey(env.READ_API_KEY)
 ```
 
 Clients send it as `x-api-key`. The comparison is constant-time. The read path only ever returns
-evaluated booleans, never flag configuration — so this key gates drive-by scraping, not secrecy
-(it ships in your browser bundle).
+evaluated booleans, never flag configuration, so this key gates drive-by scraping, not secrecy (it
+ships in your browser bundle).
 
 ## Bearer token (admin, zero-config)
 
@@ -34,7 +34,7 @@ evaluated booleans, never flag configuration — so this key gates drive-by scra
 admin: bearerToken(env.ADMIN_TOKEN)
 ```
 
-Clients send `Authorization: Bearer <token>`. Possession of the token is admin authorization — the
+Clients send `Authorization: Bearer <token>`. Possession of the token is admin authorization: the
 simplest self-host default.
 
 ## OIDC (admin, with your identity provider)
@@ -60,7 +60,7 @@ requires membership in an allowed group. A valid token that lacks an admin group
 
 ## Security notes
 
-- A **release flag is not an authorization boundary** — it controls whether a code path is visible,
+- A **release flag is not an authorization boundary**: it controls whether a code path is visible,
   not whether a user is allowed. Keep authorization in your backend.
 - **Targeting context is self-asserted** by clients. When a targeting decision must be trustworthy,
   derive the attribute from a validated session and override the client value via `trustedContext`.

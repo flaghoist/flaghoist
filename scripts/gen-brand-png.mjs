@@ -28,7 +28,18 @@ const avatar = (size, bg) =>
 // The brand face is Geist, but the rasteriser only sees fonts installed on the machine, so this
 // falls back to a neutral grotesk. That approximates Geist closely enough at card size; what it
 // must not do is drift back to a serif, which would contradict the type system in brand/README.md.
-const og = () => `
+// Parameterized so the docs site can share this exact layout with its own headline rather than a
+// second hand-maintained card that could drift out of sync with the brand.
+const og = ({
+  headline = ['Feature flags at ', ['the edge.', '#FF4A1F']],
+  sub1 = 'No server. No database. No bill.',
+  sub2 = 'Self-hosted, OpenFeature-native, Apache-2.0.',
+  url = 'flaghoist.dev',
+} = {}) => {
+  const headlineSvg = headline
+    .map((part) => (Array.isArray(part) ? `<tspan fill="${part[1]}">${part[0]}</tspan>` : part))
+    .join('')
+  return `
 <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
   <rect width="1200" height="630" fill="#0B1E3A"/>
   <g fill="#F7F4EC" fill-opacity="0.05">
@@ -48,12 +59,13 @@ const og = () => `
     <path d="M16 31 L40.5 24 L52 32.5 L16 31 Z" fill="#000" fill-opacity="0.16"/>
   </g>
   <text x="169" y="155" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="52" font-weight="600" fill="#F7F4EC">Flaghoist</text>
-  <text x="96" y="330" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="68" font-weight="600" fill="#F7F4EC">Feature flags at <tspan fill="#FF4A1F">the edge.</tspan></text>
-  <text x="96" y="402" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">No server. No database. No bill.</text>
-  <text x="96" y="448" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">Self-hosted, OpenFeature-native, Apache-2.0.</text>
+  <text x="96" y="330" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="68" font-weight="600" fill="#F7F4EC">${headlineSvg}</text>
+  <text x="96" y="402" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">${sub1}</text>
+  <text x="96" y="448" font-family="Helvetica, Arial, sans-serif" font-size="29" fill="#B9C2D0">${sub2}</text>
   <rect x="96" y="512" width="180" height="4" fill="#FF4A1F"/>
-  <text x="96" y="558" font-family="Courier New, monospace" font-size="24" fill="#8494A8">flaghoist.dev</text>
+  <text x="96" y="558" font-family="Courier New, monospace" font-size="24" fill="#8494A8">${url}</text>
 </svg>`
+}
 
 await sharp(Buffer.from(icon(512)))
   .png()
@@ -73,6 +85,22 @@ await sharp(Buffer.from(og()))
   .png()
   .toFile(fileURLToPath(new URL('../apps/web/public/og.png', import.meta.url)))
 
+// Docs gets its own card: same layout and mark, its own headline and URL, so the two sites read as
+// the same brand rather than one polished card and one silently missing an image.
+await sharp(
+  Buffer.from(
+    og({
+      headline: ['Docs for your own ', ['flag service.', '#FF4A1F']],
+      sub1: 'Quickstart, self-hosting, API and CLI reference.',
+      sub2: 'Open-source, OpenFeature-native, Apache-2.0.',
+      url: 'docs.flaghoist.dev',
+    }),
+  ),
+)
+  .png()
+  .toFile(fileURLToPath(new URL('../apps/docs/public/og.png', import.meta.url)))
+
 console.log('Wrote: brand/icon.png (512, transparent), brand/icon-1024.png,')
 console.log('       brand/avatar.png (512, sail), brand/avatar-navy.png (512, navy),')
-console.log('       brand/og.png + apps/web/public/og.png (1200x630 social card)')
+console.log('       brand/og.png + apps/web/public/og.png (1200x630 social card),')
+console.log('       apps/docs/public/og.png (1200x630 social card)')

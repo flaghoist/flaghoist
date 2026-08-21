@@ -1,6 +1,6 @@
 ---
 title: How it fits together
-description: The Flaghoist architecture — service, storage, providers, and evaluation.
+description: The Flaghoist architecture, service, storage, providers, and evaluation.
 ---
 
 Flaghoist is a small set of composable pieces. Understanding how they connect makes the rest of
@@ -21,8 +21,8 @@ service; your code calls `getBooleanValue('flag', false)` and never depends on F
 
 ## Evaluation
 
-Each flag is evaluated as an ordered cascade — the same logic on every runtime and language,
-because it happens server-side in `@flaghoist/core`:
+Each flag is evaluated as an ordered cascade: the same logic on every runtime and language, because
+it happens server-side in `@flaghoist/core`:
 
 1. If the flag is **disabled**, serve off.
 2. Walk **targeting rules** top to bottom; the first whose conditions all match decides the result
@@ -39,7 +39,7 @@ KV is the default; Redis and Postgres ship too; anything else is a small adapter
 [storage adapters](/storage-adapters/).
 
 The read path caches flag definitions in-isolate, so a burst of evaluations does not hammer
-storage — at most one `list()` per cache window.
+storage: at most one `list()` per cache window.
 
 ## No vendor lock-in
 

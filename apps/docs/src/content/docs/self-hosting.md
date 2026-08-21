@@ -5,7 +5,7 @@ description: Deploy Flaghoist to Cloudflare or any Hono-supported runtime.
 
 Flaghoist ships as a library and a CLI, with two deployment styles.
 
-## Model B — zero-config (the default)
+## Model B: zero-config (the default)
 
 Your whole project is a `flaghoist.toml`:
 
@@ -24,7 +24,7 @@ npx flaghoist deploy
 
 The CLI generates a Worker from the config and hands off to `wrangler`. You own no code.
 
-## Model A — eject to a code project
+## Model A: eject to a code project
 
 When you need a custom adapter, custom auth, or middleware, drop to a project you own:
 
@@ -80,5 +80,5 @@ createFlagServer({ storage, auth, dashboard: dashboardHtml })
 
 ## Environments
 
-Use one storage namespace (or database) per environment — e.g. `flags-staging` and
-`flags-production` — so changes never leak across environments.
+Use one storage namespace (or database) per environment, e.g. `flags-staging` and
+`flags-production`, so changes never leak across environments.

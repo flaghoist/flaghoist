@@ -33,7 +33,7 @@ export FLAGS_ADMIN_TOKEN=…
 | `flaghoist flag rules set <key> --file rules.json`              | Replace targeting rules     |
 | `flaghoist flag delete <key>`                                   | Delete a flag               |
 
-`toggle`, `rollout`, and `rules set` preserve the rest of the flag — they read the current
+`toggle`, `rollout`, and `rules set` preserve the rest of the flag: they read the current
 definition and re-send everything else unchanged.
 
 ## Example

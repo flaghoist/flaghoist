@@ -9,6 +9,7 @@ nautical, never kitschy.
 | File            | Use                                                       |
 | --------------- | --------------------------------------------------------- |
 | `icon.svg`      | App icon, favicon source, GitHub org avatar. Square mark. |
+| `icon-dark.svg` | Square mark for dark surfaces — sail pole, orange flag.   |
 | `icon-mono.svg` | Single-colour mark, inherits `currentColor`.              |
 | `logo.svg`      | Horizontal lockup for light backgrounds.                  |
 | `logo-dark.svg` | Horizontal lockup for dark backgrounds.                   |
@@ -63,8 +64,9 @@ The PNGs are built from the SVGs rather than edited by hand, so they cannot drif
 node scripts/gen-brand-png.mjs   # icon.png, icon-1024.png, avatar.png, avatar-navy.png, og.png
 ```
 
-`og.png` is written to both `brand/` and `apps/web/public/`. Re-run it after any change to the mark
-or to the landing page's headline, which the card repeats.
+`og.png` is written to `brand/`, `apps/web/public/`, and `apps/docs/public/`. The landing page and
+the docs site each get their own headline on the same card layout. Re-run it after any change to the
+mark, or to either site's headline, which the cards repeat.
 
 ## Don'ts
 

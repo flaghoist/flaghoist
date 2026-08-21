@@ -1,10 +1,10 @@
 ---
 title: Storage adapters
-description: Use Cloudflare KV, Redis, or Postgres — or write your own in four methods.
+description: Use Cloudflare KV, Redis, or Postgres, or write your own in four methods.
 ---
 
 Storage is the "bring your own DB" seam. Every adapter implements the same four-method interface,
-and every adapter — shipped or yours — must pass the shared conformance suite.
+and every adapter, shipped or yours, must pass the shared conformance suite.
 
 ```ts
 interface StorageAdapter {
@@ -49,6 +49,27 @@ await initPostgres(pool) // CREATE TABLE IF NOT EXISTS flaghoist_flags (...)
 createFlagServer({ storage: postgresAdapter(pool), auth: {/* … */} })
 ```
 
+## Memory
+
+Backed by a `Map`, with no persistence. Flags are lost on restart, so this is for local
+development, tests, and `npx flaghoist init --storage memory` when you just want something running
+immediately with nothing to provision.
+
+```ts
+import { memoryAdapter } from '@flaghoist/adapter-memory'
+
+createFlagServer({ storage: memoryAdapter(), auth: {/* … */} })
+```
+
+Seed it with flags at startup by passing them to the factory. `createFlag` fills in the metadata a
+hand-built object would otherwise be missing:
+
+```ts
+import { createFlag } from '@flaghoist/core'
+
+memoryAdapter([createFlag({ key: 'new-checkout', enabled: true, rollout: { percentage: 25 } })])
+```
+
 ## Writing your own
 
 Implement the four methods. A key maps to one flag's JSON, so any store fits. Re-validate reads
@@ -83,5 +104,5 @@ import { testStorageAdapter } from '@flaghoist/adapter-conformance'
 testStorageAdapter('my-db', () => myAdapter(freshClient()))
 ```
 
-For SQL adapters, use parameterized queries everywhere, and validate any table/identifier names —
+For SQL adapters, use parameterized queries everywhere, and validate any table/identifier names:
 they cannot be parameterized and are the one place injection could enter.

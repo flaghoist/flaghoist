@@ -27,7 +27,7 @@ Evaluate a single flag. Returns `404` with `errorCode: FLAG_NOT_FOUND` for an un
 
 ## Admin path
 
-Guarded by the admin verifier (bearer token or OIDC). This is Flaghoist's own **versioned** API —
+Guarded by the admin verifier (bearer token or OIDC). This is Flaghoist's own **versioned** API:
 build dashboards, scripts, and integrations against it.
 
 | Method   | Path                 | Purpose                  |
@@ -90,8 +90,8 @@ curl https://team-flags.you.workers.dev/api/v1/openapi.json
 ```
 
 It is an OpenAPI 3.1 document covering the admin API, the OFREP read endpoints, and the schemas
-above — point Swagger UI, Postman, or a client generator at it. The same document is exported from
-the package for build-time tooling:
+above, so you can point Swagger UI, Postman, or a client generator at it. The same document is
+exported from the package for build-time tooling:
 
 ```ts
 import { openApiDocument } from '@flaghoist/server'

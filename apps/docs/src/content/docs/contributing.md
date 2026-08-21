@@ -25,8 +25,8 @@ pnpm --filter @flaghoist/core test
 
 ### A local server
 
-To run a real Flaghoist server on your machine — to `curl`, point the browser examples at, or
-manage with the CLI — use:
+To run a real Flaghoist server on your machine, so you can `curl` it, point the browser examples at
+it, or manage it with the CLI, use:
 
 ```bash
 pnpm dev:server   # → http://localhost:8787
@@ -40,7 +40,7 @@ token is `admin`; override with `PORT`, `READ_API_KEY`, `ADMIN_TOKEN`, or `FLAGS
 
 - **New storage adapters.** Implement the four-method `StorageAdapter` for a database we do not
   ship yet (DynamoDB, Deno KV, SQLite, MongoDB…). Copy an existing adapter, and make it pass the
-  shared conformance suite — that is the whole spec.
+  shared conformance suite: that is the whole spec.
 - **OFREP language guides.** Document using Flaghoist from Go, Python, Java, .NET, PHP, or Ruby via
   the official OpenFeature OFREP providers.
 - **Examples.** A minimal runnable app in a framework we do not cover yet.
@@ -52,11 +52,11 @@ token is `admin`; override with `PORT`, `READ_API_KEY`, `ADMIN_TOKEN`, or `FLAGS
 3. Make sure `pnpm build`, `pnpm test`, and `pnpm typecheck` pass.
 4. Sign off your commits (`git commit -s`) per the DCO.
 
-`main` is always releasable. Keep changes small and, where it makes sense, behind flags — we
-develop Flaghoist the way Flaghoist is meant to be used.
+`main` is always releasable. Keep changes small and, where it makes sense, behind flags: we develop
+Flaghoist the way Flaghoist is meant to be used.
 
 ## Reporting security issues
 
-Please report vulnerabilities privately — see
+Please report vulnerabilities privately. See
 [SECURITY.md](https://github.com/flaghoist/flaghoist/blob/main/SECURITY.md). Do not open a public
 issue for security reports.

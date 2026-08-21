@@ -1,0 +1,108 @@
+/*
+ * Theme Starlight through its own token layer rather than replacing the shell. This keeps
+ * Pagefind search, the built-in light/dark switcher, and Starlight's accessibility work
+ * (focus order, skip links, landmarks) all intact — only the tokens they read change.
+ *
+ * Reference for the exact token names used below: node_modules/@astrojs/starlight/style/props.css
+ * Starlight always sets an explicit data-theme="light"|"dark" on <html> before paint (see
+ * ThemeProvider.astro), so scheme-specific rules below target that attribute directly.
+ *
+ * Every colour choice here was checked against the built page in both themes, not inferred from
+ * reading the token source: three separate fixes below started as a plausible reading of
+ * Starlight's CSS and turned out to be wrong once measured, each documented at the point it was
+ * corrected so the same mistake is not repeated.
+ */
+
+/* Self-hosted, latin-only, only the weights actually used. Same faces as the landing page and the
+   dashboard — never loaded from a CDN, consistent with the brand kit's no-CDN rule. */
+@import '@fontsource/geist-sans/latin-400.css';
+@import '@fontsource/geist-sans/latin-500.css';
+@import '@fontsource/geist-sans/latin-600.css';
+@import '@fontsource/geist-mono/latin-400.css';
+@import '@fontsource/geist-mono/latin-500.css';
+
+:root {
+  /* --sl-font / --sl-font-mono are Starlight's documented override points; unset, they fall back
+     to --sl-font-system / --sl-font-system-mono, which is what shipped before this change. */
+  --sl-font: 'Geist Sans', var(--sl-font-system);
+  --sl-font-mono: 'Geist Mono', var(--sl-font-system-mono);
+}
+
+/* Signal orange replaces Starlight's default blue. Brand don't: "Don't recolor the flag away from
+   signal orange, it's the one load-bearing accent" — the inverse holds here too, this is the only
+   accent hue on the page. -low and -high are Starlight's own tints of the accent (aside borders,
+   badge text, inline links), not independent brand colours, so each scheme gets a legible pair
+   rather than one value picked by eye and reused for both. */
+:root[data-theme='dark'] {
+  /* Doubles as --sl-color-text-invert in dark mode: the text colour Starlight puts on top of an
+     accent-coloured surface, e.g. the current-page pill in the sidebar. An invented brown measured
+     4.02:1 here (under the 4.5:1 floor) before this was corrected to ink navy, the same pairing
+     used on the primary button (4.96:1 on signal orange). */
+  --sl-color-accent-low: #0b1e3a;
+  --sl-color-accent: #ff4a1f;
+  --sl-color-accent-high: #ffb49b;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ffe4d9;
+  --sl-color-accent: #ff4a1f;
+  /* A dark, desaturated orange rather than the raw accent. Inline links and other running text
+     read --sl-color-text-accent, which resolves through this value in light mode (see below); raw
+     signal orange on a light page measures 3.36:1, this measures 7.11:1. */
+  --sl-color-accent-high: #9c3616;
+}
+
+/* --sl-color-text-accent is what inline links and similar running text actually read. Starlight's
+   own default aliases it to --sl-color-accent-high in dark mode and to the raw --sl-color-accent
+   in light mode, a split tuned for their pale default blue. Measured against signal orange: raw
+   accent is legible on the dark background (5.28:1) but not on the light one (3.36:1), so light
+   mode needs the darker -high value instead, the reverse of dark mode. bg-accent is pinned
+   separately below, only for the one component that needs a solid fill. */
+:root[data-theme='dark'] {
+  --sl-color-text-accent: var(--sl-color-accent);
+}
+:root[data-theme='light'] {
+  --sl-color-text-accent: var(--sl-color-accent-high);
+}
+
+/* The primary button (Quickstart, on the splash hero) is the one place a *solid* accent fill is
+   wanted regardless of scheme. It does not reuse --sl-color-text-accent for that, on purpose: that
+   token now differs by scheme for the inline-link reason above, and the button needs the same
+   vivid orange in both. Background and text colour are both set directly here rather than through
+   a shared token, so fixing one component cannot silently move a value the other one depends on
+   again. Ink-on-orange measures 4.96:1 in both schemes, the same pairing used on flaghoist.dev and
+   in the dashboard. (White measured 3.36:1 here, under the 4.5:1 floor, in BOTH schemes — an
+   earlier version of this rule was scoped to dark mode only, on the assumption light mode's alias
+   differed; it did not, and the unscoped rule replaced it once that was measured, not assumed.) */
+.sl-link-button.primary,
+.sl-link-button.primary:hover {
+  background: #ff4a1f;
+  border-color: #ff4a1f;
+  color: #0b1e3a;
+}
+
+/* The active sidebar entry (Starlight's only [aria-current="page"] consumer, see
+   SidebarSublist.astro) turned out to share the button's problem from the opposite direction: its
+   background also reads --sl-color-text-accent, so once that token was made scheme-aware for
+   inline links (above), this component's fill silently became the darker light-mode value too,
+   pairing dark ink text on a now-similarly-dark background: 2.34:1, measured after that change and
+   not the vivid orange the pill needs. Same resolution as the button: an explicit, unconditional
+   background and text colour, independent of whichever token any other component's fix might move
+   next. 4.96:1 in both schemes. */
+a[aria-current='page'] {
+  background-color: #ff4a1f;
+  color: #0b1e3a;
+}
+
+/* Radius: Starlight defines no radius token layer, so the handful of components that round a
+   corner (inline code, kbd, the search modal via Pagefind's own variables) get one consistent
+   scale here instead of the mixed values that shipped by default. */
+:root {
+  --pagefind-ui-border-radius: 10px;
+  --pagefind-ui-image-border-radius: 6px;
+}
+:where(code):not(:where(pre code)) {
+  border-radius: 5px;
+}
+kbd {
+  border-radius: 5px;
+}

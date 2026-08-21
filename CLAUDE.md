@@ -31,3 +31,17 @@ the losing rows in the comparison table, the honesty is the point.
 - WCAG 2.1 AA on every surface.
 - Geist, self-hosted. Never load fonts from a CDN. The admin dashboard is served from a Worker with
   no guaranteed network egress, and it previously shipped calling Google for fonts.
+
+## Running things
+
+Hand over step by step instructions and let Damilola run them, rather than executing the steps
+here. This applies to anything that touches a real account or real infrastructure: deploys, smoke
+tests against Cloudflare, publishing, account and repo settings. Do the code changes, then write
+the commands out in order, one per block, and say what each one should print. Run things directly
+only when asked to.
+
+## Answers
+
+Keep them short. Lead with the result, then only what changes a decision. Use bullets or a small
+table over paragraphs. Skip the recap of what was just done, skip restating the request, and skip
+narrating the plan before doing it.

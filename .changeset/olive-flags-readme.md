@@ -21,3 +21,9 @@ landing on npm cold rather than someone who has already read the root README.
 Also adds `keywords`, `repository` (with `directory`), `homepage` and `bugs`. `flaghoist` had no
 keywords at all, so it did not come up in an npm search for feature flags, and nothing linked any
 package back to the repository or the issue tracker.
+
+Also drops the unused `version` export from `@flaghoist/core`. It was hardcoded to `'0.0.0'`, so it
+kept saying that after the package published as `0.1.0`. Nothing in the repo imported it, and a
+value that has to be kept in step by hand is worse than no value at all. If a version export earns
+its place later it should be generated at build time, since `createRequire` is not available in the
+Workers and browser runtimes this package targets.

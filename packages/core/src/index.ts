@@ -1,5 +1,3 @@
-export const version = '0.0.0'
-
 export type * from './types'
 export { clampPercentage, isInRollout, stickyBucket } from './hash'
 export { FLAG_KEY_RULE, FORBIDDEN_ATTRIBUTES, isValidFlagKey, LIMITS } from './limits'

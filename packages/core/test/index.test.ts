@@ -12,6 +12,5 @@ describe('@flaghoist/core public API', () => {
     expect(typeof core.compareSemver).toBe('function')
     expect(typeof core.parseFlag).toBe('function')
     expect(typeof core.createFlag).toBe('function')
-    expect(core.version).toBe('0.0.0')
   })
 })

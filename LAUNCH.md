@@ -102,10 +102,23 @@ in chat history.
       pulls the HTML into its bundle. New `dashboard` key in `flaghoist.toml` (default `true`) turns
       it off. Changeset staged (`@flaghoist/server` + `flaghoist`, minor). Full chain green: 196
       tests, build (15/15), typecheck (22/22), `check:packages` (22/22), `format:check`. The demo GIF is now unblocked.
-- [ ] **README demo GIF** — record `flaghoist deploy` → create a flag → toggle it in the dashboard →
-      app flips. The single highest-leverage asset for the launch. **Now unblocked**: the dashboard
-      embed above shipped, so the four-beat shot list can be recorded against shipped code. Not a blocker on going public: the `<img>` is commented out in `README.md`, so the
-      missing file is invisible until it is uncommented.
+- [x] **README demo GIF, stage 1 of 3: local. Done (2026-08-21).** `brand/demo.gif` is recorded and
+      the `<img>` is uncommented in `README.md`. 15.4s, 1400px, 630KB, 14fps, gifski at q90, against
+      a 5MB budget. Four beats, all real: the example app on the legacy checkout, the dashboard at
+      `/admin`, one click on the toggle, the app live. Recorded with Playwright against a local
+      `wrangler dev` (real workerd, real KV) and the Vue example, so it is re-recordable by anyone
+      with no Cloudflare account. The script and the local stack are described in
+      `docs/recording-the-demo.md`.
+- [ ] **README demo GIF, stage 2: real deploy, your account.** Re-record beat 1 as a true
+      `npx flaghoist deploy` to a live `workers.dev` URL. **Blocked until v0.1.0 is on npm**: the
+      terminal beat runs `npm create flaghoist@latest` and `npx flaghoist deploy`, and neither
+      resolves while the packages are unpublished, so a genuine recording is impossible before
+      Phase 2 cuts the release. Decide then whether to show the real `workers.dev` subdomain, which
+      leaks the Cloudflare account name, or to crop it.
+- [ ] **README demo GIF, stage 3: demo.flaghoist.dev.** Re-record against the seeded demo Worker
+      behind the custom domain, so the URL on screen reads `demo.flaghoist.dev` and no account name
+      appears at all. Depends on the Phase 3 demo deploy. This is the version that should end up in
+      the README for launch; stages 1 and 2 are steps on the way.
 - [x] **Publish a `create-flaghoist` package** so `npm create flaghoist` works — built, tested, and
       wired into the README, docs, and landing page. Ships with v0.1.0. ([#27](https://github.com/flaghoist/flaghoist/issues/27))
 - [x] **Convert the tracked TODOs to GitHub issues** — filed as #27–#33 (see the list below).

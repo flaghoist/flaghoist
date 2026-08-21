@@ -15,15 +15,11 @@
   <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha" />
 </p>
 
-<!--
-  DEMO GIF GOES HERE — the highest-leverage asset in this README.
-  Record: flaghoist deploy → create a flag → toggle it in the dashboard → the app flips.
-  Keep it under 20 seconds. Then uncomment:
-
 <p align="center">
-  <img src="./brand/demo.gif" alt="Deploy Flaghoist, create a flag, and toggle it live" width="100%" />
+  <img src="./brand/demo.gif" alt="A flag toggled in the Flaghoist dashboard, and the app picking up the change" width="100%" />
 </p>
--->
+
+<p align="center"><sub>Toggling <code>new-checkout</code> in the dashboard every deploy serves at <code>/admin</code>, and the app reading it through OpenFeature.</sub></p>
 
 ---
 

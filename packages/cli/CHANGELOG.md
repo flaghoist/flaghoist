@@ -1,5 +1,32 @@
 # flaghoist
 
+## 0.1.3
+
+### Patch Changes
+
+- 8aff467: Pick up patch updates to the runtime dependencies these packages ship.
+  
+  `@flaghoist/server` moves to `hono` 4.13.3 and `jose` 6.2.9, `flaghoist` to `smol-toml` 1.8.0, and
+  `@flaghoist/provider-web` to `@openfeature/ofrep-web-provider` 0.4.3. The bumps landed on `main`
+  already; without a release they sit there and nobody installing from npm gets them.
+  
+  No behaviour of ours changes. `@flaghoist/vue` and `create-flaghoist` come along because they depend
+  on `@flaghoist/provider-web` and `flaghoist` respectively.
+- 806975b: Stop `eject` and `deploy` overwriting files that are already there.
+  
+  Both write `src/index.ts`, `wrangler.toml` and `package.json` into the current directory, and they
+  wrote unconditionally. Run inside an existing application, which the quickstart suggested with
+  "already inside a directory you want to use? `npx flaghoist init` does the same thing", the
+  generated `package.json` replaced the real one. Its name, version, scripts and dependencies were
+  gone, with no prompt and no warning.
+  
+  They now refuse, naming the files in the way and pointing at
+  `npm create flaghoist@latest team-flags`, which makes a directory of its own and is safe to run
+  from anywhere. An already-ejected project still gets told that instead.
+  
+  The docs no longer imply the service can live inside your app, and say plainly that Flaghoist
+  deploys as its own service rather than as a library.
+
 ## 0.1.2
 
 ### Patch Changes

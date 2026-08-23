@@ -1,5 +1,12 @@
 # @flaghoist/vue
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [8aff467]
+  - @flaghoist/provider-web@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

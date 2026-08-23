@@ -171,12 +171,22 @@ against the next, and the languages page is the first thing an OpenFeature user 
 | ---------- | ---------- | ------------------------------------------------------------ | --------------------------------- |
 | JavaScript | 2026-08-23 | `@openfeature/ofrep-provider` via `@flaghoist/provider-node` | All six pass                      |
 | Go         | 2026-08-23 | provider v0.1.7, go-sdk v1.18.0                              | All six pass, after the fix below |
-| Python     |            | `openfeature-provider-ofrep` 0.3.0                           | Not run                           |
-| Java       |            | `dev.openfeature.contrib.providers:ofrep` 0.0.2              | Not run                           |
-| .NET       |            | `OpenFeature.Providers.Ofrep` 0.1.5                          | Not run                           |
-| Ruby       |            | `openfeature-ofrep-provider` 0.1.2                           | Not run                           |
-| Rust       |            | `open-feature-ofrep` 0.1.2                                   | Not run                           |
+| Python     | 2026-08-23 | provider 0.3.0, sdk 0.10.0                                   | All six pass                      |
+| Ruby       | 2026-08-23 | provider 0.1.2, sdk 0.3.1                                    | All five pass                     |
+| Java       | 2026-08-23 | provider 0.0.2, sdk 1.17.0                                   | All five pass                     |
+| Rust       | 2026-08-23 | provider 0.1.2, sdk 0.3.0                                    | All five pass                     |
+| .NET       |            | `OpenFeature.Providers.Ofrep` 0.1.5                          | Not run, SDK install needs sudo   |
 | PHP        | 2026-08-23 | none exists                                                  | Removed from the site             |
+
+Nothing surprising after Go. Every provider initialised without `/ofrep/v1/configuration`, honoured
+the value for a disabled flag once the server reported `STATIC`, matched the targeting rule on
+`plan=pro` and not without it, and returned the caller's default for an unknown key.
+
+The three mistakes along the way were all mine and none were the product: the Ruby `Configuration`
+class sits at `OpenFeature::OFREP` rather than under `Provider`, the Java options builder is reached
+through `OfrepProviderOptions.builder()` because its constructor is package private, and the Rust
+crate needs `open-feature` 0.3 and `reqwest` 0.13 rather than the older majors. Worth knowing if the
+language guides get written, since a reader will hit the same three.
 
 ### What Go found
 

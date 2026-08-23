@@ -172,11 +172,18 @@ against the next, and the languages page is the first thing an OpenFeature user 
 | JavaScript | 2026-08-23 | `@openfeature/ofrep-provider` via `@flaghoist/provider-node` | All six pass                      |
 | Go         | 2026-08-23 | provider v0.1.7, go-sdk v1.18.0                              | All six pass, after the fix below |
 | Python     | 2026-08-23 | provider 0.3.0, sdk 0.10.0                                   | All six pass                      |
-| Ruby       | 2026-08-23 | provider 0.1.2, sdk 0.3.1                                    | All five pass                     |
-| Java       | 2026-08-23 | provider 0.0.2, sdk 1.17.0                                   | All five pass                     |
-| Rust       | 2026-08-23 | provider 0.1.2, sdk 0.3.0                                    | All five pass                     |
-| .NET       |            | `OpenFeature.Providers.Ofrep` 0.1.5                          | Not run, SDK install needs sudo   |
+| Ruby       | 2026-08-23 | provider 0.1.2, sdk 0.3.1                                    | All six pass                      |
+| Java       | 2026-08-23 | provider 0.0.2, sdk 1.17.0                                   | All six pass                      |
+| Rust       | 2026-08-23 | provider 0.1.2, sdk 0.3.0                                    | All six pass                      |
+| .NET       | 2026-08-23 | provider 0.1.5, SDK 10.0.400                                 | All six pass                      |
 | PHP        | 2026-08-23 | none exists                                                  | Removed from the site             |
+
+Seven languages verified against a live server. The claim on the landing page is now evidence rather
+than inference.
+
+Assertion 6 is worth stating plainly because the output reads oddly: under a wrong API key every
+provider returned the caller's default rather than the real flag value. No provider failed open, and
+none leaked a value from a server that had rejected it.
 
 Nothing surprising after Go. Every provider initialised without `/ofrep/v1/configuration`, honoured
 the value for a disabled flag once the server reported `STATIC`, matched the targeting rule on

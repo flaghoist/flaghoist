@@ -7,8 +7,16 @@ updates:
       interval: weekly
     open-pull-requests-limit: 10
     groups:
+      # Two grouped PRs a week instead of one per package. Majors stay ungrouped on purpose:
+      # they are the ones that need reading, and burying them in a group of twelve is how a
+      # breaking change gets merged unread.
       dev-dependencies:
         dependency-type: development
+        update-types:
+          - minor
+          - patch
+      production-dependencies:
+        dependency-type: production
         update-types:
           - minor
           - patch
@@ -29,5 +37,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
     commit-message:
       prefix: ci

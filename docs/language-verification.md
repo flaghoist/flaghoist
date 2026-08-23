@@ -167,8 +167,35 @@ against the next, and the languages page is the first thing an OpenFeature user 
 
 ## Results
 
-Nothing has been run yet beyond JavaScript.
+| Language   | Date       | Provider version                                             | Result                            |
+| ---------- | ---------- | ------------------------------------------------------------ | --------------------------------- |
+| JavaScript | 2026-08-23 | `@openfeature/ofrep-provider` via `@flaghoist/provider-node` | All six pass                      |
+| Go         | 2026-08-23 | provider v0.1.7, go-sdk v1.18.0                              | All six pass, after the fix below |
+| Python     |            | `openfeature-provider-ofrep` 0.3.0                           | Not run                           |
+| Java       |            | `dev.openfeature.contrib.providers:ofrep` 0.0.2              | Not run                           |
+| .NET       |            | `OpenFeature.Providers.Ofrep` 0.1.5                          | Not run                           |
+| Ruby       |            | `openfeature-ofrep-provider` 0.1.2                           | Not run                           |
+| Rust       |            | `open-feature-ofrep` 0.1.2                                   | Not run                           |
+| PHP        | 2026-08-23 | none exists                                                  | Removed from the site             |
 
-| Language   | Date       | Provider version                                             | Result                                                 |
-| ---------- | ---------- | ------------------------------------------------------------ | ------------------------------------------------------ |
-| JavaScript | 2026-08-23 | `@openfeature/ofrep-provider` via `@flaghoist/provider-node` | All six equivalent checks passed against a live Worker |
+### What Go found
+
+Assertion 1 passed, which retired the biggest worry: the Go provider initialises happily against a
+server with no `/ofrep/v1/configuration`. The systemic failure that would have hit every language at
+once does not exist.
+
+Assertion 3 failed, and not as a transport bug. The server sent `value: false, reason: DISABLED`
+for a disabled flag. Go discarded the value and returned the caller's default, because OpenFeature
+reads `DISABLED` as "this flag is not participating, use your own default". JavaScript honoured the
+value. The same flag on the same server was false in one language and true in the other.
+
+It lands on the kill switch, which is the pattern where being wrong costs most: a Go service written
+as `BooleanValue(ctx, "feature", true)` kept serving a feature after it had been switched off, while
+the dashboard showed it off.
+
+Fixed by reporting `STATIC` on the OFREP wire instead. `evaluate()` still returns `DISABLED`
+internally and the admin API is unchanged. Both languages now return false whatever default is
+passed.
+
+This is the reason to keep running the remaining five. One provider reading the protocol
+differently from another is invisible until two of them are put side by side on the same server.

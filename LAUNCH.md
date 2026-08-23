@@ -89,14 +89,11 @@ in chat history.
       `.github/workflows/release.yml` and takes effect on the next release.
 - [x] **Branch protection on `main`. Done (2026-08-23).** A ruleset named `protect-main`, active,
       blocking deletion and force pushes, requiring a pull request and the
-      `build · test · typecheck` check. Required approvals are deliberately **0**: with one
-      maintainer, GitHub will not let you approve your own pull request, so any higher number
-      deadlocks the release, including the Version Packages PR. Raise it when someone else has
-      commit rights, and add a bypass actor at the same time.
-
-      Note that direct pushes to `main` are now blocked. Every change goes through a branch and a
-          pull request, this checklist included.
-
+      `build · test · typecheck` check. Direct pushes to `main` are now blocked, so every change
+      goes through a branch and a pull request, this checklist included. Required approvals are
+      deliberately **0**: with one maintainer, GitHub will not let you approve your own pull
+      request, so any higher number deadlocks the release at the Version Packages PR. Raise it when
+      someone else has commit rights, and add a bypass actor at the same time.
 - [x] Add the **`NPM_TOKEN`** secret for the release workflow. **Done (2026-08-21).** The job also
       needs the same secret as `NODE_AUTH_TOKEN`, because `setup-node`'s `registry-url` writes an
       `.npmrc` referencing that name; without it every publish 404s.

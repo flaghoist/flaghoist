@@ -1,5 +1,13 @@
 # create-flaghoist
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [8aff467]
+- Updated dependencies [806975b]
+  - flaghoist@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes

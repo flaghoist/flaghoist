@@ -13,16 +13,27 @@ protocol, and protocols are exactly where "should" and "does" part company.
 Before installing anything, confirm an official OpenFeature OFREP provider exists and is released
 for each language. Check the OpenFeature contrib repositories and each language's package registry.
 
-| Language   | Provider expected in              | Confidence before checking |
-| ---------- | --------------------------------- | -------------------------- |
-| JavaScript | `@openfeature/ofrep-provider`     | Verified working already   |
-| Go         | `open-feature/go-sdk-contrib`     | High                       |
-| Python     | `open-feature/python-sdk-contrib` | High                       |
-| Java       | `open-feature/java-sdk-contrib`   | High                       |
-| .NET       | `open-feature/dotnet-sdk-contrib` | High                       |
-| PHP        | `open-feature/php-sdk-contrib`    | Low                        |
-| Ruby       | `open-feature/ruby-sdk-contrib`   | Low                        |
-| Rust       | `open-feature/rust-sdk-contrib`   | Low                        |
+**Checked 2026-08-23.** Provider source in the OpenFeature contrib repositories, publication
+confirmed against each language's own registry rather than a search API.
+
+| Language   | Package                                                  | Registry      | Version |
+| ---------- | -------------------------------------------------------- | ------------- | ------- |
+| JavaScript | `@openfeature/ofrep-provider`                            | npm           | in use  |
+| Go         | `github.com/open-feature/go-sdk-contrib/providers/ofrep` | Go proxy      | v0.1.5  |
+| Python     | `openfeature-provider-ofrep`                             | PyPI          | 0.3.0   |
+| Java       | `dev.openfeature.contrib.providers:ofrep`                | Maven Central | 0.0.2   |
+| .NET       | `OpenFeature.Providers.Ofrep`                            | NuGet         | 0.1.5   |
+| Ruby       | `openfeature-ofrep-provider`                             | RubyGems      | 0.1.2   |
+| Rust       | `open-feature-ofrep`                                     | crates.io     | 0.1.2   |
+| **PHP**    | **none exists**                                          | Packagist 404 | none    |
+
+PHP is the exception. `php-sdk-contrib` ships CloudBees, Flagd, Flagsmith, GoFeatureFlag and Split,
+and no OFREP provider. There is nothing on Packagist either. A PHP user cannot reach Flaghoist
+through OpenFeature today, so the badge on the landing page is a promise the ecosystem cannot keep.
+Take PHP off the list.
+
+Note the version numbers. Java at 0.0.2 and Rust and Ruby at 0.1.x are early releases, so a pass
+today is a statement about that version and not about the language forever.
 
 If no provider exists for a language, no amount of testing helps. The landing page is promising
 something a user cannot reach, and the fix is to remove it from the list rather than to write code.

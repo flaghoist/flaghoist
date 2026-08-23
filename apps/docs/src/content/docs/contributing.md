@@ -41,7 +41,7 @@ token is `admin`; override with `PORT`, `READ_API_KEY`, `ADMIN_TOKEN`, or `FLAGS
 - **New storage adapters.** Implement the four-method `StorageAdapter` for a database we do not
   ship yet (DynamoDB, Deno KV, SQLite, MongoDB…). Copy an existing adapter, and make it pass the
   shared conformance suite: that is the whole spec.
-- **OFREP language guides.** Document using Flaghoist from Go, Python, Java, .NET, PHP, or Ruby via
+- **OFREP language guides.** Document using Flaghoist from Go, Python, Java, .NET, Ruby or Rust via
   the official OpenFeature OFREP providers.
 - **Examples.** A minimal runnable app in a framework we do not cover yet.
 

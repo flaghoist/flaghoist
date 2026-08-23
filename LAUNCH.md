@@ -62,8 +62,8 @@ in chat history.
 - [x] **(you)** Create a **Cloudflare** account (Pages for the sites + a demo Worker).
 - [ ] **(you)** Register **.io** defensively (optional).
 - [ ] **(you)** Grab social handles: **X / Bluesky** (`@flaghoist` or nearest).
-- [ ] **(you)** Enable **GitHub Discussions** on the repo — one checkbox (Settings → Features),
-      zero upkeep. This + Issues is the whole support surface for launch.
+- [x] **(you)** Enable **GitHub Discussions. Done (2026-08-23).** This plus Issues is the whole
+      support surface for launch.
 - [ ] _(defer)_ **Discord** — hold until people are actually asking for a chat room. An empty,
       unattended server reads worse than none. Low time commitment when it happens; announcements
       are drafted for you (see Phase 5).
@@ -87,10 +87,16 @@ in chat history.
       the three GitHub links on the landing page.
 - [x] **Restore npm provenance. Done (2026-08-23).** `NPM_CONFIG_PROVENANCE` is uncommented in
       `.github/workflows/release.yml` and takes effect on the next release.
-- [ ] Turn on **branch protection** for `main` (require CI + review). **Not currently possible**:
-      GitHub requires a public repo or a paid plan for protection rules, and this one is private on
-      the free tier. Do it at the public flip, and not before the Version Packages PR merges, or it
-      blocks Changesets from merging its own PR.
+- [x] **Branch protection on `main`. Done (2026-08-23).** A ruleset named `protect-main`, active,
+      blocking deletion and force pushes, requiring a pull request and the
+      `build · test · typecheck` check. Required approvals are deliberately **0**: with one
+      maintainer, GitHub will not let you approve your own pull request, so any higher number
+      deadlocks the release, including the Version Packages PR. Raise it when someone else has
+      commit rights, and add a bypass actor at the same time.
+
+      Note that direct pushes to `main` are now blocked. Every change goes through a branch and a
+          pull request, this checklist included.
+
 - [x] Add the **`NPM_TOKEN`** secret for the release workflow. **Done (2026-08-21).** The job also
       needs the same secret as `NODE_AUTH_TOKEN`, because `setup-node`'s `registry-url` writes an
       `.npmrc` referencing that name; without it every publish 404s.

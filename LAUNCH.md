@@ -4,17 +4,23 @@ The path from "the code is done" to "Flaghoist is live and getting used." Work t
 Phase 0 is a hard gate. Items marked **(you)** can only be done by the founder (accounts,
 purchases, decisions); the rest are code/CI/deploy.
 
-Repo state (last synced 2026-08-21): all 8 build checkpoints complete; 204 tests green across 12
-packages (27 test files); OSS
-hygiene in place (LICENSE, NOTICE, SECURITY.md, CONTRIBUTING, CODE_OF_CONDUCT, threat-model, CI,
-release workflow, Dependabot, FUNDING.yml). `main` is pushed and current on
-`flaghoist/flaghoist`, which is **still private**. On npm only the `flaghoist@0.0.1` placeholder
-exists — **no `@flaghoist/*` package is published yet**, and one changeset
-(`create-flaghoist` + `flaghoist`, minor) is staged for v0.1.0.
+Repo state (last synced 2026-08-23): all 8 build checkpoints complete; 206 tests green across 11
+published packages (28 test files); OSS hygiene in place (LICENSE, NOTICE, SECURITY.md,
+CONTRIBUTING, CODE_OF_CONDUCT, threat-model, CI, release workflow, Dependabot, FUNDING.yml). `main`
+is pushed and current on `flaghoist/flaghoist`, which is **still private**.
+
+**Shipped to npm.** All 11 packages are published and public: `flaghoist` and `create-flaghoist`
+unscoped, plus nine under `@flaghoist/*`. The CLI is on **0.1.2**, everything else on 0.1.1. The
+`flaghoist@0.0.1` placeholder is superseded. The quickstart has been verified end to end from a
+clean directory against a real Cloudflare account: `npm create flaghoist@latest` then
+`npx flaghoist deploy` deploys a working Worker with the dashboard at `/admin`.
+
+Publishing happens without provenance while the repo is private, and the release workflow cannot
+open its own Version Packages PR (the repo has Actions PR creation disabled), so each release needs
+that PR opened by hand. See Phase 2.
 
 The public surfaces have all had their design pass: landing page, admin dashboard, brand kit, and
-docs site. Nothing in the repo blocks the public flip on its own — the README's `demo.gif` embed sits
-inside an HTML comment, so the missing file renders nothing rather than a broken image.
+docs site. The README demo GIF is recorded and live at `brand/demo.gif`.
 
 ---
 
@@ -42,7 +48,7 @@ in chat history.
       `flaghoist@0.0.1` placeholder to reserve the unscoped CLI name. Both halves of the namespace
       are now held.
 - [x] **(you)** Register **flaghoist.dev**, and move its nameservers to Cloudflare. A coming-soon
-      page is deployed there via Cloudflare Pages (direct upload, project `flaghoist-coming-soon`);
+      page is deployed there via Cloudflare Pages (direct upload, project `get-flaghoist`);
       swap the custom domain to the real `apps/web` project at launch.
 - [x] **(you)** Create a **Cloudflare** account (Pages for the sites + a demo Worker).
 - [ ] **(you)** Register **.io** defensively (optional).
@@ -76,19 +82,26 @@ in chat history.
       `.github/workflows/release.yml`. npm can only attest provenance from a public repo, so this
       has to wait for the flip and takes effect on the first release after it. The `id-token: write`
       permission is already in place.
-- [ ] Turn on **branch protection** for `main` (require CI + review) — do this _after_ the flip, and
-      after any remaining Dependabot merges, or it blocks them.
-- [ ] **(you)** Enable **GitHub Discussions** (Settings → Features) once public.
-- [ ] Add the **`NPM_TOKEN`** secret for the release workflow (`.github/workflows/release.yml`,
-      Changesets → npm publish). An automation token with publish rights on the `flaghoist` org
-      **and** on the unscoped `flaghoist` name.
-- [ ] Cut **v0.1.0**: push to `main` → the workflow opens a Version Packages PR → merge it → the
-      workflow publishes. All **11** publishable packages go out together at 0.1.0; they are only
-      useful as a set, and a missing one is an install failure for whoever picked that adapter.
-      Changesets are staged and `changeset status` confirms the list. Do **not** enable branch
-      protection until after this PR merges, or it blocks Changesets from merging its own PR.
-- [ ] Smoke-test a published install in a clean dir:
-      `npm create flaghoist@latest smoke` → `npx flaghoist deploy`.
+- [ ] Turn on **branch protection** for `main` (require CI + review). **Not currently possible**:
+      GitHub requires a public repo or a paid plan for protection rules, and this one is private on
+      the free tier. Do it at the public flip, and not before the Version Packages PR merges, or it
+      blocks Changesets from merging its own PR.
+- [x] Add the **`NPM_TOKEN`** secret for the release workflow. **Done (2026-08-21).** The job also
+      needs the same secret as `NODE_AUTH_TOKEN`, because `setup-node`'s `registry-url` writes an
+      `.npmrc` referencing that name; without it every publish 404s.
+- [x] **Cut the first release. Done (2026-08-21).** All 11 packages published together at 0.1.0,
+      then 0.1.1 (READMEs and npm metadata) and 0.1.2 (the two deploy fixes below). They release as
+      a set: `server` needs `core`, `vue` needs `provider-web`, `create-flaghoist` needs
+      `flaghoist`, and generated projects pin `server` plus one adapter, so a missing package is an
+      install failure. **Each release needs the Version Packages PR opened by hand** with
+      `gh pr create --head changeset-release/main`; the workflow generates the branch but cannot
+      open the PR.
+- [x] **Smoke-test a published install. Done (2026-08-23).** `npm create flaghoist@latest` then
+      `npx flaghoist deploy` in a clean directory, against a real Cloudflare account, deploying a
+      live Worker serving `/health` and the dashboard at `/admin`. It found two bugs that a stubbed
+      wrangler could not: `deploy` never ran `npm install`, so bundling could not resolve
+      `@flaghoist/server`; and the KV namespace was titled `FLAGS`, which is unique per account, so
+      every project after the first failed. Both fixed in 0.1.2 and re-verified.
 
 ---
 

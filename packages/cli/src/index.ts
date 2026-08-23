@@ -153,15 +153,36 @@ function runInit(args: string[]): void {
   console.log('Next: `flaghoist deploy` to ship it, or `flaghoist eject` to own the code.')
 }
 
+/**
+ * Write the generated Worker project, refusing to overwrite anything already there.
+ *
+ * These land in the current directory, which is not always an empty one: `flaghoist init` will
+ * happily run inside an existing app, and `deploy` calls this straight afterwards. Writing
+ * unconditionally meant a real `package.json`, with its name, scripts and dependencies, was
+ * replaced by the generated one and lost.
+ */
 function writeProject(config: FlaghoistConfig, dir: string): void {
-  writeFileSafe(join(dir, 'src/index.ts'), generateWorkerEntry(config))
-  writeFileSafe(join(dir, 'wrangler.toml'), generateWranglerToml(config))
-  writeFileSafe(join(dir, 'package.json'), generatePackageJson(config))
+  const files: [string, string][] = [
+    ['src/index.ts', generateWorkerEntry(config)],
+    ['wrangler.toml', generateWranglerToml(config)],
+    ['package.json', generatePackageJson(config)],
+  ]
+  const existing = files.map(([name]) => name).filter((name) => existsSync(join(dir, name)))
+  if (existing.length > 0) {
+    throw new Error(
+      `Refusing to overwrite ${existing.join(', ')} in this directory.\n` +
+        'Flaghoist deploys as its own service, so give it a directory of its own:\n' +
+        '  npm create flaghoist@latest team-flags',
+    )
+  }
+  for (const [name, contents] of files) writeFileSafe(join(dir, name), contents)
 }
 
 function runEject(): void {
   const config = loadConfig()
-  if (existsSync('src/index.ts')) throw new Error('src/index.ts already exists — already ejected?')
+  // Checked before writeProject so an already-ejected project gets that answer, rather than the
+  // generic advice about giving the service its own directory.
+  if (existsSync('src/index.ts')) throw new Error('src/index.ts already exists. Already ejected?')
   writeProject(config, '.')
   console.log('Ejected to a code project you own: src/index.ts, wrangler.toml, package.json')
   if (config.storage === 'cloudflare-kv') {

@@ -15,8 +15,11 @@ npx flaghoist deploy
 # → https://team-flags.you.workers.dev
 ```
 
-Already inside a directory you want to use? `npx flaghoist init` does the same thing without
-creating one. Pick a different backend with `--storage redis|postgres|memory`.
+That command makes the `team-flags` directory for you, so it is safe to run from inside another
+project. Flaghoist deploys as its own service rather than as a library inside your app, so it wants
+a directory of its own. If you have already made an empty one, `npx flaghoist init` writes the
+config into the current directory instead. Pick a different backend with
+`--storage redis|postgres|memory`.
 
 That URL now serves three things at once: the OFREP read API, the admin API, and the dashboard at
 `/admin`. It scales to zero when nobody is reading flags.

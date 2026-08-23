@@ -13,6 +13,11 @@ flaghoist eject      # generate a code project you own
 flaghoist deploy     # deploy to Cloudflare via wrangler
 ```
 
+`init` writes `flaghoist.toml` into the current directory, and `eject` and `deploy` add
+`src/index.ts`, `wrangler.toml` and `package.json` beside it. Run them in a directory of the
+service's own, not inside your application: they will refuse rather than overwrite files that are
+already there. `npm create flaghoist@latest team-flags` makes that directory for you.
+
 ## Flag management
 
 These commands talk to a server's admin API. Provide the server and admin token via flags or

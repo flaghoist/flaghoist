@@ -319,7 +319,7 @@ export const openApiDocument: Record<string, unknown> = {
           value: { type: 'boolean' },
           reason: {
             type: 'string',
-            enum: ['DISABLED', 'TARGETING_MATCH', 'SPLIT', 'DEFAULT'],
+            enum: ['STATIC', 'TARGETING_MATCH', 'SPLIT', 'DEFAULT'],
           },
           variant: { type: 'string' },
         },

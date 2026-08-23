@@ -81,7 +81,7 @@ curl -X PUT "$URL/api/v1/flags/half-out" -H "Authorization: Bearer $ADMIN" \
 
 curl -X PUT "$URL/api/v1/flags/pro-only" -H "Authorization: Bearer $ADMIN" \
   -H "Content-Type: application/json" \
-  -d '{"enabled":true,"rollout":{"percentage":0},"rules":[{"conditions":[{"attribute":"plan","operator":"eq","value":"pro"}],"enabled":true,"rollout":{"percentage":100}}],"description":"Pro plan only"}'
+  -d '{"enabled":true,"rollout":{"percentage":0},"rules":[{"description":"Pro plan users","conditions":[{"attribute":"plan","operator":"eq","value":"pro"}],"result":{"enabled":true,"rollout":{"percentage":100}}}],"description":"Pro plan only"}'
 ```
 
 Confirm the server itself is right before blaming any client:
@@ -92,8 +92,13 @@ curl -X POST "$URL/ofrep/v1/evaluate/flags" -H "x-api-key: $READ_KEY" \
   -d '{"context":{"targetingKey":"user-1","plan":"pro"}}'
 ```
 
-All four flags should come back, with `pro-only` true. If this is wrong, stop: the problem is the
-server, not the language.
+All four flags should come back, with `pro-only` true. Run it again without `plan` in the context
+and `pro-only` should flip to false. If either is wrong, stop: the problem is the server, not the
+language.
+
+A targeting rule nests its outcome under `result`, as `{"conditions": [...], "result": {"enabled":
+true}}`. Flattening `enabled` alongside `conditions` is rejected with a 400, which is worth knowing
+because it is an easy shape to get wrong by hand.
 
 ## Phase 2: the same six assertions everywhere
 

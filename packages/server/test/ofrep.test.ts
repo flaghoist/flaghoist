@@ -101,3 +101,50 @@ describe('OFREP single evaluate', () => {
     expect(((await res.json()) as { value: boolean }).value).toBe(true)
   })
 })
+
+describe('OFREP reason for a disabled flag', () => {
+  // OpenFeature clients read DISABLED as "use the default you passed in". The Go OFREP provider
+  // acts on that and discards our value, so a kill switch written as BooleanValue(key, true) kept
+  // serving a feature after it was switched off, while JavaScript honoured the false. STATIC says
+  // the value is not the product of dynamic evaluation without inviting substitution.
+  it('reports STATIC rather than DISABLED, so every provider honours the value', async () => {
+    const app = makeServer()
+    const res = await app.request('/ofrep/v1/evaluate/flags', {
+      method: 'POST',
+      headers: readHeaders,
+      body: JSON.stringify({ context: { targetingKey: 'u1' } }),
+    })
+    const body = (await res.json()) as { flags: { key: string; value: boolean; reason: string }[] }
+    const off = body.flags.find((f) => f.key === 'off-flag')
+
+    expect(off?.value).toBe(false)
+    expect(off?.reason).toBe('STATIC')
+    expect(off?.reason).not.toBe('DISABLED')
+  })
+
+  it('maps the single-flag endpoint the same way', async () => {
+    const app = makeServer()
+    const res = await app.request('/ofrep/v1/evaluate/flags/off-flag', {
+      method: 'POST',
+      headers: readHeaders,
+      body: JSON.stringify({ context: { targetingKey: 'u1' } }),
+    })
+    const body = (await res.json()) as { value: boolean; reason: string }
+
+    expect(body.value).toBe(false)
+    expect(body.reason).toBe('STATIC')
+  })
+
+  it('leaves every other reason untouched', async () => {
+    const app = makeServer()
+    const res = await app.request('/ofrep/v1/evaluate/flags', {
+      method: 'POST',
+      headers: readHeaders,
+      body: JSON.stringify({ context: { targetingKey: 'u1', plan: 'beta' } }),
+    })
+    const body = (await res.json()) as { flags: { key: string; reason: string }[] }
+
+    expect(body.flags.find((f) => f.key === 'beta')?.reason).toBe('TARGETING_MATCH')
+    expect(body.flags.find((f) => f.key === 'on-flag')?.reason).toBe('DEFAULT')
+  })
+})

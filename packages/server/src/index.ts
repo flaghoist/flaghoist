@@ -90,6 +90,22 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
   // ---- OFREP read path (API-key auth) ----
 
+  /**
+   * Map an internal evaluation reason onto the OFREP wire.
+   *
+   * OpenFeature clients read `DISABLED` as "this flag is not participating, so use the default you
+   * passed in". The Go OFREP provider does exactly that: it discards our `value: false` and returns
+   * the caller's default, so a service written as `BooleanValue(ctx, "feature", true, ...)`, the
+   * usual kill-switch shape, keeps serving the feature after it has been switched off. The
+   * JavaScript provider honours the value instead, so the same flag answered differently per
+   * language.
+   *
+   * Flaghoist means something narrower than OpenFeature does: a disabled flag is off, and the value
+   * is false. `STATIC` says the value did not come from dynamic evaluation, which is true here, and
+   * carries no instruction to substitute anything.
+   */
+  const wireReason = (reason: string): string => (reason === 'DISABLED' ? 'STATIC' : reason)
+
   app.post('/ofrep/v1/evaluate/flags', async (c) => {
     const cfg = resolve(c.env)
     const auth = await cfg.auth.read(c.req.raw.headers)
@@ -109,7 +125,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         return {
           key: flag.key,
           value: result.value,
-          reason: result.reason,
+          reason: wireReason(result.reason),
           variant: result.value ? 'on' : 'off',
         }
       }),
@@ -142,7 +158,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     return c.json({
       key,
       value: result.value,
-      reason: result.reason,
+      reason: wireReason(result.reason),
       variant: result.value ? 'on' : 'off',
     })
   })

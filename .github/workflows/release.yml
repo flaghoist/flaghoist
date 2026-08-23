@@ -31,13 +31,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Create release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          version: pnpm version-packages
-          publish: pnpm release
+          # v2 renamed these from `version` and `publish`. Under the old names the action still
+          # runs, versions nothing it should not, and silently never publishes.
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           # setup-node's registry-url writes an .npmrc holding _authToken=${NODE_AUTH_TOKEN} and
           # points NPM_CONFIG_USERCONFIG at it, so the token has to arrive under that name too.
           # With only NPM_TOKEN set the variable never expands, every request goes out

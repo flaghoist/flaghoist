@@ -2,7 +2,7 @@
   "name": "flaghoist-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Hoist your own feature flags — an open-source, OpenFeature-native flag service you deploy on your own infrastructure.",
+  "description": "Hoist your own feature flags \u2014 an open-source, OpenFeature-native flag service you deploy on your own infrastructure.",
   "license": "Apache-2.0",
   "author": "Damilola Oluwafemi",
   "homepage": "https://flaghoist.dev",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@changesets/cli": "^2.31.1",
+    "@changesets/cli": "^3.0.0",
     "@flaghoist/adapter-memory": "workspace:*",
     "@flaghoist/core": "workspace:*",
     "@flaghoist/server": "workspace:*",

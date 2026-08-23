@@ -7,7 +7,7 @@ purchases, decisions); the rest are code/CI/deploy.
 Repo state (last synced 2026-08-23): all 8 build checkpoints complete; 206 tests green across 11
 published packages (28 test files); OSS hygiene in place (LICENSE, NOTICE, SECURITY.md,
 CONTRIBUTING, CODE_OF_CONDUCT, threat-model, CI, release workflow, Dependabot, FUNDING.yml). `main`
-is pushed and current on `flaghoist/flaghoist`, which is **still private**.
+is pushed and current on `flaghoist/flaghoist`, which is **public as of 2026-08-23**.
 
 **Shipped to npm.** All 11 packages are published and public: `flaghoist` and `create-flaghoist`
 unscoped, plus nine under `@flaghoist/*`. The CLI is on **0.1.2**, everything else on 0.1.1. The
@@ -15,9 +15,18 @@ unscoped, plus nine under `@flaghoist/*`. The CLI is on **0.1.2**, everything el
 clean directory against a real Cloudflare account: `npm create flaghoist@latest` then
 `npx flaghoist deploy` deploys a working Worker with the dashboard at `/admin`.
 
-Publishing happens without provenance while the repo is private, and the release workflow cannot
-open its own Version Packages PR (the repo has Actions PR creation disabled), so each release needs
-that PR opened by hand. See Phase 2.
+Provenance is back on now the repo is public. The release workflow still cannot open its own
+Version Packages PR, because Actions PR creation is disabled on the repo, so each release needs that
+PR opened by hand with `gh pr create --head changeset-release/main`. See Phase 2.
+
+`flaghoist.dev` serves the real landing page and `docs.flaghoist.dev` serves the docs, both as
+direct-upload Pages projects (`get-flaghoist` and `flaghoist-docs`). Neither is connected to the
+repository, so neither redeploys on push; doc changes need `wrangler pages deploy` until that is
+wired up.
+
+All seven claimable languages are verified against a live server, recorded in
+`docs/language-verification.md`. PHP was removed from the site because no OFREP provider exists for
+it.
 
 The public surfaces have all had their design pass: landing page, admin dashboard, brand kit, and
 docs site. The README demo GIF is recorded and live at `brand/demo.gif`.
@@ -73,15 +82,11 @@ in chat history.
       rewrite breaks `.d.ts` generation in core, provider-node and provider-web.
 - [x] Seed the tracker: 3 new labels, **7 `good first issue`s** (#19–#25), plus #26 and the tracked
       maintainer TODOs #27–#33.
-- [ ] **Flip the repo to public.** Everything above is deliberately done first. **No longer blocks
-      the npm release**: the decision (2026-08-21) is to publish 0.1.0 and run the alpha while the
-      repo stays private, so `NPM_CONFIG_PROVENANCE` is commented out in
-      `.github/workflows/release.yml`. Note that publishing makes the built code public on npm
-      regardless; a private repo only keeps history, issues and unpublished files back.
-- [ ] **Restore npm provenance at the public flip.** Uncomment `NPM_CONFIG_PROVENANCE: true` in
-      `.github/workflows/release.yml`. npm can only attest provenance from a public repo, so this
-      has to wait for the flip and takes effect on the first release after it. The `id-token: write`
-      permission is already in place.
+- [x] **Flip the repo to public. Done (2026-08-23).** Everything above was deliberately done first.
+      Publishing had already happened privately, without provenance; the flip restored it and fixed
+      the three GitHub links on the landing page.
+- [x] **Restore npm provenance. Done (2026-08-23).** `NPM_CONFIG_PROVENANCE` is uncommented in
+      `.github/workflows/release.yml` and takes effect on the next release.
 - [ ] Turn on **branch protection** for `main` (require CI + review). **Not currently possible**:
       GitHub requires a public repo or a paid plan for protection rules, and this one is private on
       the free tier. Do it at the public flip, and not before the Version Packages PR merges, or it
@@ -107,8 +112,16 @@ in chat history.
 
 ## Phase 3 — Deploy the public surfaces
 
-- [ ] **flaghoist.dev** — deploy `apps/web` (Astro) to Cloudflare Pages.
-- [ ] **docs.flaghoist.dev** — deploy `apps/docs` (Starlight) to Cloudflare Pages.
+- [x] **flaghoist.dev. Done (2026-08-23).** `apps/web` deployed to the existing `get-flaghoist`
+      Pages project, replacing the coming-soon page. Deployed after the docs deliberately: the
+      landing page links to four docs pages, and shipping it first would have put a live page with
+      dead links in front of launch traffic.
+- [x] **docs.flaghoist.dev. Done (2026-08-23).** `apps/docs` deployed to a new `flaghoist-docs`
+      Pages project, 11 pages with a Pagefind search index, custom domain attached by hand because
+      wrangler has no command for it.
+- [ ] **Connect both Pages projects to the repository.** Both are direct upload, so neither
+      redeploys on push and a docs fix reaches the site only when someone runs
+      `wrangler pages deploy`. Easy to forget, and invisible when forgotten.
 - [ ] **demo.flaghoist.dev** — deploy a seeded, **read-only** Flaghoist Worker + dashboard so
       people can click around without deploying anything. (Use a locked-down admin token; seed a
       few flags including one with a targeting rule.)

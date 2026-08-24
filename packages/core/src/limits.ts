@@ -9,6 +9,7 @@ export const LIMITS = {
   maxConditionsPerRule: 50,
   maxListItems: 1000,
   maxValueLength: 1024,
+  maxDescriptionLength: 2048,
 } as const
 
 const FLAG_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/

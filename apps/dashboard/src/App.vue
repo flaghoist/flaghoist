@@ -6,6 +6,11 @@ import FlagEditor from './components/FlagEditor.vue'
 import FlagRow from './components/FlagRow.vue'
 import TokenGate from './components/TokenGate.vue'
 
+// The admin session (URL + token) lives in sessionStorage, not localStorage, so the token dies
+// with the tab instead of sitting on disk indefinitely. localStorage is readable by any script on
+// the origin, and this token is full admin authority with no expiry, so the smaller its window the
+// better. The theme, below, is not sensitive and stays in localStorage. The sign-in URL field
+// defaults to the current origin anyway, so persisting the URL buys little.
 const STORAGE = 'flaghoist.admin'
 const THEME = 'flaghoist.theme'
 
@@ -115,7 +120,7 @@ async function connect(url: string, token: string, persist = true) {
     flags.value = await client.list()
     api.value = client
     serverUrl.value = url
-    if (persist) localStorage.setItem(STORAGE, JSON.stringify({ url, token }))
+    if (persist) sessionStorage.setItem(STORAGE, JSON.stringify({ url, token }))
   } catch (e) {
     gateError.value = describe(e)
     api.value = null
@@ -126,7 +131,7 @@ async function connect(url: string, token: string, persist = true) {
 }
 
 function disconnect(message = '') {
-  localStorage.removeItem(STORAGE)
+  sessionStorage.removeItem(STORAGE)
   api.value = null
   flags.value = []
   notice.value = null
@@ -278,7 +283,7 @@ onMounted(() => {
 
   window.addEventListener('keydown', onKey)
 
-  const saved = localStorage.getItem(STORAGE)
+  const saved = sessionStorage.getItem(STORAGE)
   if (!saved) {
     loading.value = false
     return
@@ -287,7 +292,7 @@ onMounted(() => {
     const { url, token } = JSON.parse(saved) as { url: string; token: string }
     void connect(url, token, false)
   } catch {
-    localStorage.removeItem(STORAGE)
+    sessionStorage.removeItem(STORAGE)
     loading.value = false
   }
 })

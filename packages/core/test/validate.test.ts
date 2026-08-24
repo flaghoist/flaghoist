@@ -82,3 +82,25 @@ describe('createFlag', () => {
     expect(flag.rollout.percentage).toBe(100)
   })
 })
+
+describe('parseFlag description cap', () => {
+  it('rejects a flag whose description exceeds the cap', () => {
+    const flag = parseFlag({
+      key: 'big',
+      enabled: true,
+      rollout: { percentage: 0 },
+      description: 'x'.repeat(2049),
+    })
+    expect(flag).toBeNull()
+  })
+
+  it('accepts a description at exactly the cap', () => {
+    const flag = parseFlag({
+      key: 'edge',
+      enabled: true,
+      rollout: { percentage: 0 },
+      description: 'x'.repeat(2048),
+    })
+    expect(flag?.description.length).toBe(2048)
+  })
+})

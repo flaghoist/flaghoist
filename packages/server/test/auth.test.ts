@@ -1,5 +1,5 @@
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiKey, bearerToken, oidc } from '../src/auth'
 
 describe('apiKey', () => {
@@ -141,5 +141,27 @@ describe('oidc', () => {
       status: 401,
       message: 'Missing bearer token',
     })
+  })
+})
+
+describe('weak-secret warning', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const flush = () => new Promise((r) => setTimeout(r, 0))
+
+  it('warns once when the admin token is short', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    bearerToken('short-1')
+    bearerToken('short-1') // same secret, deduped
+    await flush()
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0]).toMatch(/admin token is 7 characters/)
+  })
+
+  it('does not warn for a strong secret', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    apiKey('0123456789abcdef0123') // 20 chars, above the floor
+    await flush()
+    expect(warn).not.toHaveBeenCalled()
   })
 })

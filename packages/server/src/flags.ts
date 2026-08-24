@@ -1,4 +1,4 @@
-import { clampPercentage, parseFlag, type FeatureFlag } from '@flaghoist/core'
+import { clampPercentage, LIMITS, parseFlag, type FeatureFlag } from '@flaghoist/core'
 
 export type BuildResult = { ok: true; flag: FeatureFlag } | { ok: false; error: string }
 
@@ -28,6 +28,9 @@ export function buildFlag(
   const percentage =
     typeof rollout.percentage === 'number' ? clampPercentage(rollout.percentage) : 0
   const description = typeof b.description === 'string' ? b.description : ''
+  if (description.length > LIMITS.maxDescriptionLength) {
+    return { ok: false, error: `Description exceeds ${LIMITS.maxDescriptionLength} characters` }
+  }
   const inputRules = Array.isArray(b.rules) ? b.rules : []
   const now = new Date().toISOString()
 

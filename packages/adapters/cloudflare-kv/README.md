@@ -24,6 +24,23 @@ deploy` creates the namespace and fills in its id for you. By hand it is:
 npx wrangler kv namespace create FLAGS
 ```
 
+## Sharing a namespace
+
+By default Flaghoist writes each flag under its own key, so a flag called `checkout` is stored as
+`checkout`. That keeps the namespace readable when you browse it in the Cloudflare dashboard.
+
+If the namespace holds anything besides Flaghoist's flags, give it a prefix:
+
+```ts
+cloudflareKV(env.FLAGS, { prefix: 'flag:' })
+```
+
+Without one, `list()` reads every key in the namespace. Values that are not flags are skipped rather
+than showing up as broken rows, so nothing breaks, but you pay a read for each one.
+
+Changing the prefix on a running deployment hides the flags written under the old one. They are
+still in KV, the adapter is just no longer looking there.
+
 Worth knowing: KV is eventually consistent. A flag you just changed can take a few seconds to reach
 every edge location, which is fine for flags and would not be fine for a bank balance.
 

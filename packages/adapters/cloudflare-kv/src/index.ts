@@ -17,7 +17,17 @@ export interface KVNamespaceLike {
 }
 
 export interface CloudflareKVOptions {
-  /** Key prefix used to namespace flags within the KV store. Default: `"flag:"`. */
+  /**
+   * Namespace every key Flaghoist writes, and ignore anything without it when listing.
+   *
+   * Empty by default, so a flag called `checkout` is stored under `checkout` and the namespace
+   * reads the way you expect when browsing it in the Cloudflare dashboard. Set this when the
+   * namespace holds anything besides Flaghoist's flags: without it `list()` reads every key in the
+   * namespace. Values that are not flags are skipped rather than surfacing as broken rows, but you
+   * still pay a read for each one.
+   *
+   * @example cloudflareKV(env.FLAGS, { prefix: 'flag:' })
+   */
   prefix?: string
 }
 
@@ -31,7 +41,7 @@ function safeParse(raw: string | null): FeatureFlag | null {
 }
 
 /**
- * A StorageAdapter backed by Cloudflare Workers KV — the default Flaghoist storage backend.
+ * A StorageAdapter backed by Cloudflare Workers KV, the default Flaghoist storage backend.
  * Flags are stored as JSON under a configurable key prefix, and every read is re-validated
  * through `parseFlag`, so tampered or corrupted data degrades to "flag ignored" rather than a
  * crash or a malformed evaluation.
@@ -40,7 +50,7 @@ export function cloudflareKV(
   kv: KVNamespaceLike,
   options: CloudflareKVOptions = {},
 ): StorageAdapter {
-  const prefix = options.prefix ?? 'flag:'
+  const prefix = options.prefix ?? ''
 
   return {
     async get(key) {

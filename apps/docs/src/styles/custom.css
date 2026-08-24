@@ -1,7 +1,7 @@
 /*
  * Theme Starlight through its own token layer rather than replacing the shell. This keeps
  * Pagefind search, the built-in light/dark switcher, and Starlight's accessibility work
- * (focus order, skip links, landmarks) all intact — only the tokens they read change.
+ * (focus order, skip links, landmarks) all intact, only the tokens they read change.
  *
  * Reference for the exact token names used below: node_modules/@astrojs/starlight/style/props.css
  * Starlight always sets an explicit data-theme="light"|"dark" on <html> before paint (see
@@ -14,7 +14,7 @@
  */
 
 /* Self-hosted, latin-only, only the weights actually used. Same faces as the landing page and the
-   dashboard — never loaded from a CDN, consistent with the brand kit's no-CDN rule. */
+   dashboard, never loaded from a CDN, consistent with the brand kit's no-CDN rule. */
 @import '@fontsource/geist-sans/latin-400.css';
 @import '@fontsource/geist-sans/latin-500.css';
 @import '@fontsource/geist-sans/latin-600.css';
@@ -29,7 +29,7 @@
 }
 
 /* Signal orange replaces Starlight's default blue. Brand don't: "Don't recolor the flag away from
-   signal orange, it's the one load-bearing accent" — the inverse holds here too, this is the only
+   signal orange, it's the one load-bearing accent". The inverse holds here too, this is the only
    accent hue on the page. -low and -high are Starlight's own tints of the accent (aside borders,
    badge text, inline links), not independent brand colours, so each scheme gets a legible pair
    rather than one value picked by eye and reused for both. */
@@ -70,7 +70,7 @@
    vivid orange in both. Background and text colour are both set directly here rather than through
    a shared token, so fixing one component cannot silently move a value the other one depends on
    again. Ink-on-orange measures 4.96:1 in both schemes, the same pairing used on flaghoist.dev and
-   in the dashboard. (White measured 3.36:1 here, under the 4.5:1 floor, in BOTH schemes — an
+   in the dashboard. (White measured 3.36:1 here, under the 4.5:1 floor, in BOTH schemes, an
    earlier version of this rule was scoped to dark mode only, on the assumption light mode's alias
    differed; it did not, and the unscoped rule replaced it once that was measured, not assumed.) */
 .sl-link-button.primary,

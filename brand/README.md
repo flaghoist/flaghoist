@@ -1,6 +1,6 @@
 # Flaghoist brand kit
 
-The mark is a **swallowtail signal flag on a halyard** — the naval flag hoist that gives the project
+The mark is a **swallowtail signal flag on a halyard**, the naval flag hoist that gives the project
 its name. Raising your own signal, on your own line. Keep it geometric, flat, and confident; lightly
 nautical, never kitschy.
 
@@ -9,7 +9,7 @@ nautical, never kitschy.
 | File            | Use                                                       |
 | --------------- | --------------------------------------------------------- |
 | `icon.svg`      | App icon, favicon source, GitHub org avatar. Square mark. |
-| `icon-dark.svg` | Square mark for dark surfaces — sail pole, orange flag.   |
+| `icon-dark.svg` | Square mark for dark surfaces: sail pole, orange flag.    |
 | `icon-mono.svg` | Single-colour mark, inherits `currentColor`.              |
 | `logo.svg`      | Horizontal lockup for light backgrounds.                  |
 | `logo-dark.svg` | Horizontal lockup for dark backgrounds.                   |
@@ -70,7 +70,7 @@ mark, or to either site's headline, which the cards repeat.
 
 ## Don'ts
 
-- Don't recolor the flag away from signal orange — it's the one load-bearing accent.
+- Don't recolor the flag away from signal orange. It is the one load-bearing accent.
 - Don't add gradients, bevels, or drop shadows to the mark. It stays flat.
 - Don't stretch the lockup or change the icon-to-wordmark spacing.
 - Don't load fonts from a CDN in anything that ships to an operator. Self-host or inline.

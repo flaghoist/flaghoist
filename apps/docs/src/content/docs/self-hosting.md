@@ -145,6 +145,30 @@ which caps total throughput rather than per client. Supply your own `key` if you
 client identifier, or bring an entirely different limiter (a Redis counter, a Cloudflare binding) by
 passing any object with a `check(key)` method.
 
+## Reducing what an instance exposes
+
+By default a deployment serves the admin dashboard at `/admin` and an OpenAPI document at
+`/api/v1/openapi.json`, both unauthenticated. Neither can change a flag without a token, but both
+confirm what the instance is and describe how to talk to it. A locked-down deployment can turn either
+off.
+
+To run the APIs without the dashboard, set `dashboard = false` in `flaghoist.toml`, or omit the
+`dashboard` value when composing the server yourself. `/admin` then returns 404.
+
+To stop serving the OpenAPI document, set `exposeOpenApi: false` in the config:
+
+```ts
+createFlagServer((env) => ({
+  storage: cloudflareKV(env.FLAGS),
+  auth: {/* ... */},
+  exposeOpenApi: false,
+}))
+```
+
+This is obscurity, not a security control: the routes are open source, so hiding them stops a casual
+scanner, not a determined one. Turn them off if you have no use for them, not as a substitute for a
+strong admin token and rate limiting.
+
 ## Environments
 
 Use one storage namespace (or database) per environment, e.g. `flags-staging` and

@@ -44,18 +44,13 @@ jobs:
           # With only NPM_TOKEN set the variable never expands, every request goes out
           # unauthenticated, and npm answers 404 rather than 401 for scoped packages.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # npm can only attest provenance from a public repo, which this now is. Restored at the
-          # public flip on 2026-08-23; the id-token permission above is what makes it possible.
-          NPM_CONFIG_PROVENANCE: true
-
-      # changesets runs `npm publish --json` with stdout piped and throws it away when the exit code
-      # is zero, so anything npm said about provenance is invisible. 0.1.4 published with provenance
-      # switched on and produced no attestation, and the logs are the only place the reason can be.
-      - name: Keep npm's logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-logs
-          path: ~/.npm/_logs/
-          if-no-files-found: ignore
-          retention-days: 14
+          # Provenance is NOT produced by this workflow, and setting NPM_CONFIG_PROVENANCE here does
+          # nothing. `changeset publish` runs `npm pack` and then `npm publish <tarball>`, and npm
+          # does not generate a provenance attestation when publishing a pre-packed tarball: it only
+          # does so when publishing from the package directory. Confirmed on the 0.2.0 release, which
+          # published cleanly with the flag set, printed no "Signed provenance statement" line, and
+          # produced no attestation (the attestation endpoint 404s). This is changesets#1152.
+          #
+          # To get provenance, publish each package from its own directory with `npm publish` (no
+          # pack), rather than through `changeset publish`, or wait for changesets to support it.
+          # The id-token: write permission above is already in place for whenever that happens.

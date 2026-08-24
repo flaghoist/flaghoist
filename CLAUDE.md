@@ -10,13 +10,15 @@ Standing rules for Claude Code. These hold across sessions unless the maintainer
 
 ## Verification
 
-- Verify against GitHub, npm and the working tree rather than trusting checkboxes. `LAUNCH.md`
-  tracks launch state, but a checked box records what someone believed at the time, not what the
-  tree contains. Check the thing itself before reporting it done.
+- Verify against GitHub, npm and the working tree rather than trusting checkboxes. The launch
+  checklist is kept locally and is not in this repository; a checked box there records what someone
+  believed at the time, not what the tree contains. Check the thing itself before reporting it
+  done.
 
 ## Product scope
 
-`PRODUCT.md` governs all user-facing copy. The shipped feature set is deliberately narrow:
+The product brief that governs all user-facing copy is kept locally and is not in this repository.
+What it requires, in full, is this. The shipped feature set is deliberately narrow:
 
 - Boolean flags only. No multivariate, no experiments.
 - No named segments, no scheduled rules, no regex operators.

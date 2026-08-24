@@ -37,8 +37,8 @@ today is a statement about that version and not about the language forever.
 
 If no provider exists for a language, no amount of testing helps. The landing page is promising
 something a user cannot reach, and the fix is to remove it from the list rather than to write code.
-`PRODUCT.md` is explicit that capabilities must not be implied before they exist, and a language
-badge is a capability claim.
+Flaghoist does not imply a capability before it exists, and a language badge is a capability
+claim.
 
 Do this first. It costs half an hour and can save installing a toolchain to discover there is
 nothing to install into it.

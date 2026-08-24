@@ -1,6 +1,6 @@
 {
   "name": "@flaghoist/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Flag schema, evaluation engine, and storage/auth interfaces for Flaghoist. Zero dependencies.",
   "license": "Apache-2.0",
   "type": "module",

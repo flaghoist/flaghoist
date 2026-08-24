@@ -1,5 +1,12 @@
 # @flaghoist/adapter-redis
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [cdc0d7b]
+  - @flaghoist/core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

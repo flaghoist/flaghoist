@@ -45,9 +45,16 @@ export interface ServerConfig {
   trustedContext?: (headers: Headers) => Record<string, AttributeValue>
   /**
    * Prebuilt admin dashboard HTML (a single-file SPA build) to serve at `/admin`. When set, a
-   * single deploy gives you the read API, the admin API, and the management UI together.
+   * single deploy gives you the read API, the admin API, and the management UI together. Omit it
+   * (or set `dashboard = false` in flaghoist.toml) to run the APIs without the UI.
    */
   dashboard?: string
+  /**
+   * Serve the OpenAPI 3.1 document at `/api/v1/openapi.json`. On by default. It is unauthenticated
+   * and describes every route and auth scheme, so a locked-down deployment that does not need it can
+   * set this to `false` and stop advertising its own API surface.
+   */
+  exposeOpenApi?: boolean
 }
 
 /** Config, or a function that derives it from the runtime environment (e.g. Workers bindings). */

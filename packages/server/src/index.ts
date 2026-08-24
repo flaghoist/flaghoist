@@ -98,7 +98,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
 
-  app.get('/api/v1/openapi.json', (c) => c.json(openApiDocument))
+  app.get('/api/v1/openapi.json', (c) => {
+    const cfg = resolve(c.env)
+    // Unauthenticated and describes the whole API, so it is opt-out for a deployment that would
+    // rather not hand a scanner the route map. On by default, to keep tooling working.
+    if (cfg.exposeOpenApi === false) return c.text('Not found', 404)
+    return c.json(openApiDocument)
+  })
 
   // ---- Admin dashboard SPA (served at /admin when a build is configured) ----
 

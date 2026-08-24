@@ -1,0 +1,45 @@
+# Answers one question: does npm see provenance turned on, and can it reach the OIDC token, inside
+# the same environment the release runs in.
+#
+# Publishing produced no attestation while NPM_CONFIG_PROVENANCE was set, and the reason is not
+# visible from outside: changesets runs `npm publish --json` with stdout piped and discards it on
+# success, so whatever npm said about provenance went nowhere. This publishes nothing and changes
+# nothing. Run it from the Actions tab.
+name: Provenance check
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check:
+    name: What does npm see
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Report
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          echo "node                     $(node --version)"
+          echo "npm                      $(npm --version)"
+          echo "provenance config        $(npm config get provenance)"
+          echo "OIDC token URL present   ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO}"
+          echo "npmrc userconfig         ${NPM_CONFIG_USERCONFIG:-unset}"
+          echo "--- npmrc contents, token redacted ---"
+          sed 's/_authToken=.*/_authToken=REDACTED/' "${NPM_CONFIG_USERCONFIG:-/dev/null}" 2>/dev/null || echo "(none)"
+          echo "--- same, as the release sees it through pnpm ---"
+          pnpm --version
+          echo "provenance via pnpm      $(pnpm exec npm config get provenance)"

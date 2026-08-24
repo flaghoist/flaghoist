@@ -47,3 +47,15 @@ jobs:
           # npm can only attest provenance from a public repo, which this now is. Restored at the
           # public flip on 2026-08-23; the id-token permission above is what makes it possible.
           NPM_CONFIG_PROVENANCE: true
+
+      # changesets runs `npm publish --json` with stdout piped and throws it away when the exit code
+      # is zero, so anything npm said about provenance is invisible. 0.1.4 published with provenance
+      # switched on and produced no attestation, and the logs are the only place the reason can be.
+      - name: Keep npm's logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-logs
+          path: ~/.npm/_logs/
+          if-no-files-found: ignore
+          retention-days: 14

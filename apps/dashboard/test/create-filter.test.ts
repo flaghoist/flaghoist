@@ -135,3 +135,68 @@ describe('creating a flag that the active filter would hide', () => {
     expect(strip.classes()).toContain('error')
   })
 })
+
+describe('ordering', () => {
+  const at = (iso: string, key: string) =>
+    flag({ key, metadata: { createdBy: 'a', createdAt: iso, updatedBy: 'a', updatedAt: iso } })
+
+  it('puts the newest flag first, not the alphabetically first', async () => {
+    const api: Api = {
+      list: vi.fn(async () => [
+        at('2026-01-01T00:00:00.000Z', 'aaa-oldest'),
+        at('2026-06-01T00:00:00.000Z', 'zzz-newest'),
+        at('2026-03-01T00:00:00.000Z', 'mmm-middle'),
+      ]),
+      save: vi.fn(async () => flag()),
+      remove: vi.fn(async () => undefined),
+    }
+    const wrapper = await mountSignedIn(api)
+
+    const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
+    expect(keys).toEqual(['zzz-newest', 'mmm-middle', 'aaa-oldest'])
+  })
+
+  it('breaks ties on key so the order is stable', async () => {
+    const same = '2026-05-05T00:00:00.000Z'
+    const api: Api = {
+      list: vi.fn(async () => [at(same, 'b-flag'), at(same, 'a-flag')]),
+      save: vi.fn(async () => flag()),
+      remove: vi.fn(async () => undefined),
+    }
+    const wrapper = await mountSignedIn(api)
+
+    const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
+    expect(keys).toEqual(['a-flag', 'b-flag'])
+  })
+
+  it('shows a newly created flag at the top', async () => {
+    const created = flag({
+      key: 'zzz-just-made',
+      metadata: {
+        createdBy: 'a',
+        createdAt: '2027-01-01T00:00:00.000Z',
+        updatedBy: 'a',
+        updatedAt: '2027-01-01T00:00:00.000Z',
+      },
+    })
+    const api: Api = {
+      list: vi.fn(async () => [at('2026-01-01T00:00:00.000Z', 'aaa-existing')]),
+      save: vi.fn(async () => created),
+      remove: vi.fn(async () => undefined),
+    }
+    const wrapper = await mountSignedIn(api)
+
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'New flag')!
+      .trigger('click')
+    await flushPromises()
+    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'zzz-just-made', {
+      enabled: false,
+      rollout: { percentage: 0 },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-just-made')
+  })
+})

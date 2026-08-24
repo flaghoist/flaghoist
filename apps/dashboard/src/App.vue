@@ -41,7 +41,19 @@ const editorError = ref('')
 
 const theme = ref<'light' | 'dark' | null>(null)
 
-const sorted = computed(() => [...flags.value].sort((a, b) => a.key.localeCompare(b.key)))
+/**
+ * Newest first, so a flag you just made is the first thing you see.
+ *
+ * Sorted on `createdAt` rather than `updatedAt` on purpose: ordering by last edit would make rows
+ * jump position every time you flipped a toggle, which is disorienting in a list you are working
+ * through. Key breaks ties, so flags created in the same millisecond still have a stable order.
+ */
+const sorted = computed(() =>
+  [...flags.value].sort(
+    (a, b) =>
+      b.metadata.createdAt.localeCompare(a.metadata.createdAt) || a.key.localeCompare(b.key),
+  ),
+)
 
 const counts = computed(() => ({
   all: flags.value.length,

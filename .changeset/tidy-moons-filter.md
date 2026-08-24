@@ -23,3 +23,7 @@ The message strip carried `role="alert"` for everything it said. An alert is for
 interruption, so a confirmation announcing itself that way is wrong for anyone using a screen
 reader. Errors keep `role="alert"`, confirmations use `role="status"`, and the two are now
 distinguishable by colour as well.
+
+The list is ordered newest first as well. It was alphabetical, so a new flag landed wherever its
+name fell, often far below the fold in a list of any size. Ordering is on `createdAt` rather than
+`updatedAt` so rows do not jump position every time a toggle is flipped, with the key breaking ties.

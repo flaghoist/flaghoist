@@ -4,8 +4,8 @@
 
 <p align="center">
   <strong>Feature flags at the edge. No server, no database, no bill.</strong><br />
-  Self-host your own flag service in five minutes — and use it from every language
-  with an OpenFeature SDK, on day one.
+  Self-host your own flag service in five minutes, and use it from multiple languages
+  through their own OpenFeature providers, on day one.
 </p>
 
 <p align="center">
@@ -30,9 +30,9 @@
 
 Flaghoist is a feature-flag service you **own**. It runs on your infrastructure (Cloudflare Workers by
 default, or any Node/Bun/Deno runtime), stores flags in **any fast database you point it at** (Workers
-KV by default), and speaks the **OpenFeature Remote Evaluation Protocol (OFREP)** — so every language
-with an OpenFeature provider works with it on day one, without Flaghoist writing a single per-language
-SDK.
+KV by default), and speaks the **OpenFeature Remote Evaluation Protocol (OFREP)**, so multiple languages
+work with it on day one through providers that already exist, without Flaghoist writing a single
+per-language SDK.
 
 - **$0 idle** — scale-to-zero on the Cloudflare free tier. No always-on server, no database bill.
 - **OpenFeature-native** — standard SDKs everywhere; swap Flaghoist for LaunchDarkly/Datadog with one provider line.

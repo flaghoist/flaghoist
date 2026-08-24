@@ -1,6 +1,6 @@
 {
   "name": "@flaghoist/adapter-redis",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Redis StorageAdapter for Flaghoist — works with ioredis (Node) and Upstash (edge).",
   "license": "Apache-2.0",
   "type": "module",

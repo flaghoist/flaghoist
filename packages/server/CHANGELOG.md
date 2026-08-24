@@ -1,5 +1,58 @@
 # @flaghoist/server
 
+## 0.2.0
+
+### Minor Changes
+
+- 4d0093e: Let a deployment stop serving the OpenAPI document.
+  
+  `/api/v1/openapi.json` is unauthenticated and describes every route and auth scheme, so it hands a
+  scanner the API surface. Set `exposeOpenApi: false` in the config to have it return 404. It stays on
+  by default, so tooling that reads the document keeps working.
+  
+  The admin dashboard at `/admin` was already opt-out, via `dashboard = false` in `flaghoist.toml`.
+  This is obscurity rather than a security control, since the routes are open source: turn these off if
+  you have no use for them, not in place of a strong admin token and rate limiting.
+- 57b2c6f: Add opt-in rate limiting.
+  
+  Flaghoist did not throttle anything, so authentication attempts, the evaluate path, and the
+  unauthenticated `/admin` payload could all be hit as fast as the network allowed. A `rateLimit` hook
+  in the server config turns limiting on, applied to every route except `/health` and run before
+  authentication so credential guessing is throttled too. A denied request returns `429` with a
+  `Retry-After` header, and the OFREP read path treats a `429` as an error and returns the caller's
+  default, so limiting it fails safe.
+  
+  The bundled `memoryRateLimit` counts per client IP in memory: genuinely effective on a single Node
+  or container process, and per-isolate on Cloudflare Workers, where the platform's own Rate Limiting
+  rules are the real answer and this is a backstop. Bring your own limiter (a Redis counter, a
+  Cloudflare binding) by passing any object with a `check(key)` method, and override the bucket key
+  when you have a trustworthy client identifier.
+  
+  Off by default: a limiter with the wrong bucket key is worse than none, and only the operator knows
+  how their deployment is fronted. Existing configs are unaffected.
+
+### Patch Changes
+
+- cdc0d7b: Three hardening fixes from a security audit.
+  
+  The admin dashboard now keeps the session token in `sessionStorage` rather than `localStorage`, so
+  the token dies with the browser tab instead of sitting on disk. It is full admin authority with no
+  expiry, and `localStorage` is readable by any script on the origin, so a smaller window is the safer
+  default. The sign-in URL field already defaults to the current origin, so nothing is lost by not
+  persisting it.
+  
+  A flag description is now bounded to 2048 characters. It was unbounded within the 64KB request body
+  limit, so an authenticated writer could bloat every `list()` and every dashboard load, since the
+  list returns full flag bodies with no pagination. `parseFlag` rejects a flag over the cap and the
+  admin write path returns a specific error.
+  
+  `apiKey` and `bearerToken` warn once, to the server log, when the shared secret is under 16
+  characters. Flaghoist does not rate limit authentication, so a short token is guessable; the warning
+  is guidance rather than a wall, since rejecting a short secret outright could lock an operator out of
+  a running service. The secret is never retained: the dedupe key is a short hash of it.
+- Updated dependencies [cdc0d7b]
+  - @flaghoist/core@0.1.2
+
 ## 0.1.4
 
 ### Patch Changes

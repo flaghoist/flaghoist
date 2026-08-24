@@ -1,5 +1,12 @@
 # @flaghoist/adapter-cloudflare-kv
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [cdc0d7b]
+  - @flaghoist/core@0.1.2
+
 ## 0.2.0
 
 ### Minor Changes

@@ -3,9 +3,17 @@ import { Hono } from 'hono'
 import { createDefinitionCache } from './cache'
 import { buildFlag } from './flags'
 import { openApiDocument } from './openapi'
+import { defaultRateLimitKey } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
 
 export { apiKey, bearerToken, oidc, type OidcOptions } from './auth'
+export {
+  defaultRateLimitKey,
+  memoryRateLimit,
+  type MemoryRateLimitOptions,
+  type RateLimit,
+  type RateLimitResult,
+} from './ratelimit'
 export { openApiDocument } from './openapi'
 export type { AuthResult, Authenticator, ConfigResolver, ServerConfig } from './types'
 
@@ -69,6 +77,21 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
       c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key')
       return c.body(null, 204)
+    }
+    return next()
+  })
+
+  // Rate limiting, when configured. After CORS (so preflight OPTIONS is already answered and is not
+  // counted) and before auth (so credential-guessing is throttled too). /health is exempt, since
+  // uptime monitors hit it often and it reveals nothing.
+  app.use('*', async (c, next) => {
+    const cfg = resolve(c.env)
+    if (!cfg.rateLimit || c.req.path === '/health') return next()
+    const deriveKey = cfg.rateLimit.key ?? defaultRateLimitKey
+    const result = await cfg.rateLimit.check(deriveKey(c.req.raw.headers))
+    if (!result.ok) {
+      if (result.retryAfter) c.header('Retry-After', String(result.retryAfter))
+      return c.json({ error: 'Too many requests' }, 429)
     }
     return next()
   })

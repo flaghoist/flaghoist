@@ -1,4 +1,5 @@
 import type { AttributeValue, StorageAdapter } from '@flaghoist/core'
+import type { RateLimit } from './ratelimit'
 
 /** Result of an authentication attempt. `ok: false` carries the status/message to return. */
 export interface AuthResult {
@@ -30,6 +31,12 @@ export interface ServerConfig {
   allowedOrigins?: string[]
   /** TTL in seconds for the in-isolate flag-definition cache on the read path. Default: 30. */
   cacheTtlSeconds?: number
+  /**
+   * Optional rate limiter, applied to every route except `/health`. Off by default. On a single
+   * process the built-in `memoryRateLimit` is effective; on Cloudflare it is per-isolate, so prefer
+   * Cloudflare's own Rate Limiting there. See `packages/server/src/ratelimit.ts`.
+   */
+  rateLimit?: RateLimit
   /**
    * Inject trusted context attributes derived from headers you control (e.g. a validated
    * session). These override client-supplied context, so security-relevant targeting can be

@@ -70,7 +70,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     const origin = c.req.header('Origin')
     if (origin && cfg.allowedOrigins?.includes(origin)) {
       c.header('Access-Control-Allow-Origin', origin)
-      c.header('Access-Control-Allow-Credentials', 'true')
+      // Deliberately no Access-Control-Allow-Credentials. Flaghoist authenticates with headers
+      // (x-api-key, Authorization), which a browser does not attach cross-origin on its own, so
+      // credentialed CORS buys nothing and would be a latent hole the day a cookie or session flow
+      // is added. Add it back consciously alongside such a flow, never by default.
       c.header('Vary', 'Origin')
     }
     if (c.req.method === 'OPTIONS') {

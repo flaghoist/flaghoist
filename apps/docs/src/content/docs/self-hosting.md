@@ -111,6 +111,40 @@ createFlagServer({ storage, auth, dashboard: dashboardHtml })
 It lives on a subpath rather than the package root, so a deploy that leaves it out never pulls the
 HTML into its bundle.
 
+## Rate limiting
+
+Rate limiting is off by default and opt-in, because a limiter with the wrong bucket key is worse
+than none. Pass a `rateLimit` in the config to turn it on:
+
+```ts
+import { createFlagServer, memoryRateLimit } from '@flaghoist/server'
+
+createFlagServer((env) => ({
+  storage: cloudflareKV(env.FLAGS),
+  auth: {/* ... */},
+  rateLimit: memoryRateLimit({ max: 120, windowMs: 60_000 }),
+}))
+```
+
+It applies to every route except `/health`, and it runs before authentication, so a wrong token
+still counts. That is deliberate: throttling credential guessing is most of the point, and Flaghoist
+does not otherwise limit auth attempts. A denied request gets a `429` with a `Retry-After` header,
+and the OFREP read path treats a `429` as an error and returns the caller's default, so limiting the
+read path fails safe.
+
+The built-in `memoryRateLimit` counts per client IP in memory. On a single Node or container process
+that is genuinely effective. On Cloudflare Workers it is per-isolate: the fleet is spread across
+isolates and edge locations, so an in-memory counter caps a burst against one isolate but not the
+whole service. On Cloudflare, use the platform's own Rate Limiting rules in front of the Worker for a
+real limit, and treat the built-in as a backstop.
+
+The default bucket key trusts `CF-Connecting-IP` (set by Cloudflare and not spoofable there), then
+the first hop of `X-Forwarded-For`, then a single shared `anonymous` bucket. On a Node process
+exposed directly, with no proxy setting a forwarded header, every caller lands in that shared bucket,
+which caps total throughput rather than per client. Supply your own `key` if you have a trustworthy
+client identifier, or bring an entirely different limiter (a Redis counter, a Cloudflare binding) by
+passing any object with a `check(key)` method.
+
 ## Environments
 
 Use one storage namespace (or database) per environment, e.g. `flags-staging` and

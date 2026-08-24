@@ -90,4 +90,4 @@ it at about 890px.
 The shot list opens with `flaghoist deploy`. Recording that honestly needs the packages on npm,
 since the commands a viewer would copy are `npm create flaghoist@latest` and `npx flaghoist deploy`,
 and neither resolves before v0.1.0 ships. Rather than film a deploy that is not one, stage 1 starts
-at the app. Stages 2 and 3 in `LAUNCH.md` add the real deploy once the release is out.
+at the app. The real deploy gets recorded once the release is out.

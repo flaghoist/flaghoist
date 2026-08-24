@@ -82,6 +82,11 @@ describe('creating a flag that the active filter would hide', () => {
     const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
     expect(keys).toContain('brand-new')
     expect(wrapper.text()).toContain('Filters were cleared')
+
+    // A confirmation reports, it does not interrupt.
+    const strip = wrapper.find('.notice')
+    expect(strip.attributes('role')).toBe('status')
+    expect(strip.classes()).toContain('ok')
   })
 
   it('leaves the filter alone when the new flag matches it anyway', async () => {
@@ -105,9 +110,28 @@ describe('creating a flag that the active filter would hide', () => {
     })
     await flushPromises()
 
-    // Still filtered to paused, and no needless notice, because nothing was hidden.
+    // Still filtered to paused, and no claim that filters moved, because nothing was hidden.
     expect(wrapper.text()).not.toContain('Filters were cleared')
+    // The create is still confirmed, since an alphabetical list can put the new row off screen.
+    expect(wrapper.find('.notice').text()).toContain('Created "also-paused"')
     const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
     expect(keys).toContain('also-paused')
+  })
+
+  it('announces a failure as an alert rather than a confirmation', async () => {
+    const api: Api = {
+      list: vi.fn(async () => [flag()]),
+      save: vi.fn(async () => flag()),
+      remove: vi.fn(async () => {
+        throw new Error('nope')
+      }),
+    }
+    const wrapper = await mountSignedIn(api)
+    await wrapper.findComponent(FlagRow).vm.$emit('remove', 'existing')
+    await flushPromises()
+
+    const strip = wrapper.find('.notice')
+    expect(strip.attributes('role')).toBe('alert')
+    expect(strip.classes()).toContain('error')
   })
 })

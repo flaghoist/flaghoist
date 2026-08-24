@@ -16,7 +16,13 @@ const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
 const connecting = ref(false)
 const gateError = ref('')
-const notice = ref('')
+/**
+ * A message above the list. Errors and confirmations share the strip but not the treatment: an
+ * error interrupts with role="alert", a confirmation reports with role="status", which is what
+ * a screen reader should do with each.
+ */
+type Notice = { text: string; tone: 'ok' | 'error' }
+const notice = ref<Notice | null>(null)
 const busy = ref<Set<string>>(new Set())
 
 const query = ref('')
@@ -110,7 +116,7 @@ function disconnect(message = '') {
   localStorage.removeItem(STORAGE)
   api.value = null
   flags.value = []
-  notice.value = ''
+  notice.value = null
   gateError.value = message
 }
 
@@ -136,11 +142,11 @@ function handle(e: unknown): string {
 
 async function withBusy(key: string, fn: () => Promise<void>) {
   busy.value = new Set(busy.value).add(key)
-  notice.value = ''
+  notice.value = null
   try {
     await fn()
   } catch (e) {
-    notice.value = handle(e)
+    notice.value = { text: handle(e), tone: 'error' }
   } finally {
     const next = new Set(busy.value)
     next.delete(key)
@@ -188,9 +194,17 @@ async function saveFromEditor(key: string, input: FlagInput) {
     // A new flag that does not match the active filter is saved and then immediately hidden, which
     // reads as the save having silently failed. Creating a live flag while the paused chip is
     // selected did exactly that. Drop the filter so the thing you just made is visible, and say so.
-    if (creating && !matchesActiveView(saved)) {
-      clearFilters()
-      notice.value = `Created "${saved.key}". Filters were cleared so you can see it.`
+    if (creating) {
+      // The list is alphabetical, so a new flag can land below the fold and the closing modal is
+      // the only sign anything happened. Confirm it either way, and say when the filter moved.
+      const hidden = !matchesActiveView(saved)
+      if (hidden) clearFilters()
+      notice.value = {
+        text: hidden
+          ? `Created "${saved.key}". Filters were cleared so you can see it.`
+          : `Created "${saved.key}".`,
+        tone: 'ok',
+      }
     }
     editor.value = null
   } catch (e) {
@@ -331,7 +345,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         </div>
       </div>
 
-      <p v-if="notice" class="notice" role="alert">{{ notice }}</p>
+      <p
+        v-if="notice"
+        class="notice"
+        :class="notice.tone"
+        :role="notice.tone === 'error' ? 'alert' : 'status'"
+      >
+        {{ notice.text }}
+      </p>
 
       <!-- Skeleton rows rather than a spinner: the shape of what is coming, in place. -->
       <div v-if="loading" class="list" aria-busy="true" aria-label="Loading flags">
@@ -561,9 +582,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   margin: 0 0 0.9rem;
   padding: 0.6rem 0.8rem;
   font-size: 0.82rem;
+  border-radius: var(--r-sm);
+}
+.notice.error {
   color: var(--red-text);
   background: var(--red-wash);
-  border-radius: var(--r-sm);
+}
+.notice.ok {
+  color: var(--green-text);
+  background: var(--green-wash);
 }
 
 /* Hairline list rather than a stack of cards: denser, and the eye tracks one column of keys. */

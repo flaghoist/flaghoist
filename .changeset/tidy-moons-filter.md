@@ -15,3 +15,11 @@ The filter predicate was also written twice, once for the list and once implicit
 There is now one function feeding both, so they cannot drift apart.
 
 The dashboard ships inside `@flaghoist/server`, which is why this releases there.
+
+Creating a flag is also confirmed now. The list is alphabetical, so a new flag can land below the
+fold and the closing dialog was the only sign anything had happened at all.
+
+The message strip carried `role="alert"` for everything it said. An alert is for an urgent
+interruption, so a confirmation announcing itself that way is wrong for anyone using a screen
+reader. Errors keep `role="alert"`, confirmations use `role="status"`, and the two are now
+distinguishable by colour as well.

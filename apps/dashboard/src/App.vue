@@ -283,6 +283,11 @@ onMounted(() => {
 
   window.addEventListener('keydown', onKey)
 
+  // A build before the token moved to sessionStorage may have left one in localStorage. The new
+  // code never reads or writes it, so it would sit on disk indefinitely, which is exactly what
+  // moving to sessionStorage was meant to prevent. Purge it once, on load.
+  localStorage.removeItem(STORAGE)
+
   const saved = sessionStorage.getItem(STORAGE)
   if (!saved) {
     loading.value = false

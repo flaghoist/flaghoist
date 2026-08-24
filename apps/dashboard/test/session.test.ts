@@ -166,3 +166,15 @@ describe('filtering', () => {
     wrapper.unmount()
   })
 })
+
+describe('legacy token migration', () => {
+  it('purges a token left in localStorage by an older build', async () => {
+    // Old build wrote the session to localStorage; the app must not leave it there.
+    localStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 'old' }))
+    createApi.mockReturnValue(client())
+    const wrapper = mount(App, { attachTo: document.body })
+    await flushPromises()
+    expect(localStorage.getItem('flaghoist.admin')).toBeNull()
+    wrapper.unmount()
+  })
+})

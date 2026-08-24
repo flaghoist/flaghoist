@@ -44,18 +44,19 @@ const counts = computed(() => ({
   targeted: flags.value.filter((f) => (f.rules?.length ?? 0) > 0).length,
 }))
 
-const visible = computed(() => {
+/** Would this flag survive the filter and search that are active right now? */
+function matchesActiveView(flag: FeatureFlag): boolean {
   const q = query.value.trim().toLowerCase()
-  return sorted.value.filter((f) => {
-    if (q && !f.key.toLowerCase().includes(q) && !f.description?.toLowerCase().includes(q)) {
-      return false
-    }
-    if (filter.value === 'live') return f.enabled && f.rollout.percentage > 0
-    if (filter.value === 'paused') return !f.enabled || f.rollout.percentage === 0
-    if (filter.value === 'targeted') return (f.rules?.length ?? 0) > 0
-    return true
-  })
-})
+  if (q && !flag.key.toLowerCase().includes(q) && !flag.description?.toLowerCase().includes(q)) {
+    return false
+  }
+  if (filter.value === 'live') return flag.enabled && flag.rollout.percentage > 0
+  if (filter.value === 'paused') return !flag.enabled || flag.rollout.percentage === 0
+  if (filter.value === 'targeted') return (flag.rules?.length ?? 0) > 0
+  return true
+}
+
+const visible = computed(() => sorted.value.filter(matchesActiveView))
 
 /* ---- theme ---------------------------------------------------------------- */
 
@@ -178,10 +179,19 @@ function removeFlag(flag: FeatureFlag) {
 }
 
 async function saveFromEditor(key: string, input: FlagInput) {
+  const creating = editor.value?.flag == null
   editorBusy.value = true
   editorError.value = ''
   try {
-    replaceFlag(await api.value!.save(key, input))
+    const saved = await api.value!.save(key, input)
+    replaceFlag(saved)
+    // A new flag that does not match the active filter is saved and then immediately hidden, which
+    // reads as the save having silently failed. Creating a live flag while the paused chip is
+    // selected did exactly that. Drop the filter so the thing you just made is visible, and say so.
+    if (creating && !matchesActiveView(saved)) {
+      clearFilters()
+      notice.value = `Created "${saved.key}". Filters were cleared so you can see it.`
+    }
     editor.value = null
   } catch (e) {
     const msg = handle(e)

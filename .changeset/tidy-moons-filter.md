@@ -26,4 +26,15 @@ distinguishable by colour as well.
 
 The list is ordered newest first as well. It was alphabetical, so a new flag landed wherever its
 name fell, often far below the fold in a list of any size. Ordering is on `createdAt` rather than
-`updatedAt` so rows do not jump position every time a toggle is flipped, with the key breaking ties.
+`updatedAt`, so the last flag you added is the first row and editing one does not move it: sorting
+by last edit would reshuffle rows every time a toggle was flipped. The key breaks ties.
+
+Deleting a flag now asks in the page rather than through `window.confirm`. That call could not be
+relied on: Chrome offers "prevent this page from creating additional dialogs" after a few in a row,
+and once that is ticked every later call returns false with no dialog shown. Delete then did
+nothing at all, silently, which reads as a broken button rather than a refused action. Every delete
+attempted during a testing session was discarded that way, without a single request leaving the
+browser.
+
+The dialog focuses Cancel rather than Delete, so a stray Enter on a destructive prompt does nothing,
+and Escape closes it. Deleting is confirmed afterwards like any other change.

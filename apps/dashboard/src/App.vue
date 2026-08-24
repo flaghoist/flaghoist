@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ApiError, createApi, type Api, type FeatureFlag, type FlagInput } from './api'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
 import FlagRow from './components/FlagRow.vue'
 import TokenGate from './components/TokenGate.vue'
@@ -42,16 +43,16 @@ const editorError = ref('')
 const theme = ref<'light' | 'dark' | null>(null)
 
 /**
- * Most recently touched first, so the flag you just created or changed is at the top.
+ * Newest first, so the last flag you added is the first row.
  *
- * Sorted on `updatedAt`, so editing a flag moves it back to the top: the list reads as a record of
- * what you have been working on. Key breaks ties, so flags written in the same millisecond keep a
- * stable order.
+ * Sorted on `createdAt`, not `updatedAt`: ordering by last edit would move a row every time you
+ * flipped its toggle, so the list would reshuffle underneath you while you worked through it. Key
+ * breaks ties, so flags created in the same millisecond keep a stable order.
  */
 const sorted = computed(() =>
   [...flags.value].sort(
     (a, b) =>
-      b.metadata.updatedAt.localeCompare(a.metadata.updatedAt) || a.key.localeCompare(b.key),
+      b.metadata.createdAt.localeCompare(a.metadata.createdAt) || a.key.localeCompare(b.key),
   ),
 )
 
@@ -188,11 +189,24 @@ function setRollout(flag: FeatureFlag, pct: number) {
   })
 }
 
-function removeFlag(flag: FeatureFlag) {
-  if (!confirm(`Delete flag "${flag.key}"? This cannot be undone.`)) return
+/**
+ * Deleting asks first, in the page.
+ *
+ * `window.confirm` was doing this and could not be trusted: Chrome offers "prevent this page from
+ * creating additional dialogs" after a few in a row, and once ticked every later call returns false
+ * with no dialog. Delete then did nothing, silently, which reads as a broken button rather than a
+ * refused action.
+ */
+const pendingDelete = ref<FeatureFlag | null>(null)
+
+function confirmDelete() {
+  const flag = pendingDelete.value
+  if (!flag) return
   return withBusy(flag.key, async () => {
     await api.value!.remove(flag.key)
     flags.value = flags.value.filter((f) => f.key !== flag.key)
+    pendingDelete.value = null
+    notice.value = { text: `Deleted "${flag.key}".`, tone: 'ok' }
   })
 }
 
@@ -236,7 +250,8 @@ function onKey(e: KeyboardEvent) {
   const typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)
 
   if (e.key === 'Escape') {
-    if (editor.value) editor.value = null
+    if (pendingDelete.value) pendingDelete.value = null
+    else if (editor.value) editor.value = null
     else if (query.value) query.value = ''
     else if (typing) (el as HTMLElement).blur()
     return
@@ -408,9 +423,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           @toggle="toggle(flag)"
           @rollout="(p: number) => setRollout(flag, p)"
           @edit="editor = { flag }"
-          @remove="removeFlag(flag)"
+          @remove="pendingDelete = flag"
         />
       </div>
+
+      <ConfirmDialog
+        v-if="pendingDelete"
+        :title="`Delete ${pendingDelete.key}?`"
+        :body="`This removes the flag from storage. Anything reading it falls back to the default your code passes in. This cannot be undone.`"
+        :busy="busy.has(pendingDelete.key)"
+        @confirm="confirmDelete"
+        @cancel="pendingDelete = null"
+      />
 
       <p v-if="!loading && flags.length > 0" class="hintbar">
         <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>esc</kbd> clear

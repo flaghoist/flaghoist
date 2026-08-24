@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Api, FeatureFlag } from '../src/api'
 import App from '../src/App.vue'
+import ConfirmDialog from '../src/components/ConfirmDialog.vue'
 import FlagRow from '../src/components/FlagRow.vue'
 
 const createApi = vi.fn<(url: string, token: string) => Api>()
@@ -127,7 +128,10 @@ describe('creating a flag that the active filter would hide', () => {
       }),
     }
     const wrapper = await mountSignedIn(api)
-    await wrapper.findComponent(FlagRow).vm.$emit('remove', 'existing')
+    await wrapper.findComponent(FlagRow).vm.$emit('remove')
+    await flushPromises()
+    // Deleting asks first, in the page, so the failure only happens after confirming.
+    await wrapper.findComponent(ConfirmDialog).vm.$emit('confirm')
     await flushPromises()
 
     const strip = wrapper.find('.notice')
@@ -140,7 +144,7 @@ describe('ordering', () => {
   const at = (iso: string, key: string) =>
     flag({ key, metadata: { createdBy: 'a', createdAt: iso, updatedBy: 'a', updatedAt: iso } })
 
-  it('puts the most recently updated flag first, not the alphabetically first', async () => {
+  it('puts the newest flag first, not the alphabetically first', async () => {
     const api: Api = {
       list: vi.fn(async () => [
         at('2026-01-01T00:00:00.000Z', 'aaa-oldest'),
@@ -200,9 +204,9 @@ describe('ordering', () => {
     expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-just-made')
   })
 
-  it('moves an edited flag back to the top', async () => {
+  it('leaves an edited flag where it is, so rows do not jump while you work', async () => {
     const edited = flag({
-      key: 'aaa-old-name',
+      key: 'aaa-old',
       metadata: {
         createdBy: 'a',
         createdAt: '2020-01-01T00:00:00.000Z',
@@ -212,7 +216,7 @@ describe('ordering', () => {
     })
     const api: Api = {
       list: vi.fn(async () => [
-        at('2020-01-01T00:00:00.000Z', 'aaa-old-name'),
+        at('2020-01-01T00:00:00.000Z', 'aaa-old'),
         at('2026-01-01T00:00:00.000Z', 'zzz-newer'),
       ]),
       save: vi.fn(async () => edited),
@@ -223,12 +227,48 @@ describe('ordering', () => {
 
     await wrapper.findAllComponents(FlagRow)[1].vm.$emit('edit')
     await flushPromises()
-    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'aaa-old-name', {
+    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'aaa-old', {
       enabled: true,
       rollout: { percentage: 100 },
     })
     await flushPromises()
 
-    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('aaa-old-name')
+    // Still second. Editing changed updatedAt, and the order deliberately ignores that.
+    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-newer')
+    expect(wrapper.findAllComponents(FlagRow)[1].props('flag').key).toBe('aaa-old')
+  })
+
+  it('does not delete anything until the dialog is confirmed', async () => {
+    const remove = vi.fn(async () => undefined)
+    const api: Api = { list: vi.fn(async () => [flag()]), save: vi.fn(async () => flag()), remove }
+    const wrapper = await mountSignedIn(api)
+
+    await wrapper.findComponent(FlagRow).vm.$emit('remove')
+    await flushPromises()
+    expect(wrapper.findComponent(ConfirmDialog).exists()).toBe(true)
+    expect(remove).not.toHaveBeenCalled()
+
+    // Cancelling must leave the flag alone. window.confirm returning false used to be
+    // indistinguishable from the button doing nothing at all.
+    await wrapper.findComponent(ConfirmDialog).vm.$emit('cancel')
+    await flushPromises()
+    expect(remove).not.toHaveBeenCalled()
+    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(1)
+  })
+
+  it('deletes and confirms once the dialog is accepted', async () => {
+    const remove = vi.fn(async () => undefined)
+    const api: Api = { list: vi.fn(async () => [flag()]), save: vi.fn(async () => flag()), remove }
+    const wrapper = await mountSignedIn(api)
+
+    await wrapper.findComponent(FlagRow).vm.$emit('remove')
+    await flushPromises()
+    await wrapper.findComponent(ConfirmDialog).vm.$emit('confirm')
+    await flushPromises()
+
+    expect(remove).toHaveBeenCalledWith('existing')
+    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(0)
+    expect(wrapper.find('.notice').text()).toContain('Deleted "existing"')
+    expect(wrapper.findComponent(ConfirmDialog).exists()).toBe(false)
   })
 })

@@ -27,8 +27,43 @@ async function safeEqual(a: string, b: string): Promise<boolean> {
   return diff === 0
 }
 
+/**
+ * The shortest shared secret we do not warn about. Below this a secret is guessable by an attacker
+ * who can make requests freely, and Flaghoist does not rate limit, so a weak token is the softest
+ * part of the zero-config model. Sixteen characters of hex is 64 bits, a reasonable floor.
+ */
+const MIN_SECRET_LENGTH = 16
+
+// Which weak secrets have already been warned about, keyed by a short hash so the secret itself is
+// never retained. Deduped per isolate, so a weak token warns once rather than on every request.
+const warnedWeakSecrets = new Set<string>()
+
+/**
+ * Warn once, to the server log, when a shared secret is short enough to be worth guessing. This is
+ * guidance, not a wall: rejecting a short secret outright could lock an operator out of a running
+ * service, so the choice stays theirs. The check short-circuits for a strong secret, so the common
+ * case does no work.
+ */
+function warnIfWeakSecret(kind: string, secret: string): void {
+  if (secret.length >= MIN_SECRET_LENGTH) return
+  void (async () => {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))
+    const id = Array.from(new Uint8Array(digest).slice(0, 6))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+    if (warnedWeakSecrets.has(id)) return
+    warnedWeakSecrets.add(id)
+    console.warn(
+      `[flaghoist] the ${kind} is ${secret.length} characters. Use a long random value ` +
+        `(for example \`openssl rand -hex 32\`); a short secret is guessable, especially since ` +
+        `Flaghoist does not rate limit authentication.`,
+    )
+  })()
+}
+
 /** Read-path verifier: matches the `x-api-key` header against a shared secret in constant time. */
 export function apiKey(expected: string): Authenticator {
+  warnIfWeakSecret('read API key', expected)
   return async (headers) => {
     const provided = headers.get('x-api-key')
     if (!provided || !(await safeEqual(provided, expected))) {
@@ -43,6 +78,7 @@ export function apiKey(expected: string): Authenticator {
  * constant time. The zero-config default — possession of the token is admin authorization.
  */
 export function bearerToken(expected: string): Authenticator {
+  warnIfWeakSecret('admin token', expected)
   return async (headers) => {
     const provided = extractBearer(headers)
     if (!provided || !(await safeEqual(provided, expected))) {

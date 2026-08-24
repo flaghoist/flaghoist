@@ -103,6 +103,10 @@ export function parseFlag(input: unknown): FeatureFlag | null {
   const percentage =
     rollout && typeof rollout.percentage === 'number' ? clampPercentage(rollout.percentage) : 0
 
+  if (typeof o.description === 'string' && o.description.length > LIMITS.maxDescriptionLength) {
+    return null
+  }
+
   const rawRules = Array.isArray(o.rules) ? o.rules : []
   if (rawRules.length > LIMITS.maxRules) return null
   const rules = rawRules.map(parseRule).filter((r): r is TargetingRule => r !== null)

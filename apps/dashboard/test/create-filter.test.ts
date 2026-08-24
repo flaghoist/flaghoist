@@ -26,7 +26,7 @@ const flag = (over: Partial<FeatureFlag> = {}): FeatureFlag => ({
 })
 
 async function mountSignedIn(api: Api) {
-  localStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
+  sessionStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
   createApi.mockReturnValue(api)
   const wrapper = mount(App, { attachTo: document.body })
   await flushPromises()
@@ -35,6 +35,7 @@ async function mountSignedIn(api: Api) {
 
 beforeEach(() => {
   localStorage.clear()
+  sessionStorage.clear()
   createApi.mockReset()
   vi.stubGlobal('confirm', () => true)
   vi.stubGlobal('matchMedia', (q: string) => ({

@@ -38,7 +38,7 @@ function client(over: Partial<Api> = {}): Api {
 
 /** Mount already signed in, by seeding the stored session the app restores on boot. */
 async function mountSignedIn(api: Api) {
-  localStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
+  sessionStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
   createApi.mockReturnValue(api)
   const wrapper = mount(App, { attachTo: document.body })
   await flushPromises()
@@ -47,6 +47,7 @@ async function mountSignedIn(api: Api) {
 
 beforeEach(() => {
   localStorage.clear()
+  sessionStorage.clear()
   createApi.mockReset()
   vi.stubGlobal('confirm', () => true)
   // happy-dom does not implement matchMedia, which the theme resolver reads.
@@ -67,7 +68,7 @@ describe('session ends on a rejected token (#31)', () => {
     const wrapper = await mountSignedIn(client({ save }))
 
     expect(wrapper.findComponent(FlagRow).exists()).toBe(true)
-    expect(localStorage.getItem('flaghoist.admin')).not.toBeNull()
+    expect(sessionStorage.getItem('flaghoist.admin')).not.toBeNull()
 
     await wrapper.findComponent(FlagRow).vm.$emit('toggle')
     await flushPromises()
@@ -75,7 +76,7 @@ describe('session ends on a rejected token (#31)', () => {
     const gate = wrapper.findComponent(TokenGate)
     expect(gate.exists()).toBe(true)
     expect(gate.props('error')).toMatch(/session ended/i)
-    expect(localStorage.getItem('flaghoist.admin')).toBeNull()
+    expect(sessionStorage.getItem('flaghoist.admin')).toBeNull()
     wrapper.unmount()
   })
 
@@ -102,7 +103,7 @@ describe('session ends on a rejected token (#31)', () => {
     // Still signed in: a 500 is the server's problem, not the operator's credentials.
     expect(wrapper.findComponent(TokenGate).exists()).toBe(false)
     expect(wrapper.find('.notice').text()).toBe('storage adapter unavailable')
-    expect(localStorage.getItem('flaghoist.admin')).not.toBeNull()
+    expect(sessionStorage.getItem('flaghoist.admin')).not.toBeNull()
     wrapper.unmount()
   })
 

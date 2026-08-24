@@ -140,7 +140,7 @@ describe('ordering', () => {
   const at = (iso: string, key: string) =>
     flag({ key, metadata: { createdBy: 'a', createdAt: iso, updatedBy: 'a', updatedAt: iso } })
 
-  it('puts the newest flag first, not the alphabetically first', async () => {
+  it('puts the most recently updated flag first, not the alphabetically first', async () => {
     const api: Api = {
       list: vi.fn(async () => [
         at('2026-01-01T00:00:00.000Z', 'aaa-oldest'),
@@ -198,5 +198,37 @@ describe('ordering', () => {
     await flushPromises()
 
     expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-just-made')
+  })
+
+  it('moves an edited flag back to the top', async () => {
+    const edited = flag({
+      key: 'aaa-old-name',
+      metadata: {
+        createdBy: 'a',
+        createdAt: '2020-01-01T00:00:00.000Z',
+        updatedBy: 'a',
+        updatedAt: '2027-06-06T00:00:00.000Z',
+      },
+    })
+    const api: Api = {
+      list: vi.fn(async () => [
+        at('2020-01-01T00:00:00.000Z', 'aaa-old-name'),
+        at('2026-01-01T00:00:00.000Z', 'zzz-newer'),
+      ]),
+      save: vi.fn(async () => edited),
+      remove: vi.fn(async () => undefined),
+    }
+    const wrapper = await mountSignedIn(api)
+    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-newer')
+
+    await wrapper.findAllComponents(FlagRow)[1].vm.$emit('edit')
+    await flushPromises()
+    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'aaa-old-name', {
+      enabled: true,
+      rollout: { percentage: 100 },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('aaa-old-name')
   })
 })

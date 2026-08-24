@@ -23,6 +23,18 @@ import { cloudflareKV } from '@flaghoist/adapter-cloudflare-kv'
 createFlagServer((env) => ({ storage: cloudflareKV(env.FLAGS), auth: {/* … */} }))
 ```
 
+Each flag is stored under its own key, so a flag called `checkout` is the key `checkout`. If the KV
+namespace holds anything besides Flaghoist's flags, namespace them with a prefix:
+
+```ts
+cloudflareKV(env.FLAGS, { prefix: 'flag:' })
+```
+
+Without a prefix, `list()` reads every key in the namespace. Values that are not flags are skipped
+rather than appearing as broken rows, so nothing breaks, but you pay a read for each one. Changing
+the prefix later hides the flags written under the old one: they are still in KV, the adapter is
+just no longer looking there.
+
 ## Redis
 
 Works with `ioredis` (Node) and Upstash (edge). All flags live in one hash, so `list()` is a single

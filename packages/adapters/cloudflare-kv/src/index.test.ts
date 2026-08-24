@@ -39,9 +39,18 @@ class FakeKV implements KVNamespaceLike {
 testStorageAdapter('cloudflare-kv', () => cloudflareKV(new FakeKV()))
 
 describe('cloudflareKV — specifics', () => {
-  it('namespaces keys with the prefix', async () => {
+  it('writes the flag key as given, with no prefix by default', async () => {
     const kv = new FakeKV()
     const adapter = cloudflareKV(kv)
+    await adapter.put('checkout', createFlag({ key: 'checkout', enabled: true }))
+    // The key in KV is the key you chose, so browsing the namespace shows what you expect.
+    expect(kv.raw('checkout')).toBeDefined()
+    expect(kv.raw('flag:checkout')).toBeUndefined()
+  })
+
+  it('namespaces keys when a prefix is supplied', async () => {
+    const kv = new FakeKV()
+    const adapter = cloudflareKV(kv, { prefix: 'flag:' })
     await adapter.put('checkout', createFlag({ key: 'checkout', enabled: true }))
     expect(kv.raw('flag:checkout')).toBeDefined()
     expect(kv.raw('checkout')).toBeUndefined()
@@ -67,10 +76,23 @@ describe('cloudflareKV — specifics', () => {
     expect(keys).toEqual(['good'])
   })
 
-  it('ignores keys outside the prefix when listing', async () => {
+  it('ignores keys outside the prefix when one is supplied', async () => {
+    const kv = new FakeKV()
+    const adapter = cloudflareKV(kv, { prefix: 'flag:' })
+    kv.seedRaw('other:thing', JSON.stringify({ key: 'thing', enabled: true }))
+    await adapter.put('mine', createFlag({ key: 'mine' }))
+    const keys = (await adapter.list()).map((f) => f.key)
+    expect(keys).toEqual(['mine'])
+  })
+
+  it('skips foreign keys when listing an unprefixed namespace', async () => {
+    // With no prefix, list sees every key in the namespace. Anything that is not a flag fails to
+    // parse and is dropped rather than surfacing as a broken row, so sharing a namespace degrades
+    // instead of breaking. It still costs a read per foreign key, which is why the prefix exists.
     const kv = new FakeKV()
     const adapter = cloudflareKV(kv)
-    kv.seedRaw('other:thing', JSON.stringify({ key: 'thing', enabled: true }))
+    kv.seedRaw('someone-elses-cache-entry', 'not json at all')
+    kv.seedRaw('another:thing', JSON.stringify({ nothing: 'flag shaped' }))
     await adapter.put('mine', createFlag({ key: 'mine' }))
     const keys = (await adapter.list()).map((f) => f.key)
     expect(keys).toEqual(['mine'])

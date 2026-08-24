@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ApiError, createApi, type Api, type FeatureFlag, type FlagInput } from './api'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
 import FlagRow from './components/FlagRow.vue'
 import TokenGate from './components/TokenGate.vue'
@@ -16,7 +17,13 @@ const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
 const connecting = ref(false)
 const gateError = ref('')
-const notice = ref('')
+/**
+ * A message above the list. Errors and confirmations share the strip but not the treatment: an
+ * error interrupts with role="alert", a confirmation reports with role="status", which is what
+ * a screen reader should do with each.
+ */
+type Notice = { text: string; tone: 'ok' | 'error' }
+const notice = ref<Notice | null>(null)
 const busy = ref<Set<string>>(new Set())
 
 const query = ref('')
@@ -35,7 +42,19 @@ const editorError = ref('')
 
 const theme = ref<'light' | 'dark' | null>(null)
 
-const sorted = computed(() => [...flags.value].sort((a, b) => a.key.localeCompare(b.key)))
+/**
+ * Newest first, so the last flag you added is the first row.
+ *
+ * Sorted on `createdAt`, not `updatedAt`: ordering by last edit would move a row every time you
+ * flipped its toggle, so the list would reshuffle underneath you while you worked through it. Key
+ * breaks ties, so flags created in the same millisecond keep a stable order.
+ */
+const sorted = computed(() =>
+  [...flags.value].sort(
+    (a, b) =>
+      b.metadata.createdAt.localeCompare(a.metadata.createdAt) || a.key.localeCompare(b.key),
+  ),
+)
 
 const counts = computed(() => ({
   all: flags.value.length,
@@ -44,18 +63,19 @@ const counts = computed(() => ({
   targeted: flags.value.filter((f) => (f.rules?.length ?? 0) > 0).length,
 }))
 
-const visible = computed(() => {
+/** Would this flag survive the filter and search that are active right now? */
+function matchesActiveView(flag: FeatureFlag): boolean {
   const q = query.value.trim().toLowerCase()
-  return sorted.value.filter((f) => {
-    if (q && !f.key.toLowerCase().includes(q) && !f.description?.toLowerCase().includes(q)) {
-      return false
-    }
-    if (filter.value === 'live') return f.enabled && f.rollout.percentage > 0
-    if (filter.value === 'paused') return !f.enabled || f.rollout.percentage === 0
-    if (filter.value === 'targeted') return (f.rules?.length ?? 0) > 0
-    return true
-  })
-})
+  if (q && !flag.key.toLowerCase().includes(q) && !flag.description?.toLowerCase().includes(q)) {
+    return false
+  }
+  if (filter.value === 'live') return flag.enabled && flag.rollout.percentage > 0
+  if (filter.value === 'paused') return !flag.enabled || flag.rollout.percentage === 0
+  if (filter.value === 'targeted') return (flag.rules?.length ?? 0) > 0
+  return true
+}
+
+const visible = computed(() => sorted.value.filter(matchesActiveView))
 
 /* ---- theme ---------------------------------------------------------------- */
 
@@ -109,7 +129,7 @@ function disconnect(message = '') {
   localStorage.removeItem(STORAGE)
   api.value = null
   flags.value = []
-  notice.value = ''
+  notice.value = null
   gateError.value = message
 }
 
@@ -135,11 +155,11 @@ function handle(e: unknown): string {
 
 async function withBusy(key: string, fn: () => Promise<void>) {
   busy.value = new Set(busy.value).add(key)
-  notice.value = ''
+  notice.value = null
   try {
     await fn()
   } catch (e) {
-    notice.value = handle(e)
+    notice.value = { text: handle(e), tone: 'error' }
   } finally {
     const next = new Set(busy.value)
     next.delete(key)
@@ -169,19 +189,49 @@ function setRollout(flag: FeatureFlag, pct: number) {
   })
 }
 
-function removeFlag(flag: FeatureFlag) {
-  if (!confirm(`Delete flag "${flag.key}"? This cannot be undone.`)) return
+/**
+ * Deleting asks first, in the page.
+ *
+ * `window.confirm` was doing this and could not be trusted: Chrome offers "prevent this page from
+ * creating additional dialogs" after a few in a row, and once ticked every later call returns false
+ * with no dialog. Delete then did nothing, silently, which reads as a broken button rather than a
+ * refused action.
+ */
+const pendingDelete = ref<FeatureFlag | null>(null)
+
+function confirmDelete() {
+  const flag = pendingDelete.value
+  if (!flag) return
   return withBusy(flag.key, async () => {
     await api.value!.remove(flag.key)
     flags.value = flags.value.filter((f) => f.key !== flag.key)
+    pendingDelete.value = null
+    notice.value = { text: `Deleted "${flag.key}".`, tone: 'ok' }
   })
 }
 
 async function saveFromEditor(key: string, input: FlagInput) {
+  const creating = editor.value?.flag == null
   editorBusy.value = true
   editorError.value = ''
   try {
-    replaceFlag(await api.value!.save(key, input))
+    const saved = await api.value!.save(key, input)
+    replaceFlag(saved)
+    // A new flag that does not match the active filter is saved and then immediately hidden, which
+    // reads as the save having silently failed. Creating a live flag while the paused chip is
+    // selected did exactly that. Drop the filter so the thing you just made is visible, and say so.
+    if (creating) {
+      // The list is alphabetical, so a new flag can land below the fold and the closing modal is
+      // the only sign anything happened. Confirm it either way, and say when the filter moved.
+      const hidden = !matchesActiveView(saved)
+      if (hidden) clearFilters()
+      notice.value = {
+        text: hidden
+          ? `Created "${saved.key}". Filters were cleared so you can see it.`
+          : `Created "${saved.key}".`,
+        tone: 'ok',
+      }
+    }
     editor.value = null
   } catch (e) {
     const msg = handle(e)
@@ -200,7 +250,8 @@ function onKey(e: KeyboardEvent) {
   const typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)
 
   if (e.key === 'Escape') {
-    if (editor.value) editor.value = null
+    if (pendingDelete.value) pendingDelete.value = null
+    else if (editor.value) editor.value = null
     else if (query.value) query.value = ''
     else if (typing) (el as HTMLElement).blur()
     return
@@ -321,7 +372,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         </div>
       </div>
 
-      <p v-if="notice" class="notice" role="alert">{{ notice }}</p>
+      <p
+        v-if="notice"
+        class="notice"
+        :class="notice.tone"
+        :role="notice.tone === 'error' ? 'alert' : 'status'"
+      >
+        {{ notice.text }}
+      </p>
 
       <!-- Skeleton rows rather than a spinner: the shape of what is coming, in place. -->
       <div v-if="loading" class="list" aria-busy="true" aria-label="Loading flags">
@@ -365,9 +423,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           @toggle="toggle(flag)"
           @rollout="(p: number) => setRollout(flag, p)"
           @edit="editor = { flag }"
-          @remove="removeFlag(flag)"
+          @remove="pendingDelete = flag"
         />
       </div>
+
+      <ConfirmDialog
+        v-if="pendingDelete"
+        :title="`Delete ${pendingDelete.key}?`"
+        :body="`This removes the flag from storage. Anything reading it falls back to the default your code passes in. This cannot be undone.`"
+        :busy="busy.has(pendingDelete.key)"
+        @confirm="confirmDelete"
+        @cancel="pendingDelete = null"
+      />
 
       <p v-if="!loading && flags.length > 0" class="hintbar">
         <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>esc</kbd> clear
@@ -551,9 +618,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   margin: 0 0 0.9rem;
   padding: 0.6rem 0.8rem;
   font-size: 0.82rem;
+  border-radius: var(--r-sm);
+}
+.notice.error {
   color: var(--red-text);
   background: var(--red-wash);
-  border-radius: var(--r-sm);
+}
+.notice.ok {
+  color: var(--green-text);
+  background: var(--green-wash);
 }
 
 /* Hairline list rather than a stack of cards: denser, and the eye tracks one column of keys. */

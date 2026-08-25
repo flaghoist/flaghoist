@@ -48,6 +48,19 @@ export default defineConfig({
           items: ['self-hosting', 'storage-adapters', 'auth', 'dashboard'],
         },
         {
+          label: 'Read flags from your app',
+          items: [
+            'clients/overview',
+            'clients/javascript',
+            'clients/go',
+            'clients/python',
+            'clients/java',
+            'clients/dotnet',
+            'clients/ruby',
+            'clients/rust',
+          ],
+        },
+        {
           label: 'Reference',
           items: ['api-reference', 'cli'],
         },

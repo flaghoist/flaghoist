@@ -103,12 +103,10 @@ Users pick up the change on their next page load.
 
 ## Other languages
 
-Because the server speaks OFREP, any language with an OpenFeature OFREP provider works with no
-Flaghoist-specific package. For example, in Go:
-
-```go
-provider := ofrep.NewProvider("https://team-flags.you.workers.dev",
-    ofrep.WithHeaderProvider(func() (string, string) { return "x-api-key", apiKey }))
-openfeature.SetProvider(provider)
-enabled := client.Boolean(ctx, "new-checkout", false, evalCtx)
-```
+Because the server speaks OFREP, any language with an OpenFeature provider reads flags with no
+Flaghoist-specific package. There is a dedicated guide for each verified language, with installation
+and a working example:
+[Go](/clients/go/), [Python](/clients/python/), [Java](/clients/java/), [.NET](/clients/dotnet/),
+[Ruby](/clients/ruby/), [Rust](/clients/rust/), and
+[JavaScript / TypeScript](/clients/javascript/). Start from the
+[overview](/clients/overview/) for the shared rules on the read key and evaluation context.

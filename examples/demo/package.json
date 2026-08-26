@@ -1,0 +1,18 @@
+{
+  "name": "@flaghoist/demo-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The demo.flaghoist.dev sandbox: a Flaghoist server that resets to a known seed on a schedule.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@flaghoist/adapter-cloudflare-kv": "workspace:*",
+    "@flaghoist/server": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "^4.119.0"
+  }
+}

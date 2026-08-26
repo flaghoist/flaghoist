@@ -25,7 +25,8 @@ const SEED: Record<string, unknown> = {
   'new-checkout': {
     enabled: true,
     rollout: { percentage: 100 },
-    description: 'A plain on/off switch. Toggle it here, then read it back from the OFREP endpoint.',
+    description:
+      'A plain on/off switch. Toggle it here, then read it back from the OFREP endpoint.',
   },
   'dark-mode': {
     enabled: true,

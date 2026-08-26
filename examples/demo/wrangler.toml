@@ -1,0 +1,31 @@
+name = "flaghoist-demo"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Create the namespace once, then paste the returned id:
+#   npx wrangler kv namespace create flaghoist-demo-FLAGS
+kv_namespaces = [
+  { binding = "FLAGS", id = "<your-kv-namespace-id>" }
+]
+
+# demo.flaghoist.dev is a Custom Domain on the flaghoist.dev zone, which is already in this
+# account. Cloudflare provisions the DNS record and the TLS certificate automatically on deploy.
+routes = [
+  { pattern = "demo.flaghoist.dev", custom_domain = true }
+]
+
+# Reset the sandbox hourly. With writes gated to humans by the WAF Managed Challenge (see README),
+# vandalism is rare, so an hourly reset keeps it clean while spending little of the free-tier write
+# budget: ~24 resets a day, three writes each when clean.
+[triggers]
+crons = ["0 * * * *"]
+
+# Secrets are set out of band and never committed. For this sandbox ADMIN_TOKEN and READ_API_KEY are
+# PUBLIC on purpose, published on the demo page so visitors can sign in and call the read API:
+#   npx wrangler secret put ADMIN_TOKEN
+#   npx wrangler secret put READ_API_KEY
+#
+# Option A fallback (freeze the sandbox read only, writes rejected even with the token):
+#   npx wrangler secret put DEMO_READONLY   # enter 1
+# Remove it to return to the interactive Option B sandbox:
+#   npx wrangler secret delete DEMO_READONLY

@@ -14,12 +14,12 @@ export function playgroundHtml(readKey: string): string {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Flaghoist read playground</title>
-<meta name="color-scheme" content="dark" />
+<meta name="color-scheme" content="light" />
 <style>
   :root {
-    --bg: #0b1220; --panel: #111a2e; --line: #22304d; --text: #e7ecf5;
-    --muted: #93a1bd; --signal: #ff4a1f; --on: #34d399; --off: #64748b;
-    --code: #0a101d;
+    --bg: #ffffff; --panel: #f8fafc; --line: #e2e8f0; --text: #0f172a;
+    --muted: #64748b; --signal: #ff4a1f; --on: #16a34a; --off: #64748b;
+    --code: #f1f5f9;
   }
   * { box-sizing: border-box; }
   body {
@@ -65,13 +65,13 @@ export function playgroundHtml(readKey: string): string {
     font-weight: 700; font-size: 0.8rem; padding: 0.25rem 0.7rem; border-radius: 999px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
-  .pill.on { background: rgba(52,211,153,0.15); color: var(--on); border: 1px solid rgba(52,211,153,0.4); }
-  .pill.off { background: rgba(100,116,139,0.15); color: var(--off); border: 1px solid rgba(100,116,139,0.4); }
+  .pill.on { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .pill.off { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
   h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 1.5rem 0 0.5rem; }
   pre {
     background: var(--code); border: 1px solid var(--line); border-radius: 10px;
     padding: 0.9rem 1rem; overflow-x: auto; font-size: 0.8rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #cfe0ff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #334155;
   }
   .note { color: var(--muted); font-size: 0.85rem; }
   .note a { color: var(--signal); }

@@ -13,6 +13,7 @@
   <a href="https://github.com/flaghoist/flaghoist/actions/workflows/ci.yml"><img src="https://github.com/flaghoist/flaghoist/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://openfeature.dev"><img src="https://img.shields.io/badge/OpenFeature-native-000.svg" alt="OpenFeature native" /></a>
   <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha" />
+  <a href="https://demo.flaghoist.dev"><img src="https://img.shields.io/badge/live%20demo-demo.flaghoist.dev-ff4a1f.svg" alt="Live demo" /></a>
 </p>
 
 <p align="center">
@@ -20,6 +21,8 @@
 </p>
 
 <p align="center"><sub>Toggling <code>new-checkout</code> in the dashboard every deploy serves at <code>/admin</code>, and the app reading it through OpenFeature.</sub></p>
+
+<p align="center"><a href="https://demo.flaghoist.dev"><strong>Try it live at demo.flaghoist.dev &rarr;</strong></a> &nbsp;a shared sandbox with the dashboard and a read playground, reset hourly.</p>
 
 ---
 

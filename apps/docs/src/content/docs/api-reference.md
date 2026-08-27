@@ -57,6 +57,24 @@ curl -X PUT https://team-flags.you.workers.dev/api/v1/flags/new-checkout \
   }'
 ```
 
+### Conditional writes (optimistic concurrency)
+
+`GET /api/v1/flags/:key` returns an `ETag`, and every flag carries a `metadata.updatedAt` that the
+ETag is derived from. To avoid two editors silently overwriting each other, send that ETag back on
+`PUT` as `If-Match`:
+
+```bash
+curl -X PUT https://team-flags.you.workers.dev/api/v1/flags/new-checkout \
+  -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
+  -H 'If-Match: "2026-08-27T10:15:00.000Z"' \
+  -d '{ "enabled": false, "rollout": { "percentage": 0 } }'
+```
+
+If the flag changed since you read it, the write is refused with **`412 Precondition Failed`** instead
+of clobbering the other edit; reload and reapply. `If-Match: *` requires the flag to still exist. A
+`PUT` with no `If-Match` is unconditional (last write wins), so existing clients are unaffected. The
+admin dashboard sends `If-Match` automatically.
+
 ## Other endpoints
 
 | Method | Path                   | Auth | Purpose                           |

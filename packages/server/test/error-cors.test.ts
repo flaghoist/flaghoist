@@ -47,3 +47,31 @@ describe('CORS credentials (F4)', () => {
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull()
   })
 })
+
+describe('security headers', () => {
+  const app = createFlagServer({ storage: memoryAdapter(), auth, dashboard: '<!doctype html><p>x' })
+
+  const expectSecure = (res: Response) => {
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(res.headers.get('X-Frame-Options')).toBe('DENY')
+    expect(res.headers.get('Content-Security-Policy')).toBe("frame-ancestors 'none'")
+    expect(res.headers.get('Referrer-Policy')).toBe('no-referrer')
+    expect(res.headers.get('Permissions-Policy')).toContain('camera=()')
+  }
+
+  it('sets them on a plain response', async () => {
+    expectSecure(await app.request('/health'))
+  })
+
+  it('sets them on the admin dashboard, so it cannot be framed and clickjacked', async () => {
+    const res = await app.request('/admin')
+    expect(res.status).toBe(200)
+    expectSecure(res)
+  })
+
+  it('sets them on an unauthorized API response, not just successful ones', async () => {
+    const res = await app.request('/api/v1/flags') // no token: 401
+    expect(res.status).toBe(401)
+    expectSecure(res)
+  })
+})

@@ -63,6 +63,21 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     typeof config === 'function' ? (config as (env: Env) => ServerConfig)(env as Env) : config
   const app = new Hono<{ Bindings: Env }>()
 
+  // Baseline security headers on every response, set on the way out so they land on the dashboard
+  // HTML, the API JSON and error responses alike. The admin dashboard is the one at real risk here:
+  // without `frame-ancestors` an attacker could frame `/admin` and clickjack a signed-in operator
+  // into a destructive click. These are additive and do not touch API behaviour; the only visible
+  // effect is that the dashboard can no longer be embedded in a frame, which an admin tool should
+  // not be.
+  app.use('*', async (c, next) => {
+    await next()
+    c.header('X-Content-Type-Options', 'nosniff')
+    c.header('X-Frame-Options', 'DENY')
+    c.header('Content-Security-Policy', "frame-ancestors 'none'")
+    c.header('Referrer-Policy', 'no-referrer')
+    c.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=(), usb=()')
+  })
+
   // Apply the CORS allowlist on every request.
   app.use('*', async (c, next) => {
     const cfg = resolve(c.env)

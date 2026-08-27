@@ -1,0 +1,13 @@
+# Security response headers for flaghoist.dev (Cloudflare Pages reads this from the site root).
+# The CSP locks the page to its own origin: no external scripts, styles, connections or frames. It
+# allows 'unsafe-inline' because the site ships a few inline scripts (theme, reveal) that a static
+# build cannot nonce, and it allows the Cloudflare Web Analytics host so analytics keeps working if
+# it is added here (docs already uses it). The client-side hero demo runs from a bundled module on
+# this origin, so 'self' covers it. Tested with `wrangler pages dev` against a real build.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin

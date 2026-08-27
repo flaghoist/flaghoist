@@ -2,9 +2,12 @@ import { memoryAdapter } from '@flaghoist/adapter-memory'
 import { describe, expect, it } from 'vitest'
 import { apiKey, bearerToken, createFlagServer } from '../src/index'
 
-const auth = { admin: bearerToken('admin'), read: apiKey('read') }
+// Strong secrets (16+ chars) so this file triggers no weak-secret warning. That warning is deduped
+// in a module-level set and emitted asynchronously, so reusing the short tokens auth.test.ts checks
+// would pollute shared state across files and make those assertions order-dependent.
+const auth = { admin: bearerToken('admin-token-strong'), read: apiKey('read-key-strong-1') }
 const H: Record<string, string> = {
-  authorization: 'Bearer admin',
+  authorization: 'Bearer admin-token-strong',
   'content-type': 'application/json',
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ApiError, createApi, type Api, type FeatureFlag, type FlagInput } from './api'
+import { ApiError, createApi, flagEtag, type Api, type FeatureFlag, type FlagInput } from './api'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
 import FlagRow from './components/FlagRow.vue'
@@ -147,6 +147,21 @@ function replaceFlag(updated: FeatureFlag) {
 }
 
 /**
+ * A 412 means someone else changed this flag since it was loaded, and the write was refused rather
+ * than allowed to clobber theirs. Pull the current state back in so the row reflects reality and the
+ * next attempt carries a fresh ETag; the error message tells the operator to reapply.
+ */
+async function reloadOnConflict(e: unknown) {
+  if (e instanceof ApiError && e.status === 412 && api.value) {
+    try {
+      flags.value = await api.value.list()
+    } catch {
+      /* a failed reload leaves the stale row; the conflict message still stands */
+    }
+  }
+}
+
+/**
  * A 401 mid-session means the token expired or was revoked. Staying on the list would leave every
  * later action failing with no way back, so the session ends and the gate explains why.
  */
@@ -165,6 +180,7 @@ async function withBusy(key: string, fn: () => Promise<void>) {
     await fn()
   } catch (e) {
     notice.value = { text: handle(e), tone: 'error' }
+    await reloadOnConflict(e)
   } finally {
     const next = new Set(busy.value)
     next.delete(key)
@@ -184,13 +200,15 @@ function inputFrom(flag: FeatureFlag, changes: Partial<FlagInput>): FlagInput {
 
 function toggle(flag: FeatureFlag) {
   return withBusy(flag.key, async () => {
-    replaceFlag(await api.value!.save(flag.key, inputFrom(flag, { enabled: !flag.enabled })))
+    const input = inputFrom(flag, { enabled: !flag.enabled })
+    replaceFlag(await api.value!.save(flag.key, input, flagEtag(flag)))
   })
 }
 
 function setRollout(flag: FeatureFlag, pct: number) {
   return withBusy(flag.key, async () => {
-    replaceFlag(await api.value!.save(flag.key, inputFrom(flag, { rollout: { percentage: pct } })))
+    const input = inputFrom(flag, { rollout: { percentage: pct } })
+    replaceFlag(await api.value!.save(flag.key, input, flagEtag(flag)))
   })
 }
 
@@ -216,11 +234,13 @@ function confirmDelete() {
 }
 
 async function saveFromEditor(key: string, input: FlagInput) {
-  const creating = editor.value?.flag == null
+  const original = editor.value?.flag
+  const creating = original == null
   editorBusy.value = true
   editorError.value = ''
   try {
-    const saved = await api.value!.save(key, input)
+    // Editing sends If-Match so a stale save is refused rather than clobbering; creating does not.
+    const saved = await api.value!.save(key, input, original ? flagEtag(original) : undefined)
     replaceFlag(saved)
     // A new flag that does not match the active filter is saved and then immediately hidden, which
     // reads as the save having silently failed. Creating a live flag while the paused chip is
@@ -243,6 +263,7 @@ async function saveFromEditor(key: string, input: FlagInput) {
     if (!api.value)
       editor.value = null // session ended underneath us
     else editorError.value = msg
+    await reloadOnConflict(e)
   } finally {
     editorBusy.value = false
   }

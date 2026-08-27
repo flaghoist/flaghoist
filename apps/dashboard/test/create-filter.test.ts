@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Api, FeatureFlag } from '../src/api'
+import { ApiError, type Api, type FeatureFlag } from '../src/api'
 import App from '../src/App.vue'
 import ConfirmDialog from '../src/components/ConfirmDialog.vue'
 import FlagRow from '../src/components/FlagRow.vue'
@@ -271,5 +271,48 @@ describe('ordering', () => {
     expect(wrapper.findAllComponents(FlagRow)).toHaveLength(0)
     expect(wrapper.find('.notice').text()).toContain('Deleted "existing"')
     expect(wrapper.findComponent(ConfirmDialog).exists()).toBe(false)
+  })
+})
+
+describe('optimistic concurrency', () => {
+  it('sends If-Match on a toggle so the write is conditional', async () => {
+    const save = vi.fn(async () => flag())
+    const api: Api = {
+      list: vi.fn(async () => [flag()]),
+      save,
+      remove: vi.fn(async () => undefined),
+    }
+    const wrapper = await mountSignedIn(api)
+
+    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    await flushPromises()
+
+    // save(key, input, ifMatch) — the third argument is the flag's ETag, from its updatedAt.
+    const [, , ifMatch] = save.mock.calls[0]
+    expect(ifMatch).toBe('"2026-08-15T00:00:00.000Z"')
+  })
+
+  it('on a 412 conflict, alerts and reloads the list instead of clobbering', async () => {
+    const stale = flag({ key: 'existing', enabled: false })
+    const fresh = flag({ key: 'existing', enabled: true, rollout: { percentage: 100 } })
+    const list = vi.fn(async () => [stale])
+    const save = vi.fn(async () => {
+      throw new ApiError(
+        412,
+        'This flag changed since you loaded it. Reload and reapply your change.',
+      )
+    })
+    const api: Api = { list, save, remove: vi.fn(async () => undefined) }
+    const wrapper = await mountSignedIn(api)
+
+    list.mockResolvedValueOnce([fresh]) // the post-conflict reload returns the current state
+    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    await flushPromises()
+
+    const strip = wrapper.find('.notice')
+    expect(strip.attributes('role')).toBe('alert')
+    expect(strip.text()).toContain('changed since you loaded it')
+    expect(list).toHaveBeenCalledTimes(2) // once on mount, once on the conflict reload
+    expect(wrapper.findComponent(FlagRow).props('flag').enabled).toBe(true) // reflects the reload
   })
 })

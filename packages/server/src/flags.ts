@@ -32,7 +32,15 @@ export function buildFlag(
     return { ok: false, error: `Description exceeds ${LIMITS.maxDescriptionLength} characters` }
   }
   const inputRules = Array.isArray(b.rules) ? b.rules : []
-  const now = new Date().toISOString()
+
+  // updatedAt must strictly increase per flag so it can serve as the optimistic-concurrency token
+  // (the ETag the admin PUT checks against If-Match). Two writes landing in the same millisecond
+  // would otherwise share a token; bumping one past the previous value keeps every write
+  // distinguishable without adding a separate version field.
+  const nowMs = Date.now()
+  const prevMs = existing ? Date.parse(existing.metadata.updatedAt) : 0
+  const updatedAt = new Date(nowMs > prevMs ? nowMs : prevMs + 1).toISOString()
+  const createdAt = existing?.metadata.createdAt ?? new Date(nowMs).toISOString()
 
   const candidate = {
     key,
@@ -42,9 +50,9 @@ export function buildFlag(
     description,
     metadata: {
       createdBy: existing?.metadata.createdBy ?? identity,
-      createdAt: existing?.metadata.createdAt ?? now,
+      createdAt,
       updatedBy: identity,
-      updatedAt: now,
+      updatedAt,
     },
   }
 
@@ -54,4 +62,13 @@ export function buildFlag(
     return { ok: false, error: 'One or more targeting rules are invalid' }
   }
   return { ok: true, flag: validated }
+}
+
+/**
+ * The ETag for a flag, used for optimistic concurrency on the admin PUT. It is derived from
+ * `updatedAt`, which `buildFlag` keeps strictly increasing, so it changes on every write. A strong
+ * ETag (no `W/` prefix), because `If-Match` requires strong comparison.
+ */
+export function flagEtag(flag: FeatureFlag): string {
+  return `"${flag.metadata.updatedAt}"`
 }

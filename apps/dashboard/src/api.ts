@@ -60,8 +60,18 @@ export class ApiError extends Error {
 
 export interface Api {
   list(): Promise<FeatureFlag[]>
-  save(key: string, input: FlagInput): Promise<FeatureFlag>
+  /**
+   * Write a flag. Pass `ifMatch` (a flag's `flagEtag`) to make the write conditional: the server
+   * rejects it with a `409`-like `ApiError` (HTTP 412) if the flag changed since it was loaded,
+   * rather than silently clobbering another edit. Omit it to force the write.
+   */
+  save(key: string, input: FlagInput, ifMatch?: string): Promise<FeatureFlag>
   remove(key: string): Promise<void>
+}
+
+/** The ETag for a flag, matching the server's, for optimistic-concurrency writes via `If-Match`. */
+export function flagEtag(flag: FeatureFlag): string {
+  return `"${flag.metadata.updatedAt}"`
 }
 
 const DEFAULT_TIMEOUT_MS = 15000
@@ -119,7 +129,12 @@ export function createApi(url: string, token: string, timeoutMs = DEFAULT_TIMEOU
   async function request(path: string, init?: RequestInit): Promise<Response> {
     let res: Response
     try {
-      res = await fetch(base + path, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) })
+      res = await fetch(base + path, {
+        ...init,
+        // Per-request headers (for example If-Match) layer over the base auth headers.
+        headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
+        signal: AbortSignal.timeout(timeoutMs),
+      })
     } catch (err) {
       // Every failure leaves here as an ApiError, so callers have exactly one error shape to
       // handle. Previously a timeout became an ApiError while DNS, refused-connection and CORS
@@ -145,11 +160,12 @@ export function createApi(url: string, token: string, timeoutMs = DEFAULT_TIMEOU
       }
       return flags.filter(isFeatureFlag)
     },
-    async save(key, input) {
+    async save(key, input, ifMatch) {
       const body = await readJson(
         await request(`/api/v1/flags/${encodeURIComponent(key)}`, {
           method: 'PUT',
           body: JSON.stringify(input),
+          headers: ifMatch ? { 'If-Match': ifMatch } : undefined,
         }),
       )
       if (!isFeatureFlag(body)) {

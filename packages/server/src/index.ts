@@ -1,7 +1,7 @@
 import { evaluate, type EvaluationContext } from '@flaghoist/core'
 import { Hono } from 'hono'
 import { createDefinitionCache } from './cache'
-import { buildFlag } from './flags'
+import { buildFlag, flagEtag } from './flags'
 import { openApiDocument } from './openapi'
 import { defaultRateLimitKey } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
@@ -226,6 +226,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
       const flag = await cfg.storage.get(c.req.param('key'))
       if (!flag) return c.json({ error: 'Flag not found' }, 404)
+      c.header('ETag', flagEtag(flag))
       return c.json(flag)
     })
 
@@ -234,17 +235,32 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
       const key = c.req.param('key')
+      const existing = await cfg.storage.get(key)
+
+      // Optimistic concurrency, opt-in. A client that sends `If-Match` asserts the version it last
+      // saw; if the stored flag has moved on (or was deleted) since, reject with 412 rather than
+      // silently overwriting whoever wrote in between. `If-Match: *` means "must still exist". A
+      // request with no `If-Match` keeps the previous last-write-wins behaviour, so the CLI and
+      // existing integrations are unaffected.
+      const ifMatch = c.req.header('If-Match')?.trim()
+      if (ifMatch !== undefined) {
+        const precondition =
+          ifMatch === '*' ? existing !== null : existing !== null && flagEtag(existing) === ifMatch
+        if (!precondition) {
+          return c.json(
+            { error: 'This flag changed since you loaded it. Reload and reapply your change.' },
+            412,
+          )
+        }
+      }
+
       const parsed = await readJsonBody(await c.req.text())
       if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
-      const built = buildFlag(
-        key,
-        parsed.value,
-        auth.identity ?? 'unknown',
-        await cfg.storage.get(key),
-      )
+      const built = buildFlag(key, parsed.value, auth.identity ?? 'unknown', existing)
       if (!built.ok) return c.json({ error: built.error }, 400)
       await cfg.storage.put(key, built.flag)
       cache.invalidate()
+      c.header('ETag', flagEtag(built.flag))
       return c.json(built.flag)
     })
 

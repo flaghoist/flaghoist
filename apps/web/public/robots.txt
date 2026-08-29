@@ -1,0 +1,5 @@
+# Flaghoist welcomes search engines and AI crawlers.
+User-agent: *
+Allow: /
+
+Sitemap: https://flaghoist.dev/sitemap-index.xml

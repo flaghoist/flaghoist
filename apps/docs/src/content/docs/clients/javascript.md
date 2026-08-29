@@ -32,6 +32,51 @@ const newCheckout = client.getBooleanValue('new-checkout', false)
 
 Using Vue? `@flaghoist/vue` adds a reactive `useFeatureFlag()` composable over this.
 
+## React
+
+React reads flags through the official [`@openfeature/react-sdk`](https://www.npmjs.com/package/@openfeature/react-sdk), so there is no Flaghoist-specific React package to install. `@flaghoist/provider-web` is the only Flaghoist piece; everything your components touch is standard OpenFeature.
+
+```bash
+npm install @openfeature/react-sdk @openfeature/web-sdk @flaghoist/provider-web
+```
+
+Register the provider once, wrap your tree in `OpenFeatureProvider`, then read flags with the hooks:
+
+```tsx
+// main.tsx
+import { FlaghoistWebProvider } from '@flaghoist/provider-web'
+import { OpenFeature, OpenFeatureProvider } from '@openfeature/react-sdk'
+import { createRoot } from 'react-dom/client'
+import App from './App'
+
+// The targetingKey drives sticky rollouts and targeting rules. Set it before you register.
+await OpenFeature.setContext({ targetingKey: user.id, plan: user.plan })
+await OpenFeature.setProviderAndWait(
+  new FlaghoistWebProvider({
+    url: 'https://team-flags.you.workers.dev',
+    apiKey: import.meta.env.VITE_FLAGS_KEY,
+  }),
+)
+
+createRoot(document.getElementById('root')!).render(
+  <OpenFeatureProvider>
+    <App />
+  </OpenFeatureProvider>,
+)
+```
+
+```tsx
+// App.tsx
+import { useBooleanFlagValue } from '@openfeature/react-sdk'
+
+export default function App() {
+  const newCheckout = useBooleanFlagValue('new-checkout', false)
+  return newCheckout ? <NewCheckout /> : <LegacyCheckout />
+}
+```
+
+The hooks re-render when the provider or the flags change. There is a runnable version in [`examples/react`](https://github.com/flaghoist/flaghoist/tree/main/examples/react).
+
 ## Node, Bun, Deno
 
 ```bash

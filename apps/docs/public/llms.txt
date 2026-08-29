@@ -1,0 +1,30 @@
+# Flaghoist documentation
+
+> Flaghoist is an open-source, OpenFeature-native feature-flag service you self-host: run it on Cloudflare Workers (or Node, Bun, Deno), store flags in Cloudflare KV, Redis, or Postgres, and read them from any language through standard OpenFeature OFREP providers. Boolean flags, sticky percentage rollouts, and ordered targeting rules. Pre-alpha, Apache-2.0.
+
+## Start here
+- [Introduction](https://docs.flaghoist.dev/): what Flaghoist is and why.
+- [Quickstart](https://docs.flaghoist.dev/quickstart/): from nothing to a deployed flag service and a first flag.
+- [Architecture](https://docs.flaghoist.dev/architecture/): how the read path, admin API, storage, and dashboard fit together.
+
+## Reading flags from your app
+- [Overview](https://docs.flaghoist.dev/clients/): OpenFeature and OFREP, and how to pick a provider.
+- [JavaScript and TypeScript](https://docs.flaghoist.dev/clients/javascript/)
+- [Go](https://docs.flaghoist.dev/clients/go/)
+- [Python](https://docs.flaghoist.dev/clients/python/)
+- [Java](https://docs.flaghoist.dev/clients/java/)
+- [.NET](https://docs.flaghoist.dev/clients/dotnet/)
+- [Ruby](https://docs.flaghoist.dev/clients/ruby/)
+- [Rust](https://docs.flaghoist.dev/clients/rust/)
+
+## Running it
+- [Self-hosting](https://docs.flaghoist.dev/self-hosting/): storage adapters, rate limiting, and deployment targets.
+- [Authentication](https://docs.flaghoist.dev/auth/): API key, bearer token, and OIDC.
+- [Dashboard](https://docs.flaghoist.dev/dashboard/): the admin UI.
+- [CLI](https://docs.flaghoist.dev/cli/): scaffold, deploy, eject, and flag management.
+- [API reference](https://docs.flaghoist.dev/api-reference/): OFREP read endpoints and the admin CRUD API, including conditional writes via If-Match.
+
+## Links
+- [Website](https://flaghoist.dev)
+- [Live demo](https://demo.flaghoist.dev)
+- [GitHub](https://github.com/flaghoist/flaghoist)

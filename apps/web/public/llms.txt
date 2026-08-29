@@ -1,0 +1,25 @@
+# Flaghoist
+
+> Open-source, OpenFeature-native feature flags you self-host. You run it on your own infrastructure (Cloudflare Workers by default, or any Node, Bun, or Deno runtime), store flags in a database you already own (Cloudflare KV, Redis, or Postgres), and read them from any language through the standard OpenFeature OFREP providers. There is no per-seat price because there is no vendor in the loop: your bill is your database plus your compute.
+
+Flaghoist is the code, not a hosted service. It ships a read API (OFREP, the OpenFeature Remote Evaluation Protocol), an admin API, a management dashboard, and a CLI, all from a single deploy. The feature set is deliberately narrow: boolean flags, sticky percentage rollouts, and ordered targeting rules. No multivariate flags, no experiments.
+
+It is pre-alpha and maintained by one person; APIs may change until 0.1.0. Apache-2.0.
+
+## What makes it distinct
+- Self-hosted and OpenFeature-native: swap Flaghoist for another provider with one line, because your app talks to OpenFeature, not to Flaghoist.
+- Bring your own database: a storage adapter is four methods (get, put, delete, list); Cloudflare KV, Redis, and Postgres ship today, all validated by a shared conformance suite.
+- Reads from many languages on day one through providers that already exist: JavaScript/TypeScript, Go, Python, Java, .NET, Ruby, and Rust, each with a tested guide.
+- Runs to zero cost on the Cloudflare free tier for a small team, because nothing runs when nobody is asking.
+
+## Docs
+- [Quickstart](https://docs.flaghoist.dev/quickstart/): from nothing to a deployed flag service and a first flag.
+- [Self-hosting](https://docs.flaghoist.dev/self-hosting/): storage adapters, rate limiting, and deployment targets.
+- [API reference](https://docs.flaghoist.dev/api-reference/): the OFREP read endpoints and the admin CRUD API, including conditional writes.
+- [Reading flags from your app](https://docs.flaghoist.dev/clients/): per-language guides for Go, Python, Java, .NET, Ruby, Rust, and JavaScript.
+- [Authentication](https://docs.flaghoist.dev/auth/): API key, bearer token, and OIDC.
+
+## Links
+- [Website](https://flaghoist.dev)
+- [Live demo](https://demo.flaghoist.dev): an interactive dashboard and a read playground.
+- [GitHub](https://github.com/flaghoist/flaghoist)

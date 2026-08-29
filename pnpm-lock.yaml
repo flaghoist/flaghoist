@@ -102,6 +102,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@astrojs/sitemap':
+        specifier: ^3.7.3
+        version: 3.7.3
       '@flaghoist/core':
         specifier: workspace:*
         version: link:../../packages/core

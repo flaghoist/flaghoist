@@ -11,7 +11,7 @@
     "@flaghoist/adapter-memory": "^0.1.2",
     "@flaghoist/adapter-postgres": "^0.1.2",
     "@flaghoist/adapter-redis": "^0.1.2",
-    "@flaghoist/server": "^0.3.0",
+    "@flaghoist/server": "^0.3.1",
     "@hono/node-server": "^2.1.1",
     "ioredis": "^5.4.0",
     "pg": "^8.13.0"

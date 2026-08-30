@@ -34,13 +34,13 @@
     "@flaghoist/adapter-memory": "workspace:*",
     "@flaghoist/core": "workspace:*",
     "@flaghoist/server": "workspace:*",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.4.0",
     "playwright": "^1.62.1",
     "prettier": "^3.9.6",
-    "publint": "^0.3.23",
+    "publint": "^0.3.24",
     "sharp": "^0.35.3",
     "tsup": "^8.3.5",
-    "turbo": "^2.10.8",
+    "turbo": "^2.10.12",
     "typescript": "^5.7.3",
     "vitest": "^4.1.11"
   }

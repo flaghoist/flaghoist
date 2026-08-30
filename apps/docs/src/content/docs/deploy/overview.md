@@ -7,11 +7,15 @@ description: Flaghoist runs on Cloudflare Workers, Node, Bun, Deno, or a contain
 only thing that changes between hosts is where the app serves from and which storage adapter it
 points at. You are not locked to Cloudflare.
 
-| Target                         | Storage                      | How                                                    |
-| ------------------------------ | ---------------------------- | ------------------------------------------------------ |
-| **Cloudflare Workers**         | Workers KV (bundled)         | The one-command path: [Quickstart](/quickstart/)       |
-| **Node, Bun, Deno, container** | Postgres, Redis, or memory   | Serve the app yourself: [Self-hosting](/self-hosting/) |
-| **Render**                     | Render Postgres or Key Value | [Deploy to Render](/deploy/render/)                    |
+| Target                             | Storage                      | How                                                       |
+| ---------------------------------- | ---------------------------- | --------------------------------------------------------- |
+| **Cloudflare Workers**             | Workers KV (bundled)         | The one-command path: [Quickstart](/quickstart/)          |
+| **Docker** (any container host)    | Postgres, Redis, or memory   | One portable image: [Deploy with Docker](/deploy/docker/) |
+| **Render**                         | Render Postgres or Key Value | [Deploy to Render](/deploy/render/)                       |
+| **Node, Bun, Deno** (no container) | Postgres, Redis, or memory   | Serve the app yourself: [Self-hosting](/self-hosting/)    |
+
+The **Docker** image is the least locked-in option: one artifact runs on a VPS, Fly.io, Railway,
+DigitalOcean, Cloud Run, ECS, or Kubernetes, configured entirely by environment variables.
 
 ## The pattern for any host
 
@@ -37,6 +41,7 @@ Upstash and Neon work from Workers directly.
 
 ## More platforms
 
-Fly.io, Railway, and a prebuilt Docker image are on the way, and they all follow the pattern above. If
-you need one that is not documented yet, open an issue at
+Host-specific guides for Fly.io, Railway, and others are on the way. Until then, the
+[Docker image](/deploy/docker/) already runs on all of them, since they consume a standard container.
+If you need a walkthrough that is not written yet, open an issue at
 [github.com/flaghoist/flaghoist](https://github.com/flaghoist/flaghoist/issues).

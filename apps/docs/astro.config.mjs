@@ -49,7 +49,7 @@ export default defineConfig({
         },
         {
           label: 'Deploying',
-          items: ['deploy/overview', 'deploy/docker', 'deploy/render'],
+          items: ['deploy/overview', 'deploy/docker', 'deploy/render', 'deploy/fly', 'deploy/railway'],
         },
         {
           label: 'Read flags from your app',

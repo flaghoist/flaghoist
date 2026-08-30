@@ -22,6 +22,8 @@
 - [Deployment targets](https://docs.flaghoist.dev/deploy/overview/): Cloudflare Workers, Docker, Render, Node, Bun, Deno, or a container.
 - [Deploy with Docker](https://docs.flaghoist.dev/deploy/docker/): one portable, env-configured image that runs on any container host (VPS, Fly.io, Railway, Cloud Run, ECS, Kubernetes).
 - [Deploy to Render](https://docs.flaghoist.dev/deploy/render/): run it as a Render web service backed by Render Postgres, no Cloudflare account needed.
+- [Deploy to Fly.io](https://docs.flaghoist.dev/deploy/fly/): run the container on Fly.io with Fly Postgres.
+- [Deploy to Railway](https://docs.flaghoist.dev/deploy/railway/): run the container on Railway with a Railway Postgres.
 - [Authentication](https://docs.flaghoist.dev/auth/): API key, bearer token, and OIDC.
 - [Dashboard](https://docs.flaghoist.dev/dashboard/): the admin UI.
 - [CLI](https://docs.flaghoist.dev/cli/): scaffold, deploy, eject, and flag management.

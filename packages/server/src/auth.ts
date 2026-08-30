@@ -36,29 +36,41 @@ const MIN_SECRET_LENGTH = 16
 
 // Which weak secrets have already been warned about, keyed by a short hash so the secret itself is
 // never retained. Deduped per isolate, so a weak token warns once rather than on every request.
-const warnedWeakSecrets = new Set<string>()
+const warnedWeakSecrets = new Set<number>()
+
+/**
+ * A cheap, synchronous, non-cryptographic hash of a secret, used only to dedup the weak-secret
+ * warning so the same secret is not logged twice. It is not a security primitive: a collision would
+ * at worst suppress one duplicate warning. Hashing (rather than storing the secret) just keeps the
+ * raw secret out of the dedup set.
+ */
+function weakSecretKey(secret: string): number {
+  let hash = 5381
+  for (let i = 0; i < secret.length; i++) hash = ((hash << 5) + hash) ^ secret.charCodeAt(i)
+  return hash >>> 0
+}
 
 /**
  * Warn once, to the server log, when a shared secret is short enough to be worth guessing. This is
  * guidance, not a wall: rejecting a short secret outright could lock an operator out of a running
  * service, so the choice stays theirs. The check short-circuits for a strong secret, so the common
  * case does no work.
+ *
+ * Synchronous on purpose. It once hashed the secret with `crypto.subtle.digest` and warned from the
+ * resulting promise, but that made the warning fire on an unpredictable later tick: it could be lost
+ * if the process exited first, and it bled across test boundaries. The dedup key does not need to be
+ * cryptographic, so a plain synchronous hash both fixes that and keeps the secret out of the set.
  */
 function warnIfWeakSecret(kind: string, secret: string): void {
   if (secret.length >= MIN_SECRET_LENGTH) return
-  void (async () => {
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))
-    const id = Array.from(new Uint8Array(digest).slice(0, 6))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-    if (warnedWeakSecrets.has(id)) return
-    warnedWeakSecrets.add(id)
-    console.warn(
-      `[flaghoist] the ${kind} is ${secret.length} characters. Use a long random value ` +
-        `(for example \`openssl rand -hex 32\`); a short secret is guessable, especially since ` +
-        `Flaghoist does not rate limit authentication.`,
-    )
-  })()
+  const key = weakSecretKey(secret)
+  if (warnedWeakSecrets.has(key)) return
+  warnedWeakSecrets.add(key)
+  console.warn(
+    `[flaghoist] the ${kind} is ${secret.length} characters. Use a long random value ` +
+      `(for example \`openssl rand -hex 32\`); a short secret is guessable, especially since ` +
+      `Flaghoist does not rate limit authentication.`,
+  )
 }
 
 /** Read-path verifier: matches the `x-api-key` header against a shared secret in constant time. */

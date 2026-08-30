@@ -7,17 +7,17 @@ the dashboard at `/admin`.
 
 ## Configuration
 
-| Variable         | Required                | Default            | Notes                                              |
-| ---------------- | ----------------------- | ------------------ | -------------------------------------------------- |
-| `ADMIN_TOKEN`    | yes                     |                    | Bearer token for the admin API and dashboard.      |
-| `READ_API_KEY`   | yes                     |                    | `x-api-key` for the OFREP read path.               |
-| `FLAGS_STORAGE`  | no                      | `memory`           | `postgres`, `redis`, or `memory`.                  |
-| `DATABASE_URL`   | when `postgres`         |                    | Any Postgres connection string.                    |
-| `REDIS_URL`      | when `redis`            |                    | Any Redis connection string.                       |
-| `FLAGS_TABLE`    | no                      | `flaghoist_flags`  | Postgres table, for scoping per environment.       |
-| `FLAGS_HASH_KEY` | no                      | `flaghoist:flags`  | Redis hash key, for scoping per environment.       |
-| `FLAGS_CORS`     | no                      |                    | Comma-separated browser origins allowed to read.   |
-| `PORT`           | no                      | `8080`             | Most hosts set this for you.                        |
+| Variable         | Required        | Default           | Notes                                            |
+| ---------------- | --------------- | ----------------- | ------------------------------------------------ |
+| `ADMIN_TOKEN`    | yes             |                   | Bearer token for the admin API and dashboard.    |
+| `READ_API_KEY`   | yes             |                   | `x-api-key` for the OFREP read path.             |
+| `FLAGS_STORAGE`  | no              | `memory`          | `postgres`, `redis`, or `memory`.                |
+| `DATABASE_URL`   | when `postgres` |                   | Any Postgres connection string.                  |
+| `REDIS_URL`      | when `redis`    |                   | Any Redis connection string.                     |
+| `FLAGS_TABLE`    | no              | `flaghoist_flags` | Postgres table, for scoping per environment.     |
+| `FLAGS_HASH_KEY` | no              | `flaghoist:flags` | Redis hash key, for scoping per environment.     |
+| `FLAGS_CORS`     | no              |                   | Comma-separated browser origins allowed to read. |
+| `PORT`           | no              | `8080`            | Most hosts set this for you.                     |
 
 `memory` is for a quick look only: flags do not survive a restart. Use `postgres` or `redis` for
 anything real.

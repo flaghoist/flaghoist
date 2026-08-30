@@ -3,6 +3,7 @@ import type { FeatureFlag } from '@flaghoist/core'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 import {
   createAdminClient,
@@ -252,7 +253,66 @@ function ensureDependencies(): void {
   }
 }
 
-function runDeploy(): void {
+type DeployTarget = 'cloudflare' | 'other'
+
+/**
+ * Read `--target` if given. `cloudflare` (and its aliases) picks the built-in wrangler path;
+ * anything else, or the literal `other`, means a non-Cloudflare host, for which we print guidance
+ * rather than deploy. Returns null when no `--target` was passed, so the caller can prompt.
+ */
+function parseDeployTarget(args: string[]): DeployTarget | null {
+  const i = args.indexOf('--target')
+  if (i < 0) return null
+  const value = args[i + 1]?.toLowerCase()
+  if (value === 'cloudflare' || value === 'cf' || value === 'workers') return 'cloudflare'
+  return 'other'
+}
+
+/** Interactive picker, only reached on a real terminal. */
+async function promptDeployTarget(): Promise<DeployTarget> {
+  console.log('Where do you want to deploy?')
+  console.log('  1) Cloudflare Workers   recommended, deploys in one command')
+  console.log('  2) Another platform     Render, a container, any Node host')
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const answer = (await rl.question('Choose [1]: ')).trim().toLowerCase()
+    return answer === '2' || answer.startsWith('o') || answer.startsWith('r')
+      ? 'other'
+      : 'cloudflare'
+  } finally {
+    rl.close()
+  }
+}
+
+/** Guidance for non-Cloudflare hosts. Specific services are documented one at a time. */
+function printOtherTargets(): void {
+  console.log(`
+Flaghoist runs on any Node, Bun, Deno, or container host, not just Cloudflare.
+
+The project scaffolded here is a Cloudflare Worker. To run it elsewhere you serve the same
+createFlagServer() app on Node and point it at Postgres or Redis instead of Workers KV.
+
+Guides:
+  Render          https://docs.flaghoist.dev/deploy/render/
+  All targets     https://docs.flaghoist.dev/deploy/overview/
+
+More platforms are on the way. Missing one you need? Open an issue at
+https://github.com/flaghoist/flaghoist/issues.`)
+}
+
+async function runDeploy(args: string[]): Promise<void> {
+  let target = parseDeployTarget(args)
+  if (target === null) {
+    // No flag: prompt on a terminal, but default to Cloudflare when piped or in CI so the
+    // `npm create flaghoist && npx flaghoist deploy` chain keeps working unattended.
+    target = process.stdin.isTTY ? await promptDeployTarget() : 'cloudflare'
+  }
+
+  if (target === 'other') {
+    printOtherTargets()
+    return
+  }
+
   const config = loadConfig()
   if (!existsSync('src/index.ts')) writeProject(config, '.')
   // Dependencies first: this is where wrangler itself comes from, and the KV step below shells
@@ -272,7 +332,7 @@ Usage: flaghoist <command>
 Scaffolding
   init [--name N] [--storage cloudflare-kv|redis|postgres|memory]
   eject                    Generate a code project you own
-  deploy                   Deploy to Cloudflare via wrangler
+  deploy [--target T]      Deploy (prompts for the platform; T is cloudflare or other)
 
 Flag management (needs --url/--token or FLAGS_URL/FLAGS_ADMIN_TOKEN)
   flag list
@@ -294,7 +354,7 @@ async function main(): Promise<void> {
     case 'eject':
       return runEject()
     case 'deploy':
-      return runDeploy()
+      return runDeploy(rest)
     case '-v':
     case '--version':
       return console.log(VERSION)

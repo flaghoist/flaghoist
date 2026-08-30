@@ -48,6 +48,10 @@ export default defineConfig({
           items: ['self-hosting', 'storage-adapters', 'auth', 'dashboard'],
         },
         {
+          label: 'Deploying',
+          items: ['deploy/overview', 'deploy/render'],
+        },
+        {
           label: 'Read flags from your app',
           items: [
             'clients/overview',

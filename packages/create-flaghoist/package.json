@@ -1,6 +1,6 @@
 {
   "name": "create-flaghoist",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Scaffold a Flaghoist feature-flag service — the package behind `npm create flaghoist`.",
   "license": "Apache-2.0",
   "type": "module",

@@ -14,13 +14,22 @@ import {
   type AdminClient,
 } from './admin'
 import {
+  asContainer,
   DEFAULT_CONFIG,
   parseConfig,
+  PLATFORM_KINDS,
   serializeConfig,
   STORAGE_KINDS,
   type FlaghoistConfig,
+  type PlatformKind,
   type StorageKind,
 } from './config'
+import {
+  generateContainerPackageJson,
+  generateDockerfile,
+  generateDockerignore,
+  generateNodeEntry,
+} from './generate-container'
 import {
   fillKvNamespaceId,
   generatePackageJson,
@@ -138,24 +147,56 @@ function runInit(args: string[]): void {
   const { values } = parseArgs({
     args,
     allowPositionals: true,
-    options: { name: { type: 'string' }, storage: { type: 'string' } },
+    options: {
+      name: { type: 'string' },
+      storage: { type: 'string' },
+      platform: { type: 'string' },
+    },
   })
   if (existsSync('flaghoist.toml')) throw new Error('flaghoist.toml already exists.')
   if (values.storage && !STORAGE_KINDS.includes(values.storage as StorageKind)) {
     throw new Error(`Unknown storage "${values.storage}". One of: ${STORAGE_KINDS.join(', ')}.`)
   }
-  const config: FlaghoistConfig = {
+  if (values.platform && !PLATFORM_KINDS.includes(values.platform as PlatformKind)) {
+    throw new Error(`Unknown platform "${values.platform}". One of: ${PLATFORM_KINDS.join(', ')}.`)
+  }
+  const base: FlaghoistConfig = {
     ...DEFAULT_CONFIG,
     name: values.name ?? DEFAULT_CONFIG.name,
     storage: (values.storage as StorageKind) ?? DEFAULT_CONFIG.storage,
   }
+  // asContainer runs the storage through the container rule, so a container project never lands with
+  // a KV choice it cannot use, even if one was passed explicitly.
+  const config = values.platform === 'container' ? asContainer(base) : base
   writeFileSync('flaghoist.toml', serializeConfig(config))
   console.log('Created flaghoist.toml')
   console.log('Next: `flaghoist deploy` to ship it, or `flaghoist eject` to own the code.')
 }
 
+/** The file a scaffold writes first, and the marker for `eject`'s already-ejected check. */
+function entryFile(platform: PlatformKind): string {
+  return platform === 'container' ? 'server.mjs' : 'src/index.ts'
+}
+
+/** The generated files for a project, keyed by its platform. */
+function projectFiles(config: FlaghoistConfig): [string, string][] {
+  if (config.platform === 'container') {
+    return [
+      ['server.mjs', generateNodeEntry(config)],
+      ['Dockerfile', generateDockerfile(config)],
+      ['.dockerignore', generateDockerignore()],
+      ['package.json', generateContainerPackageJson(config)],
+    ]
+  }
+  return [
+    ['src/index.ts', generateWorkerEntry(config)],
+    ['wrangler.toml', generateWranglerToml(config)],
+    ['package.json', generatePackageJson(config)],
+  ]
+}
+
 /**
- * Write the generated Worker project, refusing to overwrite anything already there.
+ * Write the generated project, refusing to overwrite anything already there.
  *
  * These land in the current directory, which is not always an empty one: `flaghoist init` will
  * happily run inside an existing app, and `deploy` calls this straight afterwards. Writing
@@ -163,11 +204,7 @@ function runInit(args: string[]): void {
  * replaced by the generated one and lost.
  */
 function writeProject(config: FlaghoistConfig, dir: string): void {
-  const files: [string, string][] = [
-    ['src/index.ts', generateWorkerEntry(config)],
-    ['wrangler.toml', generateWranglerToml(config)],
-    ['package.json', generatePackageJson(config)],
-  ]
+  const files = projectFiles(config)
   const existing = files.map(([name]) => name).filter((name) => existsSync(join(dir, name)))
   if (existing.length > 0) {
     throw new Error(
@@ -181,10 +218,17 @@ function writeProject(config: FlaghoistConfig, dir: string): void {
 
 function runEject(): void {
   const config = loadConfig()
+  const entry = entryFile(config.platform)
   // Checked before writeProject so an already-ejected project gets that answer, rather than the
   // generic advice about giving the service its own directory.
-  if (existsSync('src/index.ts')) throw new Error('src/index.ts already exists. Already ejected?')
+  if (existsSync(entry)) throw new Error(`${entry} already exists. Already ejected?`)
   writeProject(config, '.')
+  if (config.platform === 'container') {
+    console.log('Ejected to a code project you own: server.mjs, Dockerfile, package.json')
+    console.log('Edit server.mjs freely, then build and run the container, or deploy to a host:')
+    console.log('  https://docs.flaghoist.dev/deploy/overview/')
+    return
+  }
   console.log('Ejected to a code project you own: src/index.ts, wrangler.toml, package.json')
   if (config.storage === 'cloudflare-kv') {
     console.log('Create your KV namespace and paste the id into wrangler.toml:')
@@ -257,8 +301,8 @@ type DeployTarget = 'cloudflare' | 'other'
 
 /**
  * Read `--target` if given. `cloudflare` (and its aliases) picks the built-in wrangler path;
- * anything else, or the literal `other`, means a non-Cloudflare host, for which we print guidance
- * rather than deploy. Returns null when no `--target` was passed, so the caller can prompt.
+ * anything else, or the literal `other`, means a non-Cloudflare host, which scaffolds the container
+ * project. Returns null when no `--target` was passed, so the caller can prompt.
  */
 function parseDeployTarget(args: string[]): DeployTarget | null {
   const i = args.indexOf('--target')
@@ -284,36 +328,38 @@ async function promptDeployTarget(): Promise<DeployTarget> {
   }
 }
 
-/** Guidance for non-Cloudflare hosts. Specific services are documented one at a time. */
-function printOtherTargets(): void {
+/**
+ * Scaffold the container project and hand over the next steps. Unlike the Cloudflare path this does
+ * not deploy: container hosts differ enough (Fly, Railway, Render, a raw VPS) that the last mile
+ * belongs to their own guides. The platform is written back to `flaghoist.toml`, so a re-run or an
+ * `eject` keeps producing the container shape rather than reverting to a Worker.
+ */
+function deployContainer(config: FlaghoistConfig): void {
+  const container = asContainer(config)
+  // Persist the choice, and any storage coercion it implied, so the project is coherent from here.
+  if (config.platform !== container.platform || config.storage !== container.storage) {
+    writeFileSync('flaghoist.toml', serializeConfig(container))
+  }
+  if (!existsSync(entryFile('container'))) writeProject(container, '.')
   console.log(`
-Flaghoist runs on any Node, Bun, Deno, or container host, not just Cloudflare.
+Scaffolded a container project: server.mjs, Dockerfile, package.json.
 
-The project scaffolded here is a Cloudflare Worker. To run it elsewhere you serve the same
-createFlagServer() app on Node and point it at Postgres or Redis instead of Workers KV.
+It runs on any container or Node host, configured by environment variables (FLAGS_STORAGE,
+DATABASE_URL, ADMIN_TOKEN, READ_API_KEY). Build and run it with Docker:
 
-Guides:
+  docker build -t ${container.name} .
+  docker run -p 8080:8080 -e ADMIN_TOKEN=... -e READ_API_KEY=... ${container.name}
+
+Or deploy it to a host:
   Render          https://docs.flaghoist.dev/deploy/render/
+  Fly.io          https://docs.flaghoist.dev/deploy/fly/
+  Railway         https://docs.flaghoist.dev/deploy/railway/
   All targets     https://docs.flaghoist.dev/deploy/overview/
 
-More platforms are on the way. Missing one you need? Open an issue at
-https://github.com/flaghoist/flaghoist/issues.`)
+Missing a platform you need? Open an issue at https://github.com/flaghoist/flaghoist/issues.`)
 }
 
-async function runDeploy(args: string[]): Promise<void> {
-  let target = parseDeployTarget(args)
-  if (target === null) {
-    // No flag: prompt on a terminal, but default to Cloudflare when piped or in CI so the
-    // `npm create flaghoist && npx flaghoist deploy` chain keeps working unattended.
-    target = process.stdin.isTTY ? await promptDeployTarget() : 'cloudflare'
-  }
-
-  if (target === 'other') {
-    printOtherTargets()
-    return
-  }
-
-  const config = loadConfig()
+async function deployCloudflare(config: FlaghoistConfig): Promise<never> {
   if (!existsSync('src/index.ts')) writeProject(config, '.')
   // Dependencies first: this is where wrangler itself comes from, and the KV step below shells
   // out to it.
@@ -324,14 +370,29 @@ async function runDeploy(args: string[]): Promise<void> {
   process.exit(result.status ?? 0)
 }
 
+async function runDeploy(args: string[]): Promise<void> {
+  const config = loadConfig()
+  let target = parseDeployTarget(args)
+  if (target === null) {
+    // No flag: a project already set to a container deploys that way without asking. Otherwise
+    // prompt on a terminal, and default to Cloudflare when piped or in CI so the
+    // `npm create flaghoist && npx flaghoist deploy` chain keeps working unattended.
+    if (config.platform === 'container') target = 'other'
+    else target = process.stdin.isTTY ? await promptDeployTarget() : 'cloudflare'
+  }
+
+  if (target === 'other') return deployContainer(config)
+  return deployCloudflare(config)
+}
+
 function printHelp(): void {
   console.log(`flaghoist ${VERSION} — hoist your own feature flags
 
 Usage: flaghoist <command>
 
 Scaffolding
-  init [--name N] [--storage cloudflare-kv|redis|postgres|memory]
-  eject                    Generate a code project you own
+  init [--name N] [--storage cloudflare-kv|redis|postgres|memory] [--platform cloudflare|container]
+  eject                    Generate a code project you own (a Worker, or a container)
   deploy [--target T]      Deploy (prompts for the platform; T is cloudflare or other)
 
 Flag management (needs --url/--token or FLAGS_URL/FLAGS_ADMIN_TOKEN)

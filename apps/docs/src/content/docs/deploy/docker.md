@@ -12,6 +12,20 @@ image. The runnable source is in
 The entry picks its storage adapter at startup from `FLAGS_STORAGE`, so the same image works against
 Postgres, Redis, or in-memory. (Workers KV is Cloudflare-only and is not a container option.)
 
+## Scaffold it
+
+The CLI generates the same files (`server.mjs`, `Dockerfile`, `.dockerignore`, `package.json`) into a
+directory of your own, so you do not have to copy `examples/docker`:
+
+```bash
+npm create flaghoist@latest team-flags -- --platform container
+cd team-flags
+npx flaghoist eject
+```
+
+`npx flaghoist deploy` and choosing **Another platform** does the same scaffolding from an existing
+`flaghoist.toml`. Either way you get the container project below to build and run.
+
 ## Configuration
 
 | Variable         | Required        | Default           | Notes                                            |
@@ -31,7 +45,7 @@ anything real.
 
 ## Build and run
 
-From a copy of `examples/docker`:
+From the scaffolded project (or a copy of `examples/docker`):
 
 ```bash
 docker build -t flaghoist .

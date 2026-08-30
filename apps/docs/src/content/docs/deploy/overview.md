@@ -17,6 +17,12 @@ points at. You are not locked to Cloudflare.
 The **Docker** image is the least locked-in option: one artifact runs on a VPS, Fly.io, Railway,
 DigitalOcean, Cloud Run, ECS, or Kubernetes, configured entirely by environment variables.
 
+The CLI scaffolds whichever shape you target. `npx flaghoist deploy` asks where you are shipping:
+**Cloudflare Workers** deploys in one command, and **Another platform** scaffolds the container
+project (`server.mjs`, `Dockerfile`, `package.json`) and points you at the host guides below. Pick the
+container up front with `npm create flaghoist@latest team-flags -- --platform container`. See the
+[CLI reference](/cli/#platforms).
+
 ## The pattern for any host
 
 Every non-Cloudflare deployment is the same shape: serve the `createFlagServer()` app and give it a

@@ -5,11 +5,16 @@
 // `parseConfig` — sharing them here is what keeps the two from drifting into a file one side
 // writes and the other cannot parse.
 export {
+  asContainer,
+  containerStorageDefault,
   DEFAULT_CONFIG,
   parseConfig,
+  PLATFORM_KINDS,
   serializeConfig,
   STORAGE_KINDS,
   type AdminAuthKind,
+  type ContainerStorage,
   type FlaghoistConfig,
+  type PlatformKind,
   type StorageKind,
 } from './config'

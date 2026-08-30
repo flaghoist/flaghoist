@@ -4,7 +4,7 @@
 //
 // It does one thing the CLI's own `flaghoist init` does not: create the directory. Everything
 // else is delegated, and the config is written by the CLI's serializer so the two cannot drift.
-import { STORAGE_KINDS } from 'flaghoist'
+import { PLATFORM_KINDS, STORAGE_KINDS } from 'flaghoist'
 import { parseArgs } from 'node:util'
 import { relative } from 'node:path'
 import { scaffold } from './scaffold'
@@ -13,11 +13,12 @@ function printHelp(): void {
   console.log(`create-flaghoist — scaffold a Flaghoist feature-flag service
 
 Usage:
-  npm create flaghoist@latest <directory> [--storage <kind>]
+  npm create flaghoist@latest <directory> [--storage <kind>] [--platform <kind>]
 
 Options:
-  --storage   One of: ${STORAGE_KINDS.join(', ')}  (default: ${STORAGE_KINDS[0]})
-  -h, --help  Show this message
+  --storage    One of: ${STORAGE_KINDS.join(', ')}  (default: ${STORAGE_KINDS[0]})
+  --platform   One of: ${PLATFORM_KINDS.join(', ')}  (default: ${PLATFORM_KINDS[0]})
+  -h, --help   Show this message
 
 Omit <directory> to scaffold into the current directory (it must be empty).`)
 }
@@ -28,6 +29,7 @@ function main(): void {
     allowPositionals: true,
     options: {
       storage: { type: 'string' },
+      platform: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   })
@@ -37,12 +39,14 @@ function main(): void {
   const { dir, configPath, config } = scaffold({
     directory: positionals[0],
     storage: values.storage,
+    platform: values.platform,
   })
 
   const shown = relative(process.cwd(), configPath) || 'flaghoist.toml'
   console.log(`\nCreated ${shown}`)
-  console.log(`  name     ${config.name}`)
-  console.log(`  storage  ${config.storage}\n`)
+  console.log(`  name      ${config.name}`)
+  console.log(`  storage   ${config.storage}`)
+  console.log(`  platform  ${config.platform}\n`)
   console.log('That file is the entire project. Next:\n')
   const cd = relative(process.cwd(), dir)
   if (cd) console.log(`  cd ${cd}`)

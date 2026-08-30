@@ -39,9 +39,13 @@ Cloudflare Workers cannot hold long-lived TCP connections, so a traditional Post
 reached from a Node, Bun, or container deployment rather than from a Worker. HTTP-based stores such as
 Upstash and Neon work from Workers directly.
 
-## More platforms
+## Host-specific guides
 
-Host-specific guides for Fly.io, Railway, and others are on the way. Until then, the
-[Docker image](/deploy/docker/) already runs on all of them, since they consume a standard container.
-If you need a walkthrough that is not written yet, open an issue at
-[github.com/flaghoist/flaghoist](https://github.com/flaghoist/flaghoist/issues).
+These run the [Docker image](/deploy/docker/) on a specific host:
+
+- [Fly.io](/deploy/fly/)
+- [Railway](/deploy/railway/)
+- [Render](/deploy/render/)
+
+Any other container host works the same way. If you want a walkthrough that is not written yet, open
+an issue at [github.com/flaghoist/flaghoist](https://github.com/flaghoist/flaghoist/issues).

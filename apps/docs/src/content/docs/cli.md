@@ -10,8 +10,14 @@ The `flaghoist` CLI scaffolds and deploys your service and manages flags against
 ```bash
 flaghoist init [--name <name>] [--storage cloudflare-kv|redis|postgres|memory]
 flaghoist eject      # generate a code project you own
-flaghoist deploy     # deploy to Cloudflare via wrangler
+flaghoist deploy     # deploy: prompts for the platform (Cloudflare, or another host)
 ```
+
+`deploy` asks where to ship. **Cloudflare Workers** is the built-in one-command path (wrangler). Pick
+**another platform** and it points you at the [deployment guides](/deploy/overview/), such as
+[Render](/deploy/render/), for running the same server on Node or a container. Skip the prompt with
+`--target cloudflare` or `--target other`; when the command is not attached to a terminal (a script
+or CI) it defaults to Cloudflare.
 
 `init` writes `flaghoist.toml` into the current directory, and `eject` and `deploy` add
 `src/index.ts`, `wrangler.toml` and `package.json` beside it. Run them in a directory of the

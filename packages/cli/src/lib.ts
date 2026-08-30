@@ -7,9 +7,11 @@
 export {
   DEFAULT_CONFIG,
   parseConfig,
+  PLATFORM_KINDS,
   serializeConfig,
   STORAGE_KINDS,
   type AdminAuthKind,
   type FlaghoistConfig,
+  type PlatformKind,
   type StorageKind,
 } from './config'

@@ -67,3 +67,59 @@ describe('scaffolding into a directory that is already in use', () => {
     expect(run('eject').stderr).toContain('Already ejected?')
   })
 })
+
+describe('the container platform', () => {
+  it('init --platform container writes a container config with a container-valid store', () => {
+    dir = mkdtempSync(join(tmpdir(), 'flaghoist-scaffold-'))
+
+    expect(run('init', '--platform', 'container').status).toBe(0)
+
+    const toml = readFileSync(join(dir, 'flaghoist.toml'), 'utf8')
+    expect(toml).toContain('platform = "container"')
+    // KV is a Worker binding, so a container project defaults to postgres instead.
+    expect(toml).toContain('storage = "postgres"')
+  })
+
+  it('ejects the container file set, not the Worker one', () => {
+    dir = mkdtempSync(join(tmpdir(), 'flaghoist-scaffold-'))
+    run('init', '--platform', 'container')
+
+    const ejected = run('eject')
+
+    expect(ejected.status).toBe(0)
+    for (const file of ['server.mjs', 'Dockerfile', '.dockerignore', 'package.json']) {
+      expect(existsSync(join(dir, file))).toBe(true)
+    }
+    expect(existsSync(join(dir, 'src/index.ts'))).toBe(false)
+    expect(existsSync(join(dir, 'wrangler.toml'))).toBe(false)
+  })
+
+  it('deploy --target other scaffolds the container and persists the choice, without deploying', () => {
+    dir = mkdtempSync(join(tmpdir(), 'flaghoist-scaffold-'))
+    run('init') // a default (Cloudflare) project
+
+    const deployed = run('deploy', '--target', 'other')
+
+    expect(deployed.status).toBe(0)
+    expect(deployed.stdout).toContain('Scaffolded a container project')
+    // No wrangler, no deploy: the guides own the last mile for container hosts.
+    expect(deployed.stdout).not.toContain('Deploying with wrangler')
+    expect(existsSync(join(dir, 'server.mjs'))).toBe(true)
+    expect(existsSync(join(dir, 'Dockerfile'))).toBe(true)
+    // The platform is written back, so a re-run keeps producing the container shape.
+    const toml = readFileSync(join(dir, 'flaghoist.toml'), 'utf8')
+    expect(toml).toContain('platform = "container"')
+    expect(toml).toContain('storage = "postgres"')
+  })
+
+  it('a saved container project deploys as a container without a --target flag', () => {
+    dir = mkdtempSync(join(tmpdir(), 'flaghoist-scaffold-'))
+    run('init', '--platform', 'container')
+
+    const deployed = run('deploy')
+
+    expect(deployed.status).toBe(0)
+    expect(deployed.stdout).toContain('Scaffolded a container project')
+    expect(existsSync(join(dir, 'server.mjs'))).toBe(true)
+  })
+})

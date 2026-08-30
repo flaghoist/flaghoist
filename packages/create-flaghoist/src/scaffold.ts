@@ -1,8 +1,11 @@
 import {
+  asContainer,
   DEFAULT_CONFIG,
+  PLATFORM_KINDS,
   serializeConfig,
   STORAGE_KINDS,
   type FlaghoistConfig,
+  type PlatformKind,
   type StorageKind,
 } from 'flaghoist'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
@@ -12,6 +15,8 @@ export interface ScaffoldOptions {
   /** Directory to create. Omitted means "scaffold into the current directory". */
   directory?: string
   storage?: string
+  /** Deploy shape: `cloudflare` (a Worker, the default) or `container`. */
+  platform?: string
   /** Overridable so tests can scaffold into a temp dir. */
   cwd?: string
 }
@@ -36,6 +41,9 @@ export function scaffold(options: ScaffoldOptions = {}): ScaffoldResult {
   if (options.storage && !STORAGE_KINDS.includes(options.storage as StorageKind)) {
     throw new Error(`Unknown storage "${options.storage}". One of: ${STORAGE_KINDS.join(', ')}.`)
   }
+  if (options.platform && !PLATFORM_KINDS.includes(options.platform as PlatformKind)) {
+    throw new Error(`Unknown platform "${options.platform}". One of: ${PLATFORM_KINDS.join(', ')}.`)
+  }
 
   const dir = options.directory ? resolve(root, options.directory) : resolve(root)
   const existed = existsSync(dir)
@@ -51,12 +59,15 @@ export function scaffold(options: ScaffoldOptions = {}): ScaffoldResult {
   }
   if (!existed) mkdirSync(dir, { recursive: true })
 
-  const config: FlaghoistConfig = {
+  const base: FlaghoistConfig = {
     ...DEFAULT_CONFIG,
     // The directory name is the natural project name; falling back keeps `.` usable.
     name: options.directory ?? DEFAULT_CONFIG.name,
     storage: (options.storage as StorageKind) ?? DEFAULT_CONFIG.storage,
   }
+  // asContainer runs the storage through the container rule, so a container project never lands with
+  // a KV choice it cannot use.
+  const config = options.platform === 'container' ? asContainer(base) : base
 
   const configPath = join(dir, 'flaghoist.toml')
   writeFileSync(configPath, serializeConfig(config))

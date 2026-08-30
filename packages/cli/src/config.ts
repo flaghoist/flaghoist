@@ -40,6 +40,29 @@ export const STORAGE_KINDS: readonly StorageKind[] = [
 /** Every deploy shape selectable by name in `flaghoist.toml`. */
 export const PLATFORM_KINDS: readonly PlatformKind[] = ['cloudflare', 'container']
 
+/** The stores a container can reach. Cloudflare KV is a Worker binding, so it is not one of them. */
+export type ContainerStorage = 'postgres' | 'redis' | 'memory'
+
+/**
+ * The storage a container project uses. Cloudflare KV cannot be reached off Workers, so a config
+ * that still names it (the scaffolding default) becomes postgres, the store every container deploy
+ * guide uses. This is the one rule for a container's storage: the CLI reuses it to write a coherent
+ * `flaghoist.toml`, and the generated entry bakes it as the `FLAGS_STORAGE` default. Every kind
+ * stays overridable at runtime via the env var.
+ */
+export function containerStorageDefault(storage: StorageKind): ContainerStorage {
+  return storage === 'cloudflare-kv' ? 'postgres' : storage
+}
+
+/**
+ * Recast a config for the container platform, running its storage through the container rule so the
+ * result never names a store the platform cannot use. This is the one place the platform switch
+ * rewrites a config, so `init`, `create-flaghoist`, `deploy` and `eject` all stay consistent.
+ */
+export function asContainer(config: FlaghoistConfig): FlaghoistConfig {
+  return { ...config, platform: 'container', storage: containerStorageDefault(config.storage) }
+}
+
 /** Parse a `flaghoist.toml` into a validated config, falling back to defaults for unknown values. */
 export function parseConfig(text: string): FlaghoistConfig {
   const raw = parse(text) as Record<string, unknown>

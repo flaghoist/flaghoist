@@ -45,6 +45,32 @@ describe('scaffold', () => {
     )
   })
 
+  it('defaults to the cloudflare platform', () => {
+    expect(scaffold({ directory: 'defaults', cwd }).config.platform).toBe('cloudflare')
+  })
+
+  it('scaffolds a container project, coercing an unusable KV store to postgres', () => {
+    const { config } = scaffold({ directory: 'containerized', platform: 'container', cwd })
+    expect(config.platform).toBe('container')
+    expect(config.storage).toBe('postgres')
+  })
+
+  it('keeps an explicit container-valid store on a container project', () => {
+    const { config } = scaffold({
+      directory: 'containerized-redis',
+      platform: 'container',
+      storage: 'redis',
+      cwd,
+    })
+    expect(config.storage).toBe('redis')
+  })
+
+  it('rejects an unknown platform, listing the valid ones', () => {
+    expect(() => scaffold({ directory: 'nope', platform: 'lambda', cwd })).toThrow(
+      /Unknown platform "lambda".*cloudflare/s,
+    )
+  })
+
   it('scaffolds into an existing empty directory', () => {
     const dir = join(cwd, 'premade')
     mkdtempSync(join(cwd, 'premade-')) // unrelated sibling, should not matter

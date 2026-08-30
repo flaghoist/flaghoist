@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, type FlaghoistConfig } from '../src/config'
 import {
-  containerStorageDefault,
   generateContainerPackageJson,
   generateDockerfile,
   generateDockerignore,
@@ -16,18 +15,6 @@ const containerConfig: FlaghoistConfig = {
   platform: 'container',
   storage: 'postgres',
 }
-
-describe('containerStorageDefault', () => {
-  it('keeps a container-valid store', () => {
-    expect(containerStorageDefault('postgres')).toBe('postgres')
-    expect(containerStorageDefault('redis')).toBe('redis')
-    expect(containerStorageDefault('memory')).toBe('memory')
-  })
-
-  it('falls back to memory for cloudflare-kv, which cannot be reached off Workers', () => {
-    expect(containerStorageDefault('cloudflare-kv')).toBe('memory')
-  })
-})
 
 describe('generateNodeEntry', () => {
   it('serves the app with @hono/node-server on 0.0.0.0', () => {
@@ -43,9 +30,9 @@ describe('generateNodeEntry', () => {
     )
   })
 
-  it('defaults a cloudflare-kv config to memory, since KV is unreachable off Workers', () => {
+  it('defaults a cloudflare-kv config to postgres, since KV is unreachable off Workers', () => {
     const src = generateNodeEntry({ ...containerConfig, storage: 'cloudflare-kv' })
-    expect(src).toContain(`env.FLAGS_STORAGE ?? 'memory'`)
+    expect(src).toContain(`env.FLAGS_STORAGE ?? 'postgres'`)
   })
 
   it('composes bearer-token admin auth by default', () => {

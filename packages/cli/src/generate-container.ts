@@ -1,4 +1,4 @@
-import type { FlaghoistConfig, StorageKind } from './config'
+import { containerStorageDefault, type FlaghoistConfig } from './config'
 
 /**
  * Files for the `container` platform: a Node entry served by `@hono/node-server`, plus a Dockerfile.
@@ -28,17 +28,6 @@ const CONTAINER_DEPS: Record<string, string> = {
 
 /** The port the container listens on, and the Dockerfile exposes. */
 const CONTAINER_PORT = 8080
-
-export type ContainerStorage = 'postgres' | 'redis' | 'memory'
-
-/**
- * The `FLAGS_STORAGE` a fresh container defaults to. Cloudflare KV cannot be reached off Workers, so
- * a config that still names it (the scaffolding default) falls back to memory, which always boots;
- * the CLI notes this when it scaffolds. Every kind stays overridable at runtime via the env var.
- */
-export function containerStorageDefault(storage: StorageKind): ContainerStorage {
-  return storage === 'cloudflare-kv' ? 'memory' : storage
-}
 
 /** Admin auth expression, reading from `env` (aliased to `process.env` in the entry). */
 function adminExpr(admin: FlaghoistConfig['auth']['admin']): string {

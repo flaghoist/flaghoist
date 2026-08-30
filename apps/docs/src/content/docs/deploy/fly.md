@@ -3,8 +3,9 @@ title: Deploy to Fly.io
 description: Run the Flaghoist container on Fly.io, backed by Fly Postgres or any managed Postgres.
 ---
 
-Fly.io runs the [Docker image](/deploy/docker/) directly. You deploy the container from
-`examples/docker` and back it with Postgres. About ten minutes.
+Fly.io runs the [Docker image](/deploy/docker/) directly. You deploy the container from a scaffolded
+project (`npm create flaghoist@latest team-flags -- --platform container`) or a copy of
+`examples/docker`, and back it with Postgres. About ten minutes.
 
 ## 1. Install flyctl and sign in
 
@@ -16,7 +17,8 @@ fly auth login
 
 ## 2. Launch the app
 
-From a copy of `examples/docker` (it has the `Dockerfile`):
+From the container project (it has the `Dockerfile`), scaffolded with the CLI or copied from
+`examples/docker`:
 
 ```bash
 fly launch --no-deploy

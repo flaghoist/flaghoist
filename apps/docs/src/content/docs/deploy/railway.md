@@ -8,7 +8,9 @@ alongside. Mostly point-and-click.
 
 ## 1. Create the service
 
-- Push a copy of `examples/docker` to a GitHub repo (or the whole Flaghoist repo).
+- Push the container project to a GitHub repo: scaffold it with
+  `npm create flaghoist@latest team-flags -- --platform container`, or use a copy of `examples/docker`
+  (or the whole Flaghoist repo).
 - In the [Railway](https://railway.app) dashboard: **New Project > Deploy from GitHub repo**, and pick
   it.
 - In the service **Settings**, set the **Root Directory** to `examples/docker` so Railway builds that

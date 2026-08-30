@@ -6,8 +6,16 @@ description: Run Flaghoist as a Render web service backed by Render Postgres, no
 [Render](https://render.com) runs the Node path: a web service serving the Flaghoist app, backed by a
 Render Postgres. No Cloudflare account required. About ten minutes end to end.
 
-The `npm create flaghoist` scaffold is a Cloudflare Worker, so on Render you run the same server on
-Node instead and swap Workers KV for Postgres. That is one small entry file and two extra packages.
+`npm create flaghoist` defaults to a Cloudflare Worker, so on Render you run the same server on Node
+instead and swap Workers KV for Postgres. That is one small entry file and two extra packages, shown
+below so you can see exactly what runs.
+
+The CLI can also write this entry for you: scaffold with
+`npm create flaghoist@latest team-flags -- --platform container`, or run `npx flaghoist deploy` and
+pick **Another platform**, and you get an equivalent `server.mjs` (plus a `Dockerfile` and a
+`package.json`). Render can build either the Node entry directly or the container. This guide takes
+the Node path by hand; if you scaffolded it, skip step 1 and set `FLAGS_STORAGE=postgres` alongside
+the other environment variables in step 3.
 
 ## 1. Add the Node entry and its dependencies
 

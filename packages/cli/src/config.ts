@@ -2,10 +2,19 @@ import { parse } from 'smol-toml'
 
 export type StorageKind = 'cloudflare-kv' | 'redis' | 'postgres' | 'memory'
 export type AdminAuthKind = 'bearer-token' | 'oidc'
+/**
+ * The shape of project `flaghoist deploy`/`eject` scaffolds. `cloudflare` is a Worker plus a
+ * `wrangler.toml`; `container` is a Node entry plus a `Dockerfile`, which runs on any container or
+ * Node host (Render, Fly, Railway, a VPS). Cloudflare is the default, so a config written before
+ * this key existed still scaffolds a Worker.
+ */
+export type PlatformKind = 'cloudflare' | 'container'
 
 export interface FlaghoistConfig {
   name: string
   storage: StorageKind
+  /** Deploy shape to scaffold. Defaults to `cloudflare`. */
+  platform: PlatformKind
   auth: { admin: AdminAuthKind; read: 'api-key' }
   allowedOrigins?: string[]
   /** Serve the admin dashboard at `/admin`. On by default. */
@@ -15,6 +24,7 @@ export interface FlaghoistConfig {
 export const DEFAULT_CONFIG: FlaghoistConfig = {
   name: 'team-flags',
   storage: 'cloudflare-kv',
+  platform: 'cloudflare',
   auth: { admin: 'bearer-token', read: 'api-key' },
   dashboard: true,
 }
@@ -27,6 +37,32 @@ export const STORAGE_KINDS: readonly StorageKind[] = [
   'memory',
 ]
 
+/** Every deploy shape selectable by name in `flaghoist.toml`. */
+export const PLATFORM_KINDS: readonly PlatformKind[] = ['cloudflare', 'container']
+
+/** The stores a container can reach. Cloudflare KV is a Worker binding, so it is not one of them. */
+export type ContainerStorage = 'postgres' | 'redis' | 'memory'
+
+/**
+ * The storage a container project uses. Cloudflare KV cannot be reached off Workers, so a config
+ * that still names it (the scaffolding default) becomes postgres, the store every container deploy
+ * guide uses. This is the one rule for a container's storage: the CLI reuses it to write a coherent
+ * `flaghoist.toml`, and the generated entry bakes it as the `FLAGS_STORAGE` default. Every kind
+ * stays overridable at runtime via the env var.
+ */
+export function containerStorageDefault(storage: StorageKind): ContainerStorage {
+  return storage === 'cloudflare-kv' ? 'postgres' : storage
+}
+
+/**
+ * Recast a config for the container platform, running its storage through the container rule so the
+ * result never names a store the platform cannot use. This is the one place the platform switch
+ * rewrites a config, so `init`, `create-flaghoist`, `deploy` and `eject` all stay consistent.
+ */
+export function asContainer(config: FlaghoistConfig): FlaghoistConfig {
+  return { ...config, platform: 'container', storage: containerStorageDefault(config.storage) }
+}
+
 /** Parse a `flaghoist.toml` into a validated config, falling back to defaults for unknown values. */
 export function parseConfig(text: string): FlaghoistConfig {
   const raw = parse(text) as Record<string, unknown>
@@ -34,6 +70,10 @@ export function parseConfig(text: string): FlaghoistConfig {
   const storage = STORAGE_KINDS.includes(raw.storage as StorageKind)
     ? (raw.storage as StorageKind)
     : DEFAULT_CONFIG.storage
+  // Only an explicit, known platform opts out of Cloudflare, so a config written before the key
+  // existed (or carrying a typo) still scaffolds a Worker, which is the documented default.
+  const platform: PlatformKind =
+    raw.platform === 'container' ? 'container' : DEFAULT_CONFIG.platform
   const authRaw =
     typeof raw.auth === 'object' && raw.auth !== null ? (raw.auth as Record<string, unknown>) : {}
   const admin: AdminAuthKind = authRaw.admin === 'oidc' ? 'oidc' : 'bearer-token'
@@ -43,7 +83,7 @@ export function parseConfig(text: string): FlaghoistConfig {
   // Only an explicit `false` opts out, so configs written before the key existed keep the
   // dashboard, which is the documented behaviour.
   const dashboard = raw.dashboard !== false
-  return { name, storage, auth: { admin, read: 'api-key' }, allowedOrigins, dashboard }
+  return { name, storage, platform, auth: { admin, read: 'api-key' }, allowedOrigins, dashboard }
 }
 
 /** Render a config back to `flaghoist.toml` text. */
@@ -53,6 +93,11 @@ export function serializeConfig(config: FlaghoistConfig): string {
     `name = ${JSON.stringify(config.name)}`,
     `storage = ${JSON.stringify(config.storage)}`,
   ]
+  // Cloudflare is the default and the absent-key meaning, so only a container project writes the
+  // key. This keeps a Worker config byte-identical to what earlier versions produced.
+  if (config.platform !== 'cloudflare') {
+    lines.push(`platform = ${JSON.stringify(config.platform)}`)
+  }
   if (config.allowedOrigins && config.allowedOrigins.length > 0) {
     lines.push(`allowedOrigins = ${JSON.stringify(config.allowedOrigins)}`)
   }

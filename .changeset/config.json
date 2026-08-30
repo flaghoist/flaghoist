@@ -14,6 +14,7 @@
     "@flaghoist/example-vue",
     "@flaghoist/example-node",
     "@flaghoist/example-worker",
+    "@flaghoist/example-docker",
     "@flaghoist/adapter-conformance"
   ]
 }

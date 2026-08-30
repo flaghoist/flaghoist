@@ -47,6 +47,13 @@ import Redis from 'ioredis'
 createFlagServer({ storage: redisAdapter(new Redis(process.env.REDIS_URL)), auth: {/* … */} })
 ```
 
+All flags share one hash key, `flaghoist:flags` by default. Point a second instance at a different
+key to keep it separate from anything else in the same Redis:
+
+```ts
+redisAdapter(new Redis(process.env.REDIS_URL), { hashKey: 'flags:staging' })
+```
+
 ## Postgres
 
 Stores flags in a `jsonb` table via any `node-postgres` client. Run the schema once:
@@ -60,6 +67,38 @@ await initPostgres(pool) // CREATE TABLE IF NOT EXISTS flaghoist_flags (...)
 
 createFlagServer({ storage: postgresAdapter(pool), auth: {/* … */} })
 ```
+
+The default table is `flaghoist_flags`. Pass `table` to use another, and give the same name to
+`initPostgres` so the schema lands in the right place. The name is validated as a plain SQL
+identifier, so it is injection-safe:
+
+```ts
+await initPostgres(pool, 'flags_staging')
+postgresAdapter(pool, { table: 'flags_staging' })
+```
+
+## Scoping to an environment
+
+Flaghoist has no ORM-style naming strategy, and no adapter reads a table name from the environment on
+its own. Each adapter instead takes one code option that decides where its flags live:
+
+| Adapter       | Option    | Default           |
+| ------------- | --------- | ----------------- |
+| Cloudflare KV | `prefix`  | `''`              |
+| Redis         | `hashKey` | `flaghoist:flags` |
+| Postgres      | `table`   | `flaghoist_flags` |
+
+To keep environments apart, run one server per environment and point each at a different value. Wire
+it from an env var in your own entry file if you want, for example a `FLAGS_TABLE` you define:
+
+```ts
+const table = process.env.FLAGS_TABLE ?? 'flaghoist_flags'
+await initPostgres(pool, table)
+createFlagServer({ storage: postgresAdapter(pool, { table }), auth: {/* … */} })
+```
+
+There is nothing to rename and no migration step. The option is read at startup, and `initPostgres`
+creates the table if it does not exist yet.
 
 ## Memory
 

@@ -22,7 +22,7 @@ the other environment variables in step 3.
 In your project:
 
 ```bash
-npm install @hono/node-server @flaghoist/adapter-postgres pg
+npm install @hono/node-server @flaghoist/server @flaghoist/adapter-postgres pg
 ```
 
 Create `server.mjs` (the `.mjs` extension, or `"type": "module"` in `package.json`, so the top-level

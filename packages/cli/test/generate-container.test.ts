@@ -101,9 +101,11 @@ describe('generateContainerPackageJson', () => {
     expect(pkg.dependencies).toHaveProperty('@flaghoist/adapter-postgres')
     expect(pkg.dependencies).toHaveProperty('@flaghoist/adapter-redis')
     expect(pkg.dependencies).toHaveProperty('@flaghoist/adapter-memory')
+    expect(pkg.dependencies).toHaveProperty('@flaghoist/adapter-sqlite')
     expect(pkg.dependencies).toHaveProperty('@hono/node-server')
     expect(pkg.dependencies).toHaveProperty('pg')
     expect(pkg.dependencies).toHaveProperty('ioredis')
+    expect(pkg.dependencies).toHaveProperty('better-sqlite3')
   })
 })
 
@@ -128,6 +130,7 @@ describe('drift from examples/docker/server.mjs', () => {
     `if (!env.DATABASE_URL) throw new Error('FLAGS_STORAGE=postgres requires DATABASE_URL')`,
     `ssl: /sslmode=/.test(env.DATABASE_URL) ? undefined : { rejectUnauthorized: false },`,
     `redisAdapter(new Redis(env.REDIS_URL), { hashKey: env.FLAGS_HASH_KEY ?? 'flaghoist:flags' })`,
+    `const db = new Database(env.DATABASE_PATH ?? '/data/flags.db')`,
     `serve({ fetch: app.fetch, port, hostname: '0.0.0.0' })`,
   ]
 

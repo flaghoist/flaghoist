@@ -1,14 +1,17 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, type Api, type FeatureFlag } from '../src/api'
+import { ApiError, type AdminClient, type FeatureFlag } from '../src/api'
 import App from '../src/App.vue'
 import ConfirmDialog from '../src/components/ConfirmDialog.vue'
 import FlagRow from '../src/components/FlagRow.vue'
 
-const createApi = vi.fn<(url: string, token: string) => Api>()
+const createAdminClient = vi.fn<(opts: { url: string; token: string }) => AdminClient>()
 vi.mock('../src/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/api')>()
-  return { ...actual, createApi: (...args: [string, string]) => createApi(...args) }
+  return {
+    ...actual,
+    createAdminClient: (opts: { url: string; token: string }) => createAdminClient(opts),
+  }
 })
 
 const flag = (over: Partial<FeatureFlag> = {}): FeatureFlag => ({
@@ -25,9 +28,9 @@ const flag = (over: Partial<FeatureFlag> = {}): FeatureFlag => ({
   ...over,
 })
 
-async function mountSignedIn(api: Api) {
+async function mountSignedIn(api: AdminClient) {
   sessionStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
-  createApi.mockReturnValue(api)
+  createAdminClient.mockReturnValue(api)
   const wrapper = mount(App, { attachTo: document.body })
   await flushPromises()
   return wrapper
@@ -36,7 +39,7 @@ async function mountSignedIn(api: Api) {
 beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
-  createApi.mockReset()
+  createAdminClient.mockReset()
   vi.stubGlobal('confirm', () => true)
   vi.stubGlobal('matchMedia', (q: string) => ({
     matches: false,
@@ -60,10 +63,10 @@ describe('creating a flag that the active filter would hide', () => {
   // silently, and the natural next move is to create it again.
   it('clears the filter so the new flag is visible', async () => {
     const created = flag({ key: 'brand-new', enabled: true, rollout: { percentage: 100 } })
-    const api: Api = {
+    const api: AdminClient = {
       list: vi.fn(async () => [flag()]),
-      save: vi.fn(async () => created),
-      remove: vi.fn(async () => undefined),
+      put: vi.fn(async () => created),
+      delete: vi.fn(async () => undefined),
     }
     const wrapper = await mountSignedIn(api)
 
@@ -93,10 +96,10 @@ describe('creating a flag that the active filter would hide', () => {
 
   it('leaves the filter alone when the new flag matches it anyway', async () => {
     const created = flag({ key: 'also-paused', enabled: false, rollout: { percentage: 0 } })
-    const api: Api = {
+    const api: AdminClient = {
       list: vi.fn(async () => [flag()]),
-      save: vi.fn(async () => created),
-      remove: vi.fn(async () => undefined),
+      put: vi.fn(async () => created),
+      delete: vi.fn(async () => undefined),
     }
     const wrapper = await mountSignedIn(api)
 
@@ -121,10 +124,10 @@ describe('creating a flag that the active filter would hide', () => {
   })
 
   it('announces a failure as an alert rather than a confirmation', async () => {
-    const api: Api = {
+    const api: AdminClient = {
       list: vi.fn(async () => [flag()]),
-      save: vi.fn(async () => flag()),
-      remove: vi.fn(async () => {
+      put: vi.fn(async () => flag()),
+      delete: vi.fn(async () => {
         throw new Error('nope')
       }),
     }
@@ -146,14 +149,14 @@ describe('ordering', () => {
     flag({ key, metadata: { createdBy: 'a', createdAt: iso, updatedBy: 'a', updatedAt: iso } })
 
   it('puts the newest flag first, not the alphabetically first', async () => {
-    const api: Api = {
+    const api: AdminClient = {
       list: vi.fn(async () => [
         at('2026-01-01T00:00:00.000Z', 'aaa-oldest'),
         at('2026-06-01T00:00:00.000Z', 'zzz-newest'),
         at('2026-03-01T00:00:00.000Z', 'mmm-middle'),
       ]),
-      save: vi.fn(async () => flag()),
-      remove: vi.fn(async () => undefined),
+      put: vi.fn(async () => flag()),
+      delete: vi.fn(async () => undefined),
     }
     const wrapper = await mountSignedIn(api)
 
@@ -163,10 +166,10 @@ describe('ordering', () => {
 
   it('breaks ties on key so the order is stable', async () => {
     const same = '2026-05-05T00:00:00.000Z'
-    const api: Api = {
+    const api: AdminClient = {
       list: vi.fn(async () => [at(same, 'b-flag'), at(same, 'a-flag')]),
-      save: vi.fn(async () => flag()),
-      remove: vi.fn(async () => undefined),
+      put: vi.fn(async () => flag()),
+      delete: vi.fn(async () => undefined),
     }
     const wrapper = await mountSignedIn(api)
 
@@ -184,10 +187,10 @@ describe('ordering', () => {
         updatedAt: '2027-01-01T00:00:00.000Z',
       },
     })
-    const api: Api = {
+    const api: AdminClient = {
       list: vi.fn(async () => [at('2026-01-01T00:00:00.000Z', 'aaa-existing')]),
-      save: vi.fn(async () => created),
-      remove: vi.fn(async () => undefined),
+      put: vi.fn(async () => created),
+      delete: vi.fn(async () => undefined),
     }
     const wrapper = await mountSignedIn(api)
 
@@ -215,13 +218,13 @@ describe('ordering', () => {
         updatedAt: '2027-06-06T00:00:00.000Z',
       },
     })
-    const api: Api = {
+    const api: AdminClient = {
       list: vi.fn(async () => [
         at('2020-01-01T00:00:00.000Z', 'aaa-old'),
         at('2026-01-01T00:00:00.000Z', 'zzz-newer'),
       ]),
-      save: vi.fn(async () => edited),
-      remove: vi.fn(async () => undefined),
+      put: vi.fn(async () => edited),
+      delete: vi.fn(async () => undefined),
     }
     const wrapper = await mountSignedIn(api)
     expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-newer')
@@ -240,26 +243,26 @@ describe('ordering', () => {
   })
 
   it('does not delete anything until the dialog is confirmed', async () => {
-    const remove = vi.fn(async () => undefined)
-    const api: Api = { list: vi.fn(async () => [flag()]), save: vi.fn(async () => flag()), remove }
+    const del = vi.fn(async () => undefined)
+    const api: AdminClient = { list: vi.fn(async () => [flag()]), put: vi.fn(async () => flag()), delete: del }
     const wrapper = await mountSignedIn(api)
 
     await wrapper.findComponent(FlagRow).vm.$emit('remove')
     await flushPromises()
     expect(wrapper.findComponent(ConfirmDialog).exists()).toBe(true)
-    expect(remove).not.toHaveBeenCalled()
+    expect(del).not.toHaveBeenCalled()
 
     // Cancelling must leave the flag alone. window.confirm returning false used to be
     // indistinguishable from the button doing nothing at all.
     await wrapper.findComponent(ConfirmDialog).vm.$emit('cancel')
     await flushPromises()
-    expect(remove).not.toHaveBeenCalled()
+    expect(del).not.toHaveBeenCalled()
     expect(wrapper.findAllComponents(FlagRow)).toHaveLength(1)
   })
 
   it('deletes and confirms once the dialog is accepted', async () => {
-    const remove = vi.fn(async () => undefined)
-    const api: Api = { list: vi.fn(async () => [flag()]), save: vi.fn(async () => flag()), remove }
+    const del = vi.fn(async () => undefined)
+    const api: AdminClient = { list: vi.fn(async () => [flag()]), put: vi.fn(async () => flag()), delete: del }
     const wrapper = await mountSignedIn(api)
 
     await wrapper.findComponent(FlagRow).vm.$emit('remove')
@@ -267,7 +270,7 @@ describe('ordering', () => {
     await wrapper.findComponent(ConfirmDialog).vm.$emit('confirm')
     await flushPromises()
 
-    expect(remove).toHaveBeenCalledWith('existing')
+    expect(del).toHaveBeenCalledWith('existing')
     expect(wrapper.findAllComponents(FlagRow)).toHaveLength(0)
     expect(wrapper.find('.notice').text()).toContain('Deleted "existing"')
     expect(wrapper.findComponent(ConfirmDialog).exists()).toBe(false)
@@ -276,19 +279,19 @@ describe('ordering', () => {
 
 describe('optimistic concurrency', () => {
   it('sends If-Match on a toggle so the write is conditional', async () => {
-    const save = vi.fn(async () => flag())
-    const api: Api = {
+    const put = vi.fn(async () => flag())
+    const api: AdminClient = {
       list: vi.fn(async () => [flag()]),
-      save,
-      remove: vi.fn(async () => undefined),
+      put,
+      delete: vi.fn(async () => undefined),
     }
     const wrapper = await mountSignedIn(api)
 
     await wrapper.findComponent(FlagRow).vm.$emit('toggle')
     await flushPromises()
 
-    // save(key, input, ifMatch) — the third argument is the flag's ETag, from its updatedAt.
-    const [, , ifMatch] = save.mock.calls[0]
+    // put(key, input, ifMatch) -- the third argument is the flag's ETag, from its updatedAt.
+    const [, , ifMatch] = put.mock.calls[0]
     expect(ifMatch).toBe('"2026-08-15T00:00:00.000Z"')
   })
 
@@ -296,13 +299,13 @@ describe('optimistic concurrency', () => {
     const stale = flag({ key: 'existing', enabled: false })
     const fresh = flag({ key: 'existing', enabled: true, rollout: { percentage: 100 } })
     const list = vi.fn(async () => [stale])
-    const save = vi.fn(async () => {
+    const put = vi.fn(async () => {
       throw new ApiError(
         412,
         'This flag changed since you loaded it. Reload and reapply your change.',
       )
     })
-    const api: Api = { list, save, remove: vi.fn(async () => undefined) }
+    const api: AdminClient = { list, put, delete: vi.fn(async () => undefined) }
     const wrapper = await mountSignedIn(api)
 
     list.mockResolvedValueOnce([fresh]) // the post-conflict reload returns the current state

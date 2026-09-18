@@ -1,6 +1,7 @@
 import { memoryAdapter } from '@flaghoist/adapter-memory'
 import { initPostgres, postgresAdapter } from '@flaghoist/adapter-postgres'
 import { redisAdapter } from '@flaghoist/adapter-redis'
+import { initSqlite, sqliteAdapter } from '@flaghoist/adapter-sqlite'
 import { apiKey, bearerToken, createFlagServer, memoryRateLimit } from '@flaghoist/server'
 import { dashboardHtml } from '@flaghoist/server/dashboard'
 import { serve } from '@hono/node-server'
@@ -30,12 +31,19 @@ async function makeStorage() {
     return redisAdapter(new Redis(env.REDIS_URL), { hashKey: env.FLAGS_HASH_KEY ?? 'flaghoist:flags' })
   }
 
+  if (kind === 'sqlite') {
+    const { default: Database } = await import('better-sqlite3')
+    const db = new Database(env.DATABASE_PATH ?? '/data/flags.db')
+    initSqlite(db)
+    return sqliteAdapter(db)
+  }
+
   if (kind === 'memory') {
     console.warn('[flaghoist] FLAGS_STORAGE=memory: flags are in-process and are lost on restart.')
     return memoryAdapter()
   }
 
-  throw new Error(`Unknown FLAGS_STORAGE "${kind}". Use postgres, redis, or memory.`)
+  throw new Error(`Unknown FLAGS_STORAGE "${kind}". Use postgres, redis, sqlite, or memory.`)
 }
 
 const app = createFlagServer({

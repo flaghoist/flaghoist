@@ -23,7 +23,7 @@ const features = [
   },
   {
     title: 'Point it at your database',
-    body: 'A storage adapter is four methods. Cloudflare KV, Redis and Postgres ship today, and a conformance suite proves any adapter you write.',
+    body: 'A storage adapter is four methods. Cloudflare KV, Redis, Postgres and SQLite ship today, and a conformance suite proves any adapter you write.',
   },
   {
     title: 'Targeting that holds still',
@@ -68,7 +68,7 @@ const renderLines = (lines: { p: string; code: string; out?: boolean }[]): strin
 const steps = [
   {
     title: 'Deploy the service',
-    note: 'One config file, one command. Your own Worker and KV, or bring Redis, Postgres, or an adapter you wrote.',
+    note: 'One config file, one command. Your own Worker and KV, or bring Redis, Postgres, SQLite, or an adapter you wrote.',
     lines: [
       { p: '$', code: 'npm create flaghoist@latest team-flags' },
       { p: '$', code: 'cd team-flags && npx flaghoist deploy' },
@@ -98,7 +98,7 @@ const steps = [
 
 const sustain = [
   ['Apache-2.0', 'Anyone can fork it and keep it alive. No CLA, no rug-pull clause.'],
-  ['Your flags, your storage', "Your KV, your Redis, your Postgres. This project's health never touches your data."],
+  ['Your flags, your storage', "Your KV, your Redis, your Postgres, your SQLite. This project's health never touches your data."],
   ['An open protocol', 'The API is OFREP. To leave, point the same OpenFeature providers elsewhere. No rewrite.'],
   ['Eject whenever', 'flaghoist eject hands you a self-contained TypeScript project you own outright.'],
 ]

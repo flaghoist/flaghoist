@@ -1,6 +1,6 @@
 import { parse } from 'smol-toml'
 
-export type StorageKind = 'cloudflare-kv' | 'redis' | 'postgres' | 'memory'
+export type StorageKind = 'cloudflare-kv' | 'redis' | 'postgres' | 'sqlite' | 'memory'
 export type AdminAuthKind = 'bearer-token' | 'oidc'
 /**
  * The shape of project `flaghoist deploy`/`eject` scaffolds. `cloudflare` is a Worker plus a
@@ -34,6 +34,7 @@ export const STORAGE_KINDS: readonly StorageKind[] = [
   'cloudflare-kv',
   'redis',
   'postgres',
+  'sqlite',
   'memory',
 ]
 
@@ -41,7 +42,7 @@ export const STORAGE_KINDS: readonly StorageKind[] = [
 export const PLATFORM_KINDS: readonly PlatformKind[] = ['cloudflare', 'container']
 
 /** The stores a container can reach. Cloudflare KV is a Worker binding, so it is not one of them. */
-export type ContainerStorage = 'postgres' | 'redis' | 'memory'
+export type ContainerStorage = 'postgres' | 'redis' | 'sqlite' | 'memory'
 
 /**
  * The storage a container project uses. Cloudflare KV cannot be reached off Workers, so a config

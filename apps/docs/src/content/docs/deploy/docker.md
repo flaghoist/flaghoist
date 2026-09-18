@@ -10,7 +10,7 @@ image. The runnable source is in
 [`examples/docker`](https://github.com/flaghoist/flaghoist/tree/main/examples/docker).
 
 The entry picks its storage adapter at startup from `FLAGS_STORAGE`, so the same image works against
-Postgres, Redis, or in-memory. (Workers KV is Cloudflare-only and is not a container option.)
+Postgres, Redis, SQLite, or in-memory. (Workers KV is Cloudflare-only and is not a container option.)
 
 ## Scaffold it
 
@@ -32,16 +32,18 @@ npx flaghoist eject
 | ---------------- | --------------- | ----------------- | ------------------------------------------------ |
 | `ADMIN_TOKEN`    | yes             |                   | Bearer token for the admin API and dashboard.    |
 | `READ_API_KEY`   | yes             |                   | `x-api-key` for the OFREP read path.             |
-| `FLAGS_STORAGE`  | no              | `memory`          | `postgres`, `redis`, or `memory`.                |
+| `FLAGS_STORAGE`  | no              | `memory`          | `postgres`, `redis`, `sqlite`, or `memory`.      |
 | `DATABASE_URL`   | when `postgres` |                   | Any Postgres connection string.                  |
+| `DATABASE_PATH`  | when `sqlite`   | `/data/flags.db`  | Path to the SQLite file. Mount a volume here.    |
 | `REDIS_URL`      | when `redis`    |                   | Any Redis connection string.                     |
-| `FLAGS_TABLE`    | no              | `flaghoist_flags` | Postgres table, to scope per environment.        |
+| `FLAGS_TABLE`    | no              | `flaghoist_flags` | Postgres or SQLite table, to scope per env.      |
 | `FLAGS_HASH_KEY` | no              | `flaghoist:flags` | Redis hash key, to scope per environment.        |
 | `FLAGS_CORS`     | no              |                   | Comma-separated browser origins allowed to read. |
 | `PORT`           | no              | `8080`            | Most hosts set this for you.                     |
 
-`memory` is for a quick look only: flags do not survive a restart. Use `postgres` or `redis` for
-anything real.
+`memory` is for a quick look only: flags do not survive a restart. Use `postgres`, `redis`, or
+`sqlite` for anything real. For `sqlite`, mount a volume at the directory containing your
+`DATABASE_PATH` so flags survive container restarts.
 
 ## Build and run
 
@@ -90,8 +92,8 @@ curl -X POST http://localhost:8080/ofrep/v1/evaluate/flags/new-checkout \
 
 ## Notes
 
-- Set `FLAGS_TABLE` (Postgres) or `FLAGS_HASH_KEY` (Redis) to keep environments apart. See
-  [Storage adapters](/storage-adapters/).
+- Set `FLAGS_TABLE` (Postgres or SQLite) or `FLAGS_HASH_KEY` (Redis) to keep environments apart.
+  See [Storage adapters](/storage-adapters/).
 - Managed Postgres (Supabase, Neon, Render) requires TLS; the entry enables it unless your
   `DATABASE_URL` already sets `sslmode`.
 - Set `FLAGS_CORS` if a browser app reads flags cross-origin. Server-side reads need nothing.

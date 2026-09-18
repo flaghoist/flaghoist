@@ -19,7 +19,10 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
 // Use the injectable fetch so these tests do not depend on global patching behavior.
-function makeClient(impl: (url: string, init?: RequestInit) => Promise<Response>, url = 'https://x.dev') {
+function makeClient(
+  impl: (url: string, init?: RequestInit) => Promise<Response>,
+  url = 'https://x.dev',
+) {
   return createAdminClient({ url, token: 't', fetch: impl })
 }
 

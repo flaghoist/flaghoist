@@ -244,7 +244,11 @@ describe('ordering', () => {
 
   it('does not delete anything until the dialog is confirmed', async () => {
     const del = vi.fn(async () => undefined)
-    const api: AdminClient = { list: vi.fn(async () => [flag()]), put: vi.fn(async () => flag()), delete: del }
+    const api: AdminClient = {
+      list: vi.fn(async () => [flag()]),
+      put: vi.fn(async () => flag()),
+      delete: del,
+    }
     const wrapper = await mountSignedIn(api)
 
     await wrapper.findComponent(FlagRow).vm.$emit('remove')
@@ -262,7 +266,11 @@ describe('ordering', () => {
 
   it('deletes and confirms once the dialog is accepted', async () => {
     const del = vi.fn(async () => undefined)
-    const api: AdminClient = { list: vi.fn(async () => [flag()]), put: vi.fn(async () => flag()), delete: del }
+    const api: AdminClient = {
+      list: vi.fn(async () => [flag()]),
+      put: vi.fn(async () => flag()),
+      delete: del,
+    }
     const wrapper = await mountSignedIn(api)
 
     await wrapper.findComponent(FlagRow).vm.$emit('remove')

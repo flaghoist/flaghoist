@@ -53,6 +53,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@flaghoist/admin-client':
+        specifier: workspace:*
+        version: link:../../packages/admin-client
       '@fontsource/geist-mono':
         specifier: ^5.3.0
         version: 5.3.0
@@ -314,8 +317,17 @@ importers:
         specifier: ^11.0.0
         version: 11.10.0
 
+  packages/admin-client:
+    dependencies:
+      '@flaghoist/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/cli:
     dependencies:
+      '@flaghoist/admin-client':
+        specifier: workspace:*
+        version: link:../admin-client
       smol-toml:
         specifier: ^1.8.0
         version: 1.8.0

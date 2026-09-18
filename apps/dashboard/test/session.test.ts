@@ -1,16 +1,19 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, type Api, type FeatureFlag } from '../src/api'
+import { ApiError, type AdminClient, type FeatureFlag } from '../src/api'
 import App from '../src/App.vue'
 import FlagRow from '../src/components/FlagRow.vue'
 import TokenGate from '../src/components/TokenGate.vue'
 
-// Only createApi is faked. ApiError and the types stay real, so a change to the error contract
-// breaks these tests rather than sliding past them.
-const createApi = vi.fn<(url: string, token: string) => Api>()
+// Only createAdminClient is faked. ApiError and the types stay real, so a change to the error
+// contract breaks these tests rather than sliding past them.
+const createAdminClient = vi.fn<(opts: { url: string; token: string }) => AdminClient>()
 vi.mock('../src/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/api')>()
-  return { ...actual, createApi: (...args: [string, string]) => createApi(...args) }
+  return {
+    ...actual,
+    createAdminClient: (opts: { url: string; token: string }) => createAdminClient(opts),
+  }
 })
 
 const flag = (over: Partial<FeatureFlag> = {}): FeatureFlag => ({
@@ -27,19 +30,20 @@ const flag = (over: Partial<FeatureFlag> = {}): FeatureFlag => ({
   ...over,
 })
 
-function client(over: Partial<Api> = {}): Api {
+function client(over: Partial<AdminClient> = {}): AdminClient {
   return {
     list: vi.fn(async () => [flag()]),
-    save: vi.fn(async () => flag()),
-    remove: vi.fn(async () => undefined),
+    get: vi.fn(async () => flag()),
+    put: vi.fn(async () => flag()),
+    delete: vi.fn(async () => undefined),
     ...over,
   }
 }
 
 /** Mount already signed in, by seeding the stored session the app restores on boot. */
-async function mountSignedIn(api: Api) {
+async function mountSignedIn(api: AdminClient) {
   sessionStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
-  createApi.mockReturnValue(api)
+  createAdminClient.mockReturnValue(api)
   const wrapper = mount(App, { attachTo: document.body })
   await flushPromises()
   return wrapper
@@ -48,7 +52,7 @@ async function mountSignedIn(api: Api) {
 beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
-  createApi.mockReset()
+  createAdminClient.mockReset()
   vi.stubGlobal('confirm', () => true)
   // happy-dom does not implement matchMedia, which the theme resolver reads.
   vi.stubGlobal('matchMedia', (q: string) => ({
@@ -62,10 +66,10 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('session ends on a rejected token (#31)', () => {
   it('drops to the gate, clears the stored session, and says why', async () => {
-    const save = vi.fn(async () => {
+    const put = vi.fn(async () => {
       throw new ApiError(401, 'admin token has been revoked')
     })
-    const wrapper = await mountSignedIn(client({ save }))
+    const wrapper = await mountSignedIn(client({ put }))
 
     expect(wrapper.findComponent(FlagRow).exists()).toBe(true)
     expect(sessionStorage.getItem('flaghoist.admin')).not.toBeNull()
@@ -81,10 +85,10 @@ describe('session ends on a rejected token (#31)', () => {
   })
 
   it('treats a 403 the same way', async () => {
-    const save = vi.fn(async () => {
+    const put = vi.fn(async () => {
       throw new ApiError(403, 'not an admin')
     })
-    const wrapper = await mountSignedIn(client({ save }))
+    const wrapper = await mountSignedIn(client({ put }))
     await wrapper.findComponent(FlagRow).vm.$emit('toggle')
     await flushPromises()
 
@@ -93,10 +97,10 @@ describe('session ends on a rejected token (#31)', () => {
   })
 
   it('keeps the session for an ordinary failure, and shows the server message inline', async () => {
-    const save = vi.fn(async () => {
+    const put = vi.fn(async () => {
       throw new ApiError(500, 'storage adapter unavailable')
     })
-    const wrapper = await mountSignedIn(client({ save }))
+    const wrapper = await mountSignedIn(client({ put }))
     await wrapper.findComponent(FlagRow).vm.$emit('toggle')
     await flushPromises()
 
@@ -108,10 +112,10 @@ describe('session ends on a rejected token (#31)', () => {
   })
 
   it('reports an unreachable server without ending the session', async () => {
-    const save = vi.fn(async () => {
+    const put = vi.fn(async () => {
       throw new ApiError(0, 'Could not reach the server. Check the URL and its CORS allowlist.')
     })
-    const wrapper = await mountSignedIn(client({ save }))
+    const wrapper = await mountSignedIn(client({ put }))
     await wrapper.findComponent(FlagRow).vm.$emit('toggle')
     await flushPromises()
 
@@ -171,7 +175,7 @@ describe('legacy token migration', () => {
   it('purges a token left in localStorage by an older build', async () => {
     // Old build wrote the session to localStorage; the app must not leave it there.
     localStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 'old' }))
-    createApi.mockReturnValue(client())
+    createAdminClient.mockReturnValue(client())
     const wrapper = mount(App, { attachTo: document.body })
     await flushPromises()
     expect(localStorage.getItem('flaghoist.admin')).toBeNull()

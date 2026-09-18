@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   ApiError,
   createAdminClient,
@@ -88,6 +88,20 @@ function matchesActiveView(flag: FeatureFlag): boolean {
 }
 
 const visible = computed(() => sorted.value.filter(matchesActiveView))
+
+/* ---- pagination ----------------------------------------------------------- */
+
+const PAGE_SIZE = 20
+const page = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(visible.value.length / PAGE_SIZE)))
+const paged = computed(() => {
+  const start = (page.value - 1) * PAGE_SIZE
+  return visible.value.slice(start, start + PAGE_SIZE)
+})
+
+watch([query, filter], () => {
+  page.value = 1
+})
 
 /* ---- theme ---------------------------------------------------------------- */
 
@@ -525,7 +539,7 @@ onUnmounted(() => {
 
       <div v-else class="list">
         <FlagRow
-          v-for="flag in visible"
+          v-for="flag in paged"
           :key="flag.key"
           :flag="flag"
           :busy="busy.has(flag.key)"
@@ -535,6 +549,24 @@ onUnmounted(() => {
           @remove="pendingDelete = flag"
         />
       </div>
+
+      <nav v-if="totalPages > 1" class="pagination" aria-label="Flag list pages">
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="page <= 1"
+          @click="page = Math.max(1, page - 1)"
+        >
+          Previous
+        </button>
+        <span class="page-info">{{ page }} / {{ totalPages }}</span>
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="page >= totalPages"
+          @click="page = Math.min(totalPages, page + 1)"
+        >
+          Next
+        </button>
+      </nav>
 
       <ConfirmDialog
         v-if="pendingDelete"
@@ -819,6 +851,18 @@ onUnmounted(() => {
   }
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  margin: 1rem 0 0;
+}
+.page-info {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
 .hintbar {
   margin: 1rem 0 0;
   text-align: center;
@@ -827,11 +871,15 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
-  .server {
+  .server,
+  .session-info {
     display: none;
   }
   .topbar {
     flex-wrap: wrap;
+  }
+  .pagination {
+    gap: 0.5rem;
   }
 }
 </style>

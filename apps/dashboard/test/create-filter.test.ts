@@ -327,3 +327,38 @@ describe('optimistic concurrency', () => {
     expect(wrapper.findComponent(FlagRow).props('flag').enabled).toBe(true) // reflects the reload
   })
 })
+
+describe('pagination', () => {
+  it('shows only 20 flags per page and renders pagination controls', async () => {
+    const flags = Array.from({ length: 25 }, (_, i) =>
+      flag({ key: `flag-${String(i).padStart(2, '0')}` }),
+    )
+    const api: AdminClient = {
+      list: vi.fn(async () => flags),
+      put: vi.fn(async () => flag()),
+      delete: vi.fn(async () => undefined),
+    }
+    const wrapper = await mountSignedIn(api)
+
+    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(20)
+    expect(wrapper.find('.pagination').exists()).toBe(true)
+    expect(wrapper.find('.page-info').text()).toBe('1 / 2')
+
+    await wrapper.findAll('.pagination button')[1]!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(5)
+    expect(wrapper.find('.page-info').text()).toBe('2 / 2')
+  })
+
+  it('hides pagination when all flags fit on one page', async () => {
+    const api: AdminClient = {
+      list: vi.fn(async () => [flag()]),
+      put: vi.fn(async () => flag()),
+      delete: vi.fn(async () => undefined),
+    }
+    const wrapper = await mountSignedIn(api)
+
+    expect(wrapper.find('.pagination').exists()).toBe(false)
+  })
+})

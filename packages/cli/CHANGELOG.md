@@ -1,5 +1,12 @@
 # flaghoist
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [d5acde8]
+  - @flaghoist/admin-client@0.2.0
+
 ## 0.3.0
 
 ### Minor Changes

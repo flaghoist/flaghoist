@@ -1,6 +1,6 @@
 ---
 title: Storage adapters
-description: Use Cloudflare KV, Redis, or Postgres, or write your own in four methods.
+description: Use Cloudflare KV, Redis, Postgres, or SQLite, or write your own in four methods.
 ---
 
 Storage is the "bring your own DB" seam. Every adapter implements the same four-method interface,
@@ -77,6 +77,37 @@ await initPostgres(pool, 'flags_staging')
 postgresAdapter(pool, { table: 'flags_staging' })
 ```
 
+## SQLite
+
+Stores flags as JSON text in a single table. The best fit for a single-server VPS or local
+development where you do not want to run a separate database process. Uses the synchronous
+`better-sqlite3` API under the hood; all adapter methods still return Promises.
+
+```bash
+npm install @flaghoist/adapter-sqlite better-sqlite3
+```
+
+```ts
+import { initSqlite, sqliteAdapter } from '@flaghoist/adapter-sqlite'
+import Database from 'better-sqlite3'
+
+const db = new Database(process.env.DATABASE_PATH ?? 'flags.db')
+initSqlite(db) // CREATE TABLE IF NOT EXISTS flaghoist_flags (...)
+
+createFlagServer({ storage: sqliteAdapter(db), auth: {/* ... */} })
+```
+
+The default table is `flaghoist_flags`. Pass `table` to use another name, and give the same name
+to `initSqlite`:
+
+```ts
+await initSqlite(db, 'flags_staging')
+sqliteAdapter(db, { table: 'flags_staging' })
+```
+
+SQLite works in any Node or container deployment. It does not work on Cloudflare Workers (no
+filesystem access); use Cloudflare KV or Redis there.
+
 ## Scoping to an environment
 
 Flaghoist has no ORM-style naming strategy, and no adapter reads a table name from the environment on
@@ -87,6 +118,7 @@ its own. Each adapter instead takes one code option that decides where its flags
 | Cloudflare KV | `prefix`  | `''`              |
 | Redis         | `hashKey` | `flaghoist:flags` |
 | Postgres      | `table`   | `flaghoist_flags` |
+| SQLite        | `table`   | `flaghoist_flags` |
 
 To keep environments apart, run one server per environment and point each at a different value. Wire
 it from an env var in your own entry file if you want, for example a `FLAGS_TABLE` you define:

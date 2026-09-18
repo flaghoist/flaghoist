@@ -41,6 +41,10 @@ function storageSnippet(storage: StorageKind): StorageSnippet {
         expr: 'memoryAdapter()',
         pkg: '@flaghoist/adapter-memory',
       }
+    case 'sqlite':
+      throw new Error(
+        'SQLite storage requires a Node or container deployment. Use `npx flaghoist deploy` and pick "Another platform".',
+      )
   }
 }
 

@@ -127,6 +127,7 @@ async function connect(url: string, token: string, persist = true) {
     flags.value = await client.list()
     api.value = client
     serverUrl.value = url
+    startSessionClock()
     resetIdleTimer()
     if (persist) sessionStorage.setItem(STORAGE, JSON.stringify({ url, token }))
   } catch (e) {
@@ -140,6 +141,7 @@ async function connect(url: string, token: string, persist = true) {
 
 function disconnect(message = '') {
   stopIdleTimer()
+  stopSessionClock()
   sessionStorage.removeItem(STORAGE)
   api.value = null
   flags.value = []
@@ -281,7 +283,38 @@ async function saveFromEditor(key: string, input: FlagInput) {
 /* ---- session idle timeout ------------------------------------------------- */
 
 const IDLE_MS = 30 * 60 * 1000
+const sessionStart = ref<number | null>(null)
+const sessionAge = ref('')
+const idleRemaining = ref(IDLE_MS)
 let idleTimer: ReturnType<typeof setTimeout> | null = null
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  const m = Math.floor(s / 60)
+  const h = Math.floor(m / 60)
+  if (h > 0) return `${h}h ${m % 60}m`
+  if (m > 0) return `${m}m`
+  return `${s}s`
+}
+
+function startSessionClock() {
+  sessionStart.value = Date.now()
+  idleRemaining.value = IDLE_MS
+  tickTimer = setInterval(() => {
+    if (sessionStart.value) sessionAge.value = formatDuration(Date.now() - sessionStart.value)
+  }, 60_000)
+  sessionAge.value = '0m'
+}
+
+function stopSessionClock() {
+  if (tickTimer) {
+    clearInterval(tickTimer)
+    tickTimer = null
+  }
+  sessionStart.value = null
+  sessionAge.value = ''
+}
 
 function resetIdleTimer() {
   if (idleTimer) clearTimeout(idleTimer)
@@ -359,6 +392,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
   for (const evt of IDLE_EVENTS) window.removeEventListener(evt, resetIdleTimer)
   stopIdleTimer()
+  stopSessionClock()
 })
 </script>
 
@@ -384,6 +418,14 @@ onUnmounted(() => {
       </div>
 
       <span class="server mono" :title="serverUrl">{{ serverUrl }}</span>
+
+      <span v-if="sessionAge" class="session-info" :title="`Connected for ${sessionAge}`">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="session-icon">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3.5 2" />
+        </svg>
+        {{ sessionAge }}
+      </span>
 
       <div class="topbar-actions">
         <button
@@ -560,6 +602,22 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.session-info {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+.session-icon {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
 }
 .topbar-actions {
   display: flex;

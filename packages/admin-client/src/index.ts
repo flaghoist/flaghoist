@@ -1,12 +1,6 @@
 import type { FeatureFlag, TargetingRule } from '@flaghoist/core'
 
-export type {
-  Condition,
-  FeatureFlag,
-  FlagMetadata,
-  Operator,
-  TargetingRule,
-} from '@flaghoist/core'
+export type { Condition, FeatureFlag, FlagMetadata, Operator, TargetingRule } from '@flaghoist/core'
 
 // ---------------------------------------------------------------------------
 // Types

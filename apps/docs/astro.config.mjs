@@ -45,7 +45,7 @@ export default defineConfig({
         },
         {
           label: 'Self-hosting',
-          items: ['self-hosting', 'storage-adapters', 'auth', 'dashboard'],
+          items: ['self-hosting', 'storage-adapters', 'auth', 'oidc-providers', 'dashboard'],
         },
         {
           label: 'Deploying',

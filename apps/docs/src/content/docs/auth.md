@@ -77,6 +77,9 @@ This validates the signature against the provider's JWKS with a **pinned algorit
 requires membership in an allowed group. A valid token that lacks an admin group is rejected with
 `403`.
 
+For the exact config for each provider -- issuer format, which claim carries groups, and where to
+find the values in their console -- see [OIDC provider setup](/oidc-providers/).
+
 ## Security notes
 
 - A **release flag is not an authorization boundary**: it controls whether a code path is visible,

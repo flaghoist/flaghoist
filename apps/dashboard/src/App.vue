@@ -127,6 +127,7 @@ async function connect(url: string, token: string, persist = true) {
     flags.value = await client.list()
     api.value = client
     serverUrl.value = url
+    resetIdleTimer()
     if (persist) sessionStorage.setItem(STORAGE, JSON.stringify({ url, token }))
   } catch (e) {
     gateError.value = describe(e)
@@ -138,6 +139,7 @@ async function connect(url: string, token: string, persist = true) {
 }
 
 function disconnect(message = '') {
+  stopIdleTimer()
   sessionStorage.removeItem(STORAGE)
   api.value = null
   flags.value = []
@@ -276,6 +278,28 @@ async function saveFromEditor(key: string, input: FlagInput) {
   }
 }
 
+/* ---- session idle timeout ------------------------------------------------- */
+
+const IDLE_MS = 30 * 60 * 1000
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+function resetIdleTimer() {
+  if (idleTimer) clearTimeout(idleTimer)
+  if (!api.value) return
+  idleTimer = setTimeout(() => {
+    disconnect('Session timed out after 30 minutes of inactivity. Sign in again.')
+  }, IDLE_MS)
+}
+
+function stopIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+    idleTimer = null
+  }
+}
+
+const IDLE_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'] as const
+
 /* ---- keyboard ------------------------------------------------------------- */
 
 function onKey(e: KeyboardEvent) {
@@ -310,6 +334,7 @@ onMounted(() => {
   }
 
   window.addEventListener('keydown', onKey)
+  for (const evt of IDLE_EVENTS) window.addEventListener(evt, resetIdleTimer, { passive: true })
 
   // A build before the token moved to sessionStorage may have left one in localStorage. The new
   // code never reads or writes it, so it would sit on disk indefinitely, which is exactly what
@@ -330,7 +355,11 @@ onMounted(() => {
   }
 })
 
-onUnmounted(() => window.removeEventListener('keydown', onKey))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKey)
+  for (const evt of IDLE_EVENTS) window.removeEventListener(evt, resetIdleTimer)
+  stopIdleTimer()
+})
 </script>
 
 <template>

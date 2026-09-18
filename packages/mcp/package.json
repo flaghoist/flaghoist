@@ -1,0 +1,36 @@
+{
+  "name": "@flaghoist/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Flaghoist feature-flag management. Lets coding agents read and manage flags.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "@flaghoist/mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@flaghoist/admin-client": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@flaghoist/adapter-memory": "workspace:*",
+    "@flaghoist/core": "workspace:*",
+    "@flaghoist/server": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

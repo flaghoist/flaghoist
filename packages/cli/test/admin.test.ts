@@ -64,10 +64,11 @@ describe('admin client + flag operations', () => {
     await expect(
       setRules(client, 'k', [
         {
-          conditions: [{ attribute: 'plan', operator: 'regex', value: '.*' }],
+          // intentionally invalid operator to verify server-side rejection
+          conditions: [{ attribute: 'plan', operator: 'regex' as 'eq', value: '.*' }],
           result: { enabled: true },
         },
       ]),
-    ).rejects.toThrow(/Failed to save/)
+    ).rejects.toThrow(/invalid/i)
   })
 })

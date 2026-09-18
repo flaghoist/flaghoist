@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ApiError, createApi, flagEtag, type Api, type FeatureFlag, type FlagInput } from './api'
+import {
+  ApiError,
+  createAdminClient,
+  flagEtag,
+  type AdminClient,
+  type FeatureFlag,
+  type FlagInput,
+} from './api'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
 import FlagRow from './components/FlagRow.vue'
@@ -16,7 +23,7 @@ const THEME = 'flaghoist.theme'
 
 type Filter = 'all' | 'live' | 'paused' | 'targeted'
 
-const api = ref<Api | null>(null)
+const api = ref<AdminClient | null>(null)
 const serverUrl = ref('')
 const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
@@ -115,7 +122,7 @@ function describe(e: unknown): string {
 async function connect(url: string, token: string, persist = true) {
   connecting.value = true
   gateError.value = ''
-  const client = createApi(url, token)
+  const client = createAdminClient({ url, token })
   try {
     flags.value = await client.list()
     api.value = client
@@ -201,14 +208,14 @@ function inputFrom(flag: FeatureFlag, changes: Partial<FlagInput>): FlagInput {
 function toggle(flag: FeatureFlag) {
   return withBusy(flag.key, async () => {
     const input = inputFrom(flag, { enabled: !flag.enabled })
-    replaceFlag(await api.value!.save(flag.key, input, flagEtag(flag)))
+    replaceFlag(await api.value!.put(flag.key, input, flagEtag(flag)))
   })
 }
 
 function setRollout(flag: FeatureFlag, pct: number) {
   return withBusy(flag.key, async () => {
     const input = inputFrom(flag, { rollout: { percentage: pct } })
-    replaceFlag(await api.value!.save(flag.key, input, flagEtag(flag)))
+    replaceFlag(await api.value!.put(flag.key, input, flagEtag(flag)))
   })
 }
 
@@ -226,7 +233,7 @@ function confirmDelete() {
   const flag = pendingDelete.value
   if (!flag) return
   return withBusy(flag.key, async () => {
-    await api.value!.remove(flag.key)
+    await api.value!.delete(flag.key)
     flags.value = flags.value.filter((f) => f.key !== flag.key)
     pendingDelete.value = null
     notice.value = { text: `Deleted "${flag.key}".`, tone: 'ok' }
@@ -240,7 +247,7 @@ async function saveFromEditor(key: string, input: FlagInput) {
   editorError.value = ''
   try {
     // Editing sends If-Match so a stale save is refused rather than clobbering; creating does not.
-    const saved = await api.value!.save(key, input, original ? flagEtag(original) : undefined)
+    const saved = await api.value!.put(key, input, original ? flagEtag(original) : undefined)
     replaceFlag(saved)
     // A new flag that does not match the active filter is saved and then immediately hidden, which
     // reads as the save having silently failed. Creating a live flag while the paused chip is

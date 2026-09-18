@@ -29,6 +29,7 @@
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@flaghoist/admin-client": "workspace:*",
     "smol-toml": "^1.8.0"
   },
   "devDependencies": {

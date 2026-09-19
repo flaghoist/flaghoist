@@ -1,4 +1,10 @@
-import type { FeatureFlag, StorageAdapter } from '@flaghoist/core'
+import type {
+  AuditEntry,
+  AuditListOptions,
+  AuditPage,
+  FeatureFlag,
+  StorageAdapter,
+} from '@flaghoist/core'
 
 /**
  * An in-memory StorageAdapter backed by a Map — for local development, tests, and as a
@@ -8,6 +14,8 @@ import type { FeatureFlag, StorageAdapter } from '@flaghoist/core'
 export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
   const store = new Map<string, FeatureFlag>()
   for (const flag of seed) store.set(flag.key, structuredClone(flag))
+
+  const auditBuf: AuditEntry[] = []
 
   return {
     async get(key) {
@@ -22,6 +30,19 @@ export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
     },
     async list() {
       return [...store.values()].map((flag) => structuredClone(flag))
+    },
+
+    async appendAudit(entry: AuditEntry) {
+      auditBuf.push(structuredClone(entry))
+    },
+    async listAudit(options?: AuditListOptions): Promise<AuditPage> {
+      let entries = auditBuf.slice().reverse()
+      if (options?.flagKey) entries = entries.filter((e) => e.flagKey === options.flagKey)
+      if (options?.action) entries = entries.filter((e) => e.action === options.action)
+      const total = entries.length
+      const offset = options?.offset ?? 0
+      const limit = options?.limit ?? 50
+      return { entries: entries.slice(offset, offset + limit), total }
     },
   }
 }

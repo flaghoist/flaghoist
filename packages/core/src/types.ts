@@ -96,6 +96,40 @@ export interface StorageAdapter {
   put(key: string, flag: FeatureFlag): Promise<void>
   delete(key: string): Promise<void>
   list(): Promise<FeatureFlag[]>
+
+  /** Append an audit entry to persistent storage. Optional; the server falls back to in-memory. */
+  appendAudit?(entry: AuditEntry): Promise<void>
+  /** List audit entries with optional filtering and pagination. */
+  listAudit?(options?: AuditListOptions): Promise<AuditPage>
+}
+
+/** A point-in-time snapshot of a flag's evaluable state, recorded in audit entries. */
+export interface FlagSnapshot {
+  enabled: boolean
+  rollout: { percentage: number }
+  description: string
+}
+
+export interface AuditEntry {
+  id: string
+  timestamp: string
+  action: 'create' | 'update' | 'delete'
+  flagKey: string
+  actor: string
+  previous?: FlagSnapshot
+  current?: FlagSnapshot
+}
+
+export interface AuditListOptions {
+  limit?: number
+  offset?: number
+  flagKey?: string
+  action?: 'create' | 'update' | 'delete'
+}
+
+export interface AuditPage {
+  entries: AuditEntry[]
+  total: number
 }
 
 /** The authenticated caller, extracted from a validated admin token. */

@@ -475,7 +475,14 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <main class="content">
+    <AuditLog
+      v-if="showAudit"
+      :server-url="serverUrl"
+      :token="serverToken"
+      @back="showAudit = false"
+    />
+
+    <main v-else class="content">
       <div class="toolbar">
         <div class="search">
           <svg viewBox="0 0 24 24" aria-hidden="true" class="search-icon">
@@ -603,12 +610,6 @@ onUnmounted(() => {
       @cancel="editor = null"
     />
 
-    <AuditLog
-      v-if="showAudit"
-      :server-url="serverUrl"
-      :token="serverToken"
-      @close="showAudit = false"
-    />
   </div>
 </template>
 

@@ -66,6 +66,8 @@ export interface FeatureFlag {
   rules?: TargetingRule[]
   description: string
   metadata: FlagMetadata
+  archived?: boolean
+  archivedAt?: string
 }
 
 /**
@@ -113,18 +115,19 @@ export interface FlagSnapshot {
 export interface AuditEntry {
   id: string
   timestamp: string
-  action: 'create' | 'update' | 'delete'
+  action: 'create' | 'update' | 'delete' | 'archive' | 'restore'
   flagKey: string
   actor: string
   previous?: FlagSnapshot
   current?: FlagSnapshot
+  changeDescription?: string
 }
 
 export interface AuditListOptions {
   limit?: number
   offset?: number
   flagKey?: string
-  action?: 'create' | 'update' | 'delete'
+  action?: 'create' | 'update' | 'delete' | 'archive' | 'restore'
 }
 
 export interface AuditPage {

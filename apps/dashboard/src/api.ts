@@ -10,5 +10,7 @@ export {
   type FeatureFlag,
   type FlagInput,
   type FlagMetadata,
+  type ListOptions,
+  type PutOptions,
   type TargetingRule,
 } from '@flaghoist/admin-client'

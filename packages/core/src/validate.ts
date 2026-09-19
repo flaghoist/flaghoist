@@ -111,7 +111,7 @@ export function parseFlag(input: unknown): FeatureFlag | null {
   if (rawRules.length > LIMITS.maxRules) return null
   const rules = rawRules.map(parseRule).filter((r): r is TargetingRule => r !== null)
 
-  return {
+  const flag: FeatureFlag = {
     key: o.key,
     enabled: o.enabled,
     rollout: { percentage },
@@ -119,6 +119,11 @@ export function parseFlag(input: unknown): FeatureFlag | null {
     description: typeof o.description === 'string' ? o.description : '',
     metadata: parseMetadata(o.metadata),
   }
+  if (o.archived === true) {
+    flag.archived = true
+    if (typeof o.archivedAt === 'string') flag.archivedAt = o.archivedAt
+  }
+  return flag
 }
 
 export interface CreateFlagInput {

@@ -2,11 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type AdminClient, type FeatureFlag } from '../src/api'
 import App from '../src/App.vue'
-import FlagRow from '../src/components/FlagRow.vue'
 import TokenGate from '../src/components/TokenGate.vue'
 
-// Only createAdminClient is faked. ApiError and the types stay real, so a change to the error
-// contract breaks these tests rather than sliding past them.
 const createAdminClient = vi.fn<(opts: { url: string; token: string }) => AdminClient>()
 vi.mock('../src/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/api')>()
@@ -36,11 +33,16 @@ function client(over: Partial<AdminClient> = {}): AdminClient {
     get: vi.fn(async () => flag()),
     put: vi.fn(async () => flag()),
     delete: vi.fn(async () => undefined),
+    archive: vi.fn(async () => ({
+      ...flag(),
+      archived: true,
+      archivedAt: new Date().toISOString(),
+    })),
+    restore: vi.fn(async () => flag()),
     ...over,
   }
 }
 
-/** Mount already signed in, by seeding the stored session the app restores on boot. */
 async function mountSignedIn(api: AdminClient) {
   sessionStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
   createAdminClient.mockReturnValue(api)
@@ -49,12 +51,21 @@ async function mountSignedIn(api: AdminClient) {
   return wrapper
 }
 
+async function navigateToFlags(wrapper: ReturnType<typeof mount>) {
+  const sidebar = wrapper.findComponent({ name: 'Sidebar' })
+  sidebar.vm.$emit('navigate', 'flags')
+  await flushPromises()
+}
+
+function findToast(): Element | null {
+  return document.body.querySelector('.toast')
+}
+
 beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
   createAdminClient.mockReset()
   vi.stubGlobal('confirm', () => true)
-  // happy-dom does not implement matchMedia, which the theme resolver reads.
   vi.stubGlobal('matchMedia', (q: string) => ({
     matches: false,
     media: q,
@@ -70,11 +81,12 @@ describe('session ends on a rejected token (#31)', () => {
       throw new ApiError(401, 'admin token has been revoked')
     })
     const wrapper = await mountSignedIn(client({ put }))
+    await navigateToFlags(wrapper)
 
-    expect(wrapper.findComponent(FlagRow).exists()).toBe(true)
+    expect(wrapper.findAll('.flag-row')).toHaveLength(1)
     expect(sessionStorage.getItem('flaghoist.admin')).not.toBeNull()
 
-    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    await wrapper.find('.flag-row .toggle').trigger('click')
     await flushPromises()
 
     const gate = wrapper.findComponent(TokenGate)
@@ -89,24 +101,29 @@ describe('session ends on a rejected token (#31)', () => {
       throw new ApiError(403, 'not an admin')
     })
     const wrapper = await mountSignedIn(client({ put }))
-    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    await navigateToFlags(wrapper)
+
+    await wrapper.find('.flag-row .toggle').trigger('click')
     await flushPromises()
 
     expect(wrapper.findComponent(TokenGate).exists()).toBe(true)
     wrapper.unmount()
   })
 
-  it('keeps the session for an ordinary failure, and shows the server message inline', async () => {
+  it('keeps the session for an ordinary failure, and shows the error as a toast', async () => {
     const put = vi.fn(async () => {
       throw new ApiError(500, 'storage adapter unavailable')
     })
     const wrapper = await mountSignedIn(client({ put }))
-    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    await navigateToFlags(wrapper)
+
+    await wrapper.find('.flag-row .toggle').trigger('click')
     await flushPromises()
 
-    // Still signed in: a 500 is the server's problem, not the operator's credentials.
     expect(wrapper.findComponent(TokenGate).exists()).toBe(false)
-    expect(wrapper.find('.notice').text()).toBe('storage adapter unavailable')
+    const toast = findToast()
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('storage adapter unavailable')
     expect(sessionStorage.getItem('flaghoist.admin')).not.toBeNull()
     wrapper.unmount()
   })
@@ -116,11 +133,15 @@ describe('session ends on a rejected token (#31)', () => {
       throw new ApiError(0, 'Could not reach the server. Check the URL and its CORS allowlist.')
     })
     const wrapper = await mountSignedIn(client({ put }))
-    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    await navigateToFlags(wrapper)
+
+    await wrapper.find('.flag-row .toggle').trigger('click')
     await flushPromises()
 
     expect(wrapper.findComponent(TokenGate).exists()).toBe(false)
-    expect(wrapper.find('.notice').text()).toMatch(/could not reach the server/i)
+    const toast = findToast()
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toMatch(/could not reach the server/i)
     wrapper.unmount()
   })
 })
@@ -145,35 +166,38 @@ describe('filtering', () => {
 
   it('narrows by search across key and description', async () => {
     const wrapper = await mountSignedIn(client({ list: vi.fn(async () => many) }))
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(4)
+    await navigateToFlags(wrapper)
+    expect(wrapper.findAll('.flag-row')).toHaveLength(4)
 
     await wrapper.find('.search input').setValue('dark')
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(1)
+    expect(wrapper.findAll('.flag-row')).toHaveLength(1)
     wrapper.unmount()
   })
 
   it('counts and filters live, paused and targeted correctly', async () => {
     const wrapper = await mountSignedIn(client({ list: vi.fn(async () => many) }))
-    const chips = wrapper.findAll('.chip')
-    expect(chips.map((c) => c.text().replace(/\D+/g, ''))).toEqual(['4', '3', '1', '1'])
+    await navigateToFlags(wrapper)
+    const chips = wrapper.findAll('button.chip')
+    const counts = chips.map((c) => c.find('.chip-n').text())
+    expect(counts).toEqual(['4', '3', '1', '1'])
 
-    await chips[3].trigger('click') // targeted
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(1)
-    expect(wrapper.findComponent(FlagRow).props('flag').key).toBe('eu-banner')
+    await chips[3].trigger('click')
+    expect(wrapper.findAll('.flag-row')).toHaveLength(1)
+    expect(wrapper.find('.flag-row .flag-key').text()).toBe('eu-banner')
     wrapper.unmount()
   })
 
   it('shows a distinct empty state when a search matches nothing', async () => {
     const wrapper = await mountSignedIn(client({ list: vi.fn(async () => many) }))
+    await navigateToFlags(wrapper)
     await wrapper.find('.search input').setValue('nothing-here')
-    expect(wrapper.find('.blank h2').text()).toBe('Nothing matches')
+    expect(wrapper.find('.empty-state h2').text()).toBe('Nothing matches')
     wrapper.unmount()
   })
 })
 
 describe('legacy token migration', () => {
   it('purges a token left in localStorage by an older build', async () => {
-    // Old build wrote the session to localStorage; the app must not leave it there.
     localStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 'old' }))
     createAdminClient.mockReturnValue(client())
     const wrapper = mount(App, { attachTo: document.body })

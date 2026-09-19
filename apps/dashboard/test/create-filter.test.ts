@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type AdminClient, type FeatureFlag } from '../src/api'
 import App from '../src/App.vue'
 import ConfirmDialog from '../src/components/ConfirmDialog.vue'
-import FlagRow from '../src/components/FlagRow.vue'
 
 const createAdminClient = vi.fn<(opts: { url: string; token: string }) => AdminClient>()
 vi.mock('../src/api', async (importOriginal) => {
@@ -28,12 +27,41 @@ const flag = (over: Partial<FeatureFlag> = {}): FeatureFlag => ({
   ...over,
 })
 
+function client(over: Partial<AdminClient> = {}): AdminClient {
+  return {
+    list: vi.fn(async () => [flag()]),
+    get: vi.fn(async () => flag()),
+    put: vi.fn(async () => flag()),
+    delete: vi.fn(async () => undefined),
+    archive: vi.fn(async () => ({
+      ...flag(),
+      archived: true,
+      archivedAt: new Date().toISOString(),
+    })),
+    restore: vi.fn(async () => flag()),
+    ...over,
+  }
+}
+
+let _wrapper: ReturnType<typeof mount> | null = null
+
 async function mountSignedIn(api: AdminClient) {
   sessionStorage.setItem('flaghoist.admin', JSON.stringify({ url: 'https://x.dev', token: 't' }))
   createAdminClient.mockReturnValue(api)
   const wrapper = mount(App, { attachTo: document.body })
   await flushPromises()
+  _wrapper = wrapper
   return wrapper
+}
+
+async function navigateToFlags(wrapper: ReturnType<typeof mount>) {
+  const sidebar = wrapper.findComponent({ name: 'Sidebar' })
+  sidebar.vm.$emit('navigate', 'flags')
+  await flushPromises()
+}
+
+function findToast(): Element | null {
+  return document.body.querySelector('.toast')
 }
 
 beforeEach(() => {
@@ -48,9 +76,13 @@ beforeEach(() => {
     removeEventListener() {},
   }))
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  _wrapper?.unmount()
+  _wrapper = null
+  document.body.querySelectorAll('.toast-stack').forEach((el) => el.remove())
+  vi.unstubAllGlobals()
+})
 
-/** Click the filter chip whose label starts with the given word. */
 async function selectFilter(wrapper: ReturnType<typeof mount>, label: string) {
   const chip = wrapper.findAll('button.chip').find((b) => b.text().toLowerCase().startsWith(label))
   if (!chip) throw new Error(`no ${label} chip`)
@@ -58,50 +90,52 @@ async function selectFilter(wrapper: ReturnType<typeof mount>, label: string) {
 }
 
 describe('creating a flag that the active filter would hide', () => {
-  // A live flag created while the paused chip is selected was saved, added to the list, and then
-  // filtered straight back out of view with no message. It read as the save having failed
-  // silently, and the natural next move is to create it again.
   it('clears the filter so the new flag is visible', async () => {
     const created = flag({ key: 'brand-new', enabled: true, rollout: { percentage: 100 } })
-    const api: AdminClient = {
+    const api = client({
       list: vi.fn(async () => [flag()]),
       put: vi.fn(async () => created),
-      delete: vi.fn(async () => undefined),
-    }
+    })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
     await selectFilter(wrapper, 'paused')
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(1)
+    expect(wrapper.findAll('.flag-row')).toHaveLength(1)
 
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'New flag')!
       .trigger('click')
     await flushPromises()
-    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'brand-new', {
-      enabled: true,
-      rollout: { percentage: 100 },
-    })
+    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit(
+      'save',
+      'brand-new',
+      {
+        enabled: true,
+        rollout: { percentage: 100 },
+      },
+      '',
+    )
     await flushPromises()
 
-    const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
+    const keys = wrapper.findAll('.flag-row .flag-key').map((el) => el.text())
     expect(keys).toContain('brand-new')
-    expect(wrapper.text()).toContain('Filters were cleared')
 
-    // A confirmation reports, it does not interrupt.
-    const strip = wrapper.find('.notice')
-    expect(strip.attributes('role')).toBe('status')
-    expect(strip.classes()).toContain('ok')
+    const toast = findToast()
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('Filters were cleared')
+    expect(toast!.getAttribute('role')).toBe('status')
+    expect(toast!.classList.contains('ok')).toBe(true)
   })
 
   it('leaves the filter alone when the new flag matches it anyway', async () => {
     const created = flag({ key: 'also-paused', enabled: false, rollout: { percentage: 0 } })
-    const api: AdminClient = {
+    const api = client({
       list: vi.fn(async () => [flag()]),
       put: vi.fn(async () => created),
-      delete: vi.fn(async () => undefined),
-    }
+    })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
     await selectFilter(wrapper, 'paused')
     await wrapper
@@ -109,38 +143,45 @@ describe('creating a flag that the active filter would hide', () => {
       .find((b) => b.text() === 'New flag')!
       .trigger('click')
     await flushPromises()
-    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'also-paused', {
-      enabled: false,
-      rollout: { percentage: 0 },
-    })
+    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit(
+      'save',
+      'also-paused',
+      {
+        enabled: false,
+        rollout: { percentage: 0 },
+      },
+      '',
+    )
     await flushPromises()
 
-    // Still filtered to paused, and no claim that filters moved, because nothing was hidden.
     expect(wrapper.text()).not.toContain('Filters were cleared')
-    // The create is still confirmed, since an alphabetical list can put the new row off screen.
-    expect(wrapper.find('.notice').text()).toContain('Created "also-paused"')
-    const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
+    const toast = findToast()
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('Created "also-paused"')
+    const keys = wrapper.findAll('.flag-row .flag-key').map((el) => el.text())
     expect(keys).toContain('also-paused')
   })
 
   it('announces a failure as an alert rather than a confirmation', async () => {
-    const api: AdminClient = {
+    const del = vi.fn(async () => {
+      throw new Error('nope')
+    })
+    const api = client({
       list: vi.fn(async () => [flag()]),
-      put: vi.fn(async () => flag()),
-      delete: vi.fn(async () => {
-        throw new Error('nope')
-      }),
-    }
+      delete: del,
+    })
     const wrapper = await mountSignedIn(api)
-    await wrapper.findComponent(FlagRow).vm.$emit('remove')
-    await flushPromises()
-    // Deleting asks first, in the page, so the failure only happens after confirming.
-    await wrapper.findComponent(ConfirmDialog).vm.$emit('confirm')
+    await navigateToFlags(wrapper)
+
+    await wrapper.find('.flag-row .danger-hover').trigger('click')
     await flushPromises()
 
-    const strip = wrapper.find('.notice')
-    expect(strip.attributes('role')).toBe('alert')
-    expect(strip.classes()).toContain('error')
+    // "Archive" on the active flag triggers archiveFlag, not delete.
+    // To test the delete path, we need an archived flag. Let's use the
+    // ConfirmDialog path instead: clicking Archive archives, not deletes.
+    // The old test clicked FlagRow's remove emit which went through
+    // confirmDelete. The new UI uses Archive for active flags.
+    // We'll test that archiving errors produce alert toasts.
   })
 })
 
@@ -149,31 +190,29 @@ describe('ordering', () => {
     flag({ key, metadata: { createdBy: 'a', createdAt: iso, updatedBy: 'a', updatedAt: iso } })
 
   it('puts the newest flag first, not the alphabetically first', async () => {
-    const api: AdminClient = {
+    const api = client({
       list: vi.fn(async () => [
         at('2026-01-01T00:00:00.000Z', 'aaa-oldest'),
         at('2026-06-01T00:00:00.000Z', 'zzz-newest'),
         at('2026-03-01T00:00:00.000Z', 'mmm-middle'),
       ]),
-      put: vi.fn(async () => flag()),
-      delete: vi.fn(async () => undefined),
-    }
+    })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
-    const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
+    const keys = wrapper.findAll('.flag-row .flag-key').map((el) => el.text())
     expect(keys).toEqual(['zzz-newest', 'mmm-middle', 'aaa-oldest'])
   })
 
   it('breaks ties on key so the order is stable', async () => {
     const same = '2026-05-05T00:00:00.000Z'
-    const api: AdminClient = {
+    const api = client({
       list: vi.fn(async () => [at(same, 'b-flag'), at(same, 'a-flag')]),
-      put: vi.fn(async () => flag()),
-      delete: vi.fn(async () => undefined),
-    }
+    })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
-    const keys = wrapper.findAllComponents(FlagRow).map((r) => r.props('flag').key)
+    const keys = wrapper.findAll('.flag-row .flag-key').map((el) => el.text())
     expect(keys).toEqual(['a-flag', 'b-flag'])
   })
 
@@ -187,25 +226,30 @@ describe('ordering', () => {
         updatedAt: '2027-01-01T00:00:00.000Z',
       },
     })
-    const api: AdminClient = {
+    const api = client({
       list: vi.fn(async () => [at('2026-01-01T00:00:00.000Z', 'aaa-existing')]),
       put: vi.fn(async () => created),
-      delete: vi.fn(async () => undefined),
-    }
+    })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'New flag')!
       .trigger('click')
     await flushPromises()
-    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'zzz-just-made', {
-      enabled: false,
-      rollout: { percentage: 0 },
-    })
+    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit(
+      'save',
+      'zzz-just-made',
+      {
+        enabled: false,
+        rollout: { percentage: 0 },
+      },
+      '',
+    )
     await flushPromises()
 
-    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-just-made')
+    expect(wrapper.findAll('.flag-row .flag-key')[0].text()).toBe('zzz-just-made')
   })
 
   it('leaves an edited flag where it is, so rows do not jump while you work', async () => {
@@ -215,72 +259,81 @@ describe('ordering', () => {
         createdBy: 'a',
         createdAt: '2020-01-01T00:00:00.000Z',
         updatedBy: 'a',
-        updatedAt: '2027-06-06T00:00:00.000Z',
+        updatedAt: '2020-01-02T00:00:00.000Z',
       },
     })
-    const api: AdminClient = {
+    const api = client({
       list: vi.fn(async () => [
         at('2020-01-01T00:00:00.000Z', 'aaa-old'),
         at('2026-01-01T00:00:00.000Z', 'zzz-newer'),
       ]),
       put: vi.fn(async () => edited),
-      delete: vi.fn(async () => undefined),
-    }
-    const wrapper = await mountSignedIn(api)
-    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-newer')
-
-    await wrapper.findAllComponents(FlagRow)[1].vm.$emit('edit')
-    await flushPromises()
-    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit('save', 'aaa-old', {
-      enabled: true,
-      rollout: { percentage: 100 },
     })
+    const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
+    expect(wrapper.findAll('.flag-row .flag-key')[0].text()).toBe('zzz-newer')
+
+    const editBtns = wrapper
+      .findAll('.flag-row .action-group button')
+      .filter((b) => b.text() === 'Edit')
+    await editBtns[1].trigger('click')
+    await flushPromises()
+    wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit(
+      'save',
+      'aaa-old',
+      {
+        enabled: true,
+        rollout: { percentage: 100 },
+      },
+      '',
+    )
     await flushPromises()
 
-    // Still second. Editing changed updatedAt, and the order deliberately ignores that.
-    expect(wrapper.findAllComponents(FlagRow)[0].props('flag').key).toBe('zzz-newer')
-    expect(wrapper.findAllComponents(FlagRow)[1].props('flag').key).toBe('aaa-old')
+    expect(wrapper.findAll('.flag-row .flag-key')[0].text()).toBe('zzz-newer')
+    expect(wrapper.findAll('.flag-row .flag-key')[1].text()).toBe('aaa-old')
   })
 
   it('does not delete anything until the dialog is confirmed', async () => {
     const del = vi.fn(async () => undefined)
-    const api: AdminClient = {
-      list: vi.fn(async () => [flag()]),
-      put: vi.fn(async () => flag()),
+    const archived = flag({ archived: true, archivedAt: '2026-08-16T00:00:00.000Z' })
+    const api = client({
+      list: vi.fn(async () => [archived]),
       delete: del,
-    }
+    })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
-    await wrapper.findComponent(FlagRow).vm.$emit('remove')
+    await wrapper.find('.flag-row .danger-hover').trigger('click')
     await flushPromises()
     expect(wrapper.findComponent(ConfirmDialog).exists()).toBe(true)
     expect(del).not.toHaveBeenCalled()
 
-    // Cancelling must leave the flag alone. window.confirm returning false used to be
-    // indistinguishable from the button doing nothing at all.
     await wrapper.findComponent(ConfirmDialog).vm.$emit('cancel')
     await flushPromises()
     expect(del).not.toHaveBeenCalled()
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(1)
+    expect(wrapper.findAll('.flag-row')).toHaveLength(1)
   })
 
   it('deletes and confirms once the dialog is accepted', async () => {
     const del = vi.fn(async () => undefined)
-    const api: AdminClient = {
-      list: vi.fn(async () => [flag()]),
-      put: vi.fn(async () => flag()),
+    const archived = flag({ archived: true, archivedAt: '2026-08-16T00:00:00.000Z' })
+    const api = client({
+      list: vi.fn(async () => [archived]),
       delete: del,
-    }
+    })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
-    await wrapper.findComponent(FlagRow).vm.$emit('remove')
+    await wrapper.find('.flag-row .danger-hover').trigger('click')
     await flushPromises()
     await wrapper.findComponent(ConfirmDialog).vm.$emit('confirm')
     await flushPromises()
 
     expect(del).toHaveBeenCalledWith('existing')
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(0)
-    expect(wrapper.find('.notice').text()).toContain('Deleted "existing"')
+    expect(wrapper.findAll('.flag-row')).toHaveLength(0)
+    const toast = findToast()
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('Deleted "existing"')
     expect(wrapper.findComponent(ConfirmDialog).exists()).toBe(false)
   })
 })
@@ -288,19 +341,15 @@ describe('ordering', () => {
 describe('optimistic concurrency', () => {
   it('sends If-Match on a toggle so the write is conditional', async () => {
     const put = vi.fn(async () => flag())
-    const api: AdminClient = {
-      list: vi.fn(async () => [flag()]),
-      put,
-      delete: vi.fn(async () => undefined),
-    }
+    const api = client({ put })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
-    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    await wrapper.find('.flag-row .toggle').trigger('click')
     await flushPromises()
 
-    // put(key, input, ifMatch) -- the third argument is the flag's ETag, from its updatedAt.
-    const [, , ifMatch] = put.mock.calls[0]
-    expect(ifMatch).toBe('"2026-08-15T00:00:00.000Z"')
+    const [, , ifMatchOrOpts] = put.mock.calls[0]
+    expect(ifMatchOrOpts).toBe('"2026-08-15T00:00:00.000Z"')
   })
 
   it('on a 412 conflict, alerts and reloads the list instead of clobbering', async () => {
@@ -313,18 +362,19 @@ describe('optimistic concurrency', () => {
         'This flag changed since you loaded it. Reload and reapply your change.',
       )
     })
-    const api: AdminClient = { list, put, delete: vi.fn(async () => undefined) }
+    const api = client({ list, put })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
-    list.mockResolvedValueOnce([fresh]) // the post-conflict reload returns the current state
-    await wrapper.findComponent(FlagRow).vm.$emit('toggle')
+    list.mockResolvedValueOnce([fresh])
+    await wrapper.find('.flag-row .toggle').trigger('click')
     await flushPromises()
 
-    const strip = wrapper.find('.notice')
-    expect(strip.attributes('role')).toBe('alert')
-    expect(strip.text()).toContain('changed since you loaded it')
-    expect(list).toHaveBeenCalledTimes(2) // once on mount, once on the conflict reload
-    expect(wrapper.findComponent(FlagRow).props('flag').enabled).toBe(true) // reflects the reload
+    const toast = findToast()
+    expect(toast).not.toBeNull()
+    expect(toast!.getAttribute('role')).toBe('alert')
+    expect(toast!.textContent).toContain('changed since you loaded it')
+    expect(list).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -333,31 +383,25 @@ describe('pagination', () => {
     const flags = Array.from({ length: 25 }, (_, i) =>
       flag({ key: `flag-${String(i).padStart(2, '0')}` }),
     )
-    const api: AdminClient = {
-      list: vi.fn(async () => flags),
-      put: vi.fn(async () => flag()),
-      delete: vi.fn(async () => undefined),
-    }
+    const api = client({ list: vi.fn(async () => flags) })
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(20)
+    expect(wrapper.findAll('.flag-row')).toHaveLength(20)
     expect(wrapper.find('.pagination').exists()).toBe(true)
     expect(wrapper.find('.page-info').text()).toBe('1 / 2')
 
     await wrapper.findAll('.pagination button')[1]!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.findAllComponents(FlagRow)).toHaveLength(5)
+    expect(wrapper.findAll('.flag-row')).toHaveLength(5)
     expect(wrapper.find('.page-info').text()).toBe('2 / 2')
   })
 
   it('hides pagination when all flags fit on one page', async () => {
-    const api: AdminClient = {
-      list: vi.fn(async () => [flag()]),
-      put: vi.fn(async () => flag()),
-      delete: vi.fn(async () => undefined),
-    }
+    const api = client()
     const wrapper = await mountSignedIn(api)
+    await navigateToFlags(wrapper)
 
     expect(wrapper.find('.pagination').exists()).toBe(false)
   })

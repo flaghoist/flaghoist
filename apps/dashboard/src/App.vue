@@ -11,40 +11,42 @@ import {
 import AuditLog from './components/AuditLog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
-import FlagRow from './components/FlagRow.vue'
+import Overview from './components/Overview.vue'
+import SettingsPage from './components/SettingsPage.vue'
+import Sidebar from './components/Sidebar.vue'
+import ToastStack, { type Toast } from './components/ToastStack.vue'
 import TokenGate from './components/TokenGate.vue'
 
-// The admin session (URL + token) lives in sessionStorage, not localStorage, so the token dies
-// with the tab instead of sitting on disk indefinitely. localStorage is readable by any script on
-// the origin, and this token is full admin authority with no expiry, so the smaller its window the
-// better. The theme, below, is not sensitive and stays in localStorage. The sign-in URL field
-// defaults to the current origin anyway, so persisting the URL buys little.
 const STORAGE = 'flaghoist.admin'
 const THEME = 'flaghoist.theme'
+const SIDEBAR = 'flaghoist.sidebar'
 
+type View = 'overview' | 'flags' | 'audit' | 'settings'
+type SortKey = 'key' | 'enabled' | 'rollout' | 'updated'
+type SortDir = 'asc' | 'desc'
 type Filter = 'all' | 'live' | 'paused' | 'targeted'
 
 const api = ref<AdminClient | null>(null)
 const serverUrl = ref('')
 const serverToken = ref('')
-const showAudit = ref(false)
+const view = ref<View>('overview')
 const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
 const connecting = ref(false)
 const gateError = ref('')
-/**
- * A message above the list. Errors and confirmations share the strip but not the treatment: an
- * error interrupts with role="alert", a confirmation reports with role="status", which is what
- * a screen reader should do with each.
- */
-type Notice = { text: string; tone: 'ok' | 'error' }
-const notice = ref<Notice | null>(null)
 const busy = ref<Set<string>>(new Set())
 
 const query = ref('')
 const filter = ref<Filter>('all')
 const filters: Filter[] = ['all', 'live', 'paused', 'targeted']
 const searchEl = ref<HTMLInputElement | null>(null)
+const showArchived = ref(false)
+
+const sortKey = ref<SortKey>('updated')
+const sortDir = ref<SortDir>('desc')
+const selectedKeys = ref<Set<string>>(new Set())
+
+const sidebarCollapsed = ref(false)
 
 function clearFilters() {
   query.value = ''
@@ -57,19 +59,56 @@ const editorError = ref('')
 
 const theme = ref<'light' | 'dark' | null>(null)
 
-/**
- * Newest first, so the last flag you added is the first row.
- *
- * Sorted on `createdAt`, not `updatedAt`: ordering by last edit would move a row every time you
- * flipped its toggle, so the list would reshuffle underneath you while you worked through it. Key
- * breaks ties, so flags created in the same millisecond keep a stable order.
- */
-const sorted = computed(() =>
-  [...flags.value].sort(
-    (a, b) =>
-      b.metadata.createdAt.localeCompare(a.metadata.createdAt) || a.key.localeCompare(b.key),
-  ),
-)
+/* ---- toasts --------------------------------------------------------------- */
+
+let toastId = 0
+const toasts = ref<Toast[]>([])
+
+function toast(text: string, tone: 'ok' | 'error') {
+  const id = ++toastId
+  toasts.value.push({ id, text, tone })
+  setTimeout(() => dismissToast(id), tone === 'error' ? 8000 : 4000)
+}
+
+function dismissToast(id: number) {
+  toasts.value = toasts.value.filter((t) => t.id !== id)
+}
+
+/* ---- sorting -------------------------------------------------------------- */
+
+function toggleSort(key: SortKey) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDir.value = key === 'key' ? 'asc' : 'desc'
+  }
+}
+
+const sorted = computed(() => {
+  const arr = [...flags.value]
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  arr.sort((a, b) => {
+    let cmp = 0
+    switch (sortKey.value) {
+      case 'key':
+        cmp = a.key.localeCompare(b.key)
+        break
+      case 'enabled':
+        cmp = Number(a.enabled) - Number(b.enabled)
+        break
+      case 'rollout':
+        cmp = a.rollout.percentage - b.rollout.percentage
+        break
+      case 'updated':
+        cmp = a.metadata.updatedAt.localeCompare(b.metadata.updatedAt)
+        break
+    }
+    if (cmp !== 0) return dir * cmp
+    return a.key.localeCompare(b.key)
+  })
+  return arr
+})
 
 const counts = computed(() => ({
   all: flags.value.length,
@@ -78,7 +117,6 @@ const counts = computed(() => ({
   targeted: flags.value.filter((f) => (f.rules?.length ?? 0) > 0).length,
 }))
 
-/** Would this flag survive the filter and search that are active right now? */
 function matchesActiveView(flag: FeatureFlag): boolean {
   const q = query.value.trim().toLowerCase()
   if (q && !flag.key.toLowerCase().includes(q) && !flag.description?.toLowerCase().includes(q)) {
@@ -106,6 +144,32 @@ watch([query, filter], () => {
   page.value = 1
 })
 
+/* ---- selection ------------------------------------------------------------ */
+
+const allPageSelected = computed(
+  () => paged.value.length > 0 && paged.value.every((f) => selectedKeys.value.has(f.key)),
+)
+
+function toggleSelectAll() {
+  if (allPageSelected.value) {
+    const pageKeys = new Set(paged.value.map((f) => f.key))
+    selectedKeys.value = new Set([...selectedKeys.value].filter((k) => !pageKeys.has(k)))
+  } else {
+    selectedKeys.value = new Set([...selectedKeys.value, ...paged.value.map((f) => f.key)])
+  }
+}
+
+function toggleSelect(key: string) {
+  const next = new Set(selectedKeys.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  selectedKeys.value = next
+}
+
+function clearSelection() {
+  selectedKeys.value = new Set()
+}
+
 /* ---- theme ---------------------------------------------------------------- */
 
 function resolvedTheme(): 'light' | 'dark' {
@@ -120,7 +184,7 @@ function toggleTheme() {
   try {
     localStorage.setItem(THEME, next)
   } catch {
-    /* private mode: the choice just does not persist */
+    /* private mode */
   }
 }
 
@@ -141,7 +205,7 @@ async function connect(url: string, token: string, persist = true) {
   gateError.value = ''
   const client = createAdminClient({ url, token })
   try {
-    flags.value = await client.list()
+    flags.value = await client.list({ includeArchived: showArchived.value })
     api.value = client
     serverUrl.value = url
     serverToken.value = token
@@ -163,9 +227,10 @@ function disconnect(message = '') {
   sessionStorage.removeItem(STORAGE)
   api.value = null
   serverToken.value = ''
-  showAudit.value = false
+  view.value = 'overview'
   flags.value = []
-  notice.value = null
+  toasts.value = []
+  selectedKeys.value = new Set()
   gateError.value = message
 }
 
@@ -177,11 +242,6 @@ function replaceFlag(updated: FeatureFlag) {
   else flags.value.push(updated)
 }
 
-/**
- * A 412 means someone else changed this flag since it was loaded, and the write was refused rather
- * than allowed to clobber theirs. Pull the current state back in so the row reflects reality and the
- * next attempt carries a fresh ETag; the error message tells the operator to reapply.
- */
 async function reloadOnConflict(e: unknown) {
   if (e instanceof ApiError && e.status === 412 && api.value) {
     try {
@@ -192,10 +252,6 @@ async function reloadOnConflict(e: unknown) {
   }
 }
 
-/**
- * A 401 mid-session means the token expired or was revoked. Staying on the list would leave every
- * later action failing with no way back, so the session ends and the gate explains why.
- */
 function handle(e: unknown): string {
   if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
     disconnect('Your session ended: the server rejected the admin token. Sign in again.')
@@ -206,11 +262,11 @@ function handle(e: unknown): string {
 
 async function withBusy(key: string, fn: () => Promise<void>) {
   busy.value = new Set(busy.value).add(key)
-  notice.value = null
   try {
     await fn()
   } catch (e) {
-    notice.value = { text: handle(e), tone: 'error' }
+    const msg = handle(e)
+    if (msg) toast(msg, 'error')
     await reloadOnConflict(e)
   } finally {
     const next = new Set(busy.value)
@@ -243,14 +299,50 @@ function setRollout(flag: FeatureFlag, pct: number) {
   })
 }
 
-/**
- * Deleting asks first, in the page.
- *
- * `window.confirm` was doing this and could not be trusted: Chrome offers "prevent this page from
- * creating additional dialogs" after a few in a row, and once ticked every later call returns false
- * with no dialog. Delete then did nothing, silently, which reads as a broken button rather than a
- * refused action.
- */
+/* ---- bulk actions --------------------------------------------------------- */
+
+const bulkBusy = ref(false)
+
+async function bulkEnable() {
+  bulkBusy.value = true
+  let count = 0
+  for (const key of selectedKeys.value) {
+    const flag = flags.value.find((f) => f.key === key)
+    if (!flag || flag.enabled) continue
+    try {
+      const input = inputFrom(flag, { enabled: true })
+      replaceFlag(await api.value!.put(flag.key, input, flagEtag(flag)))
+      count++
+    } catch (e) {
+      toast(`Failed to enable ${key}: ${describe(e)}`, 'error')
+    }
+  }
+  bulkBusy.value = false
+  if (count) toast(`Enabled ${count} flag${count > 1 ? 's' : ''}.`, 'ok')
+  clearSelection()
+}
+
+async function bulkDisable() {
+  bulkBusy.value = true
+  let count = 0
+  for (const key of selectedKeys.value) {
+    const flag = flags.value.find((f) => f.key === key)
+    if (!flag || !flag.enabled) continue
+    try {
+      const input = inputFrom(flag, { enabled: false })
+      replaceFlag(await api.value!.put(flag.key, input, flagEtag(flag)))
+      count++
+    } catch (e) {
+      toast(`Failed to disable ${key}: ${describe(e)}`, 'error')
+    }
+  }
+  bulkBusy.value = false
+  if (count) toast(`Disabled ${count} flag${count > 1 ? 's' : ''}.`, 'ok')
+  clearSelection()
+}
+
+/* ---- delete --------------------------------------------------------------- */
+
 const pendingDelete = ref<FeatureFlag | null>(null)
 
 function confirmDelete() {
@@ -260,43 +352,73 @@ function confirmDelete() {
     await api.value!.delete(flag.key)
     flags.value = flags.value.filter((f) => f.key !== flag.key)
     pendingDelete.value = null
-    notice.value = { text: `Deleted "${flag.key}".`, tone: 'ok' }
+    toast(`Deleted "${flag.key}".`, 'ok')
   })
 }
 
-async function saveFromEditor(key: string, input: FlagInput) {
+async function saveFromEditor(key: string, input: FlagInput, changeDescription: string) {
   const original = editor.value?.flag
   const creating = original == null
   editorBusy.value = true
   editorError.value = ''
   try {
-    // Editing sends If-Match so a stale save is refused rather than clobbering; creating does not.
-    const saved = await api.value!.put(key, input, original ? flagEtag(original) : undefined)
+    const opts = {
+      ifMatch: original ? flagEtag(original) : undefined,
+      changeDescription: changeDescription || undefined,
+    }
+    const saved = await api.value!.put(key, input, opts)
     replaceFlag(saved)
-    // A new flag that does not match the active filter is saved and then immediately hidden, which
-    // reads as the save having silently failed. Creating a live flag while the paused chip is
-    // selected did exactly that. Drop the filter so the thing you just made is visible, and say so.
     if (creating) {
-      // The list is alphabetical, so a new flag can land below the fold and the closing modal is
-      // the only sign anything happened. Confirm it either way, and say when the filter moved.
       const hidden = !matchesActiveView(saved)
       if (hidden) clearFilters()
-      notice.value = {
-        text: hidden
+      toast(
+        hidden
           ? `Created "${saved.key}". Filters were cleared so you can see it.`
           : `Created "${saved.key}".`,
-        tone: 'ok',
-      }
+        'ok',
+      )
     }
     editor.value = null
   } catch (e) {
     const msg = handle(e)
-    if (!api.value)
-      editor.value = null // session ended underneath us
+    if (!api.value) editor.value = null
     else editorError.value = msg
     await reloadOnConflict(e)
   } finally {
     editorBusy.value = false
+  }
+}
+
+/* ---- archive/restore ------------------------------------------------------ */
+
+function archiveFlag(flag: FeatureFlag) {
+  return withBusy(flag.key, async () => {
+    const archived = await api.value!.archive(flag.key)
+    if (showArchived.value) {
+      replaceFlag(archived)
+    } else {
+      flags.value = flags.value.filter((f) => f.key !== flag.key)
+    }
+    toast(`Archived "${flag.key}".`, 'ok')
+  })
+}
+
+function restoreFlag(flag: FeatureFlag) {
+  return withBusy(flag.key, async () => {
+    const restored = await api.value!.restore(flag.key)
+    replaceFlag(restored)
+    toast(`Restored "${flag.key}".`, 'ok')
+  })
+}
+
+async function toggleShowArchived() {
+  showArchived.value = !showArchived.value
+  if (!api.value) return
+  try {
+    flags.value = await api.value.list({ includeArchived: showArchived.value })
+  } catch (e) {
+    const msg = handle(e)
+    if (msg) toast(msg, 'error')
   }
 }
 
@@ -355,32 +477,76 @@ const IDLE_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'] as const
 
 /* ---- keyboard ------------------------------------------------------------- */
 
+let goPending = false
+
 function onKey(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null
   const typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)
 
   if (e.key === 'Escape') {
-    if (showAudit.value) showAudit.value = false
-    else if (pendingDelete.value) pendingDelete.value = null
+    if (pendingDelete.value) pendingDelete.value = null
     else if (editor.value) editor.value = null
     else if (query.value) query.value = ''
     else if (typing) (el as HTMLElement).blur()
     return
   }
+
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return
   if (!api.value) return
 
+  if (goPending) {
+    goPending = false
+    if (e.key === 'f') {
+      e.preventDefault()
+      view.value = 'flags'
+    } else if (e.key === 'a') {
+      e.preventDefault()
+      view.value = 'audit'
+    } else if (e.key === 'o') {
+      e.preventDefault()
+      view.value = 'overview'
+    } else if (e.key === 's') {
+      e.preventDefault()
+      view.value = 'settings'
+    }
+    return
+  }
+
+  if (e.key === 'g') {
+    goPending = true
+    setTimeout(() => {
+      goPending = false
+    }, 600)
+    return
+  }
   if (e.key === '/') {
     e.preventDefault()
-    searchEl.value?.focus()
+    view.value = 'flags'
+    setTimeout(() => searchEl.value?.focus(), 50)
   } else if (e.key === 'n') {
     e.preventDefault()
+    view.value = 'flags'
     editor.value = { flag: null }
-  } else if (e.key === 'a') {
-    e.preventDefault()
-    showAudit.value = !showAudit.value
   }
 }
+
+/* ---- formatted date helper ------------------------------------------------ */
+
+function formatTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
+/* ---- lifecycle ------------------------------------------------------------ */
 
 onMounted(() => {
   try {
@@ -390,12 +556,15 @@ onMounted(() => {
     /* private mode */
   }
 
+  try {
+    if (localStorage.getItem(SIDEBAR) === 'collapsed') sidebarCollapsed.value = true
+  } catch {
+    /* private mode */
+  }
+
   window.addEventListener('keydown', onKey)
   for (const evt of IDLE_EVENTS) window.addEventListener(evt, resetIdleTimer, { passive: true })
 
-  // A build before the token moved to sessionStorage may have left one in localStorage. The new
-  // code never reads or writes it, so it would sit on disk indefinitely, which is exactly what
-  // moving to sessionStorage was meant to prevent. Purge it once, on load.
   localStorage.removeItem(STORAGE)
 
   const saved = sessionStorage.getItem(STORAGE)
@@ -418,6 +587,22 @@ onUnmounted(() => {
   stopIdleTimer()
   stopSessionClock()
 })
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  try {
+    localStorage.setItem(SIDEBAR, sidebarCollapsed.value ? 'collapsed' : 'expanded')
+  } catch {
+    /* private mode */
+  }
+}
+
+function flagState(f: FeatureFlag): { kind: string; label: string } {
+  if (!f.enabled) return { kind: 'off', label: 'off' }
+  if (f.rollout.percentage === 0) return { kind: 'disabled', label: '0%' }
+  if (f.rollout.percentage < 100) return { kind: 'split', label: `${f.rollout.percentage}%` }
+  return { kind: 'on', label: 'on' }
+}
 </script>
 
 <template>
@@ -430,175 +615,365 @@ onUnmounted(() => {
     @toggle-theme="toggleTheme"
   />
 
-  <div v-else class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <svg width="22" height="22" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-          <circle cx="16" cy="9" r="3" fill="currentColor" />
-          <rect x="14.25" y="9" width="3.5" height="48" rx="1.75" fill="currentColor" />
-          <path d="M16 13 L52 15.5 L40.5 24 L52 32.5 L16 31 Z" fill="var(--signal)" />
-        </svg>
-        <span class="wordmark">Flag<span>hoist</span></span>
-      </div>
-
-      <span class="server mono" :title="serverUrl">{{ serverUrl }}</span>
-
-      <span v-if="sessionAge" class="session-info" :title="`Connected for ${sessionAge}`">
-        <svg viewBox="0 0 24 24" aria-hidden="true" class="session-icon">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3.5 2" />
-        </svg>
-        {{ sessionAge }}
-      </span>
-
-      <div class="topbar-actions">
-        <button
-          class="icon-btn"
-          :aria-label="
-            resolvedTheme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'
-          "
-          @click="toggleTheme"
-        >
-          <svg v-if="resolvedTheme() === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="4.4" />
-            <path
-              d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.3 5.3l1.9 1.9M16.8 16.8l1.9 1.9M18.7 5.3l-1.9 1.9M7.2 16.8l-1.9 1.9"
-            />
-          </svg>
-          <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1Z" />
-          </svg>
-        </button>
-        <button class="btn btn-ghost btn-sm" @click="showAudit = true">Audit log</button>
-        <button class="btn btn-ghost btn-sm" @click="disconnect()">Disconnect</button>
-        <button class="btn btn-primary btn-sm" @click="editor = { flag: null }">New flag</button>
-      </div>
-    </header>
-
-    <AuditLog
-      v-if="showAudit"
+  <div v-else class="shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <Sidebar
+      :view="view"
+      :collapsed="sidebarCollapsed"
       :server-url="serverUrl"
-      :token="serverToken"
-      @back="showAudit = false"
+      :session-age="sessionAge"
+      :theme="resolvedTheme()"
+      :counts="{ all: counts.all, live: counts.live, paused: counts.paused }"
+      @navigate="
+        (v: string) => {
+          view = v as View
+          selectedKeys = new Set()
+        }
+      "
+      @disconnect="disconnect()"
+      @toggle-theme="toggleTheme"
+      @toggle-collapse="toggleSidebar"
     />
 
-    <main v-else class="content">
-      <div class="toolbar">
-        <div class="search">
-          <svg viewBox="0 0 24 24" aria-hidden="true" class="search-icon">
-            <circle cx="11" cy="11" r="6.4" />
-            <path d="m16 16 4.5 4.5" />
+    <div class="main-area">
+      <!-- Mobile header (visible on small screens only) -->
+      <header class="mobile-header">
+        <button class="mobile-menu" aria-label="Toggle menu" @click="toggleSidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
-          <input
-            ref="searchEl"
-            v-model="query"
-            type="search"
-            placeholder="Search flags"
-            aria-label="Search flags"
-          />
-          <kbd v-if="!query">/</kbd>
-        </div>
-
-        <div class="filters" role="group" aria-label="Filter flags">
-          <button
-            v-for="f in filters"
-            :key="f"
-            class="chip"
-            :class="{ on: filter === f }"
-            :aria-pressed="filter === f"
-            @click="filter = f"
-          >
-            {{ f }}<span class="chip-n">{{ counts[f] }}</span>
-          </button>
-        </div>
-      </div>
-
-      <p
-        v-if="notice"
-        class="notice"
-        :class="notice.tone"
-        :role="notice.tone === 'error' ? 'alert' : 'status'"
-      >
-        {{ notice.text }}
-      </p>
-
-      <!-- Skeleton rows rather than a spinner: the shape of what is coming, in place. -->
-      <div v-if="loading" class="list" aria-busy="true" aria-label="Loading flags">
-        <div v-for="i in 3" :key="i" class="skeleton-row">
-          <div class="sk sk-key"></div>
-          <div class="sk sk-desc"></div>
-          <div class="sk sk-bar"></div>
-        </div>
-      </div>
-
-      <div v-else-if="flags.length === 0" class="blank">
-        <h2>No flags yet</h2>
-        <p>
-          Create one here, or from the CLI with <code class="mono">flaghoist flag create</code>.
-        </p>
-        <button class="btn btn-primary" @click="editor = { flag: null }">Create a flag</button>
-      </div>
-
-      <div v-else-if="visible.length === 0" class="blank">
-        <h2>Nothing matches</h2>
-        <p>
-          No flag matches
-          <template v-if="query"
-            >“<strong>{{ query }}</strong
-            >”</template
-          >
-          <template v-if="query && filter !== 'all'"> in </template>
-          <template v-if="filter !== 'all'"
-            ><strong>{{ filter }}</strong></template
-          >.
-        </p>
-        <button class="btn btn-ghost" @click="clearFilters">Clear filters</button>
-      </div>
-
-      <div v-else class="list">
-        <FlagRow
-          v-for="flag in paged"
-          :key="flag.key"
-          :flag="flag"
-          :busy="busy.has(flag.key)"
-          @toggle="toggle(flag)"
-          @rollout="(p: number) => setRollout(flag, p)"
-          @edit="editor = { flag }"
-          @remove="pendingDelete = flag"
-        />
-      </div>
-
-      <nav v-if="totalPages > 1" class="pagination" aria-label="Flag list pages">
-        <button
-          class="btn btn-ghost btn-sm"
-          :disabled="page <= 1"
-          @click="page = Math.max(1, page - 1)"
-        >
-          Previous
         </button>
-        <span class="page-info">{{ page }} / {{ totalPages }}</span>
+        <span class="mobile-title">{{
+          view === 'overview'
+            ? 'Overview'
+            : view === 'flags'
+              ? 'Flags'
+              : view === 'audit'
+                ? 'Audit log'
+                : 'Settings'
+        }}</span>
         <button
-          class="btn btn-ghost btn-sm"
-          :disabled="page >= totalPages"
-          @click="page = Math.min(totalPages, page + 1)"
+          class="btn btn-primary btn-sm"
+          v-if="view === 'flags'"
+          @click="editor = { flag: null }"
         >
-          Next
+          New flag
         </button>
-      </nav>
+      </header>
 
-      <ConfirmDialog
-        v-if="pendingDelete"
-        :title="`Delete ${pendingDelete.key}?`"
-        :body="`This removes the flag from storage. Anything reading it falls back to the default your code passes in. This cannot be undone.`"
-        :busy="busy.has(pendingDelete.key)"
-        @confirm="confirmDelete"
-        @cancel="pendingDelete = null"
+      <!-- Overview -->
+      <Overview
+        v-if="view === 'overview'"
+        :flags="flags"
+        :server-url="serverUrl"
+        :token="serverToken"
+        @navigate="
+          (v: string) => {
+            view = v as View
+          }
+        "
+        @toggle="toggle"
       />
 
-      <p v-if="!loading && flags.length > 0" class="hintbar">
-        <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>a</kbd> audit · <kbd>esc</kbd> clear
-      </p>
-    </main>
+      <!-- Flags -->
+      <main v-else-if="view === 'flags'" class="content">
+        <div class="flags-header">
+          <h1 class="page-title">Flags</h1>
+          <button class="btn btn-primary btn-sm" @click="editor = { flag: null }">New flag</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="search-icon">
+              <circle cx="11" cy="11" r="6.4" />
+              <path d="m16 16 4.5 4.5" />
+            </svg>
+            <input
+              ref="searchEl"
+              v-model="query"
+              type="search"
+              placeholder="Search flags"
+              aria-label="Search flags"
+            />
+            <kbd v-if="!query">/</kbd>
+          </div>
+
+          <div class="filters" role="group" aria-label="Filter flags">
+            <button
+              v-for="f in filters"
+              :key="f"
+              class="chip"
+              :class="{ on: filter === f }"
+              :aria-pressed="filter === f"
+              @click="filter = f"
+            >
+              {{ f }}<span class="chip-n">{{ counts[f] }}</span>
+            </button>
+            <label class="archive-toggle">
+              <input type="checkbox" :checked="showArchived" @change="toggleShowArchived" />
+              <span>Archived</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Bulk action bar -->
+        <div v-if="selectedKeys.size > 0" class="bulk-bar">
+          <span class="bulk-count">{{ selectedKeys.size }} selected</span>
+          <button class="btn btn-ghost btn-sm" :disabled="bulkBusy" @click="bulkEnable">
+            Enable
+          </button>
+          <button class="btn btn-ghost btn-sm" :disabled="bulkBusy" @click="bulkDisable">
+            Disable
+          </button>
+          <button class="btn btn-quiet btn-sm" @click="clearSelection">Clear</button>
+        </div>
+
+        <div v-if="loading" class="list" aria-busy="true" aria-label="Loading flags">
+          <div v-for="i in 3" :key="i" class="skeleton-row">
+            <div class="sk sk-key"></div>
+            <div class="sk sk-desc"></div>
+            <div class="sk sk-bar"></div>
+          </div>
+        </div>
+
+        <div v-else-if="flags.length === 0" class="empty-state">
+          <svg class="empty-illus" viewBox="0 0 140 110" aria-hidden="true">
+            <rect
+              x="20"
+              y="25"
+              width="100"
+              height="60"
+              rx="8"
+              fill="var(--surface-2)"
+              stroke="var(--line)"
+              stroke-width="1.5"
+            />
+            <path
+              d="M50 45 l5 -12 h30 l5 12"
+              fill="none"
+              stroke="var(--signal)"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <circle
+              cx="70"
+              cy="55"
+              r="10"
+              fill="var(--accent-wash)"
+              stroke="var(--signal)"
+              stroke-width="1.5"
+            />
+            <path
+              d="M67 55 l2 2 4-4"
+              fill="none"
+              stroke="var(--signal)"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <line
+              x1="45"
+              y1="72"
+              x2="95"
+              y2="72"
+              stroke="var(--line)"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <h2>No flags yet</h2>
+          <p>
+            Create one here, or from the CLI with <code class="mono">flaghoist flag create</code>.
+          </p>
+          <button class="btn btn-primary" @click="editor = { flag: null }">Create a flag</button>
+        </div>
+
+        <div v-else-if="visible.length === 0" class="empty-state">
+          <h2>Nothing matches</h2>
+          <p>
+            No flag matches
+            <template v-if="query"
+              >"<strong>{{ query }}</strong
+              >"</template
+            >
+            <template v-if="query && filter !== 'all'"> in </template>
+            <template v-if="filter !== 'all'"
+              ><strong>{{ filter }}</strong></template
+            >.
+          </p>
+          <button class="btn btn-ghost" @click="clearFilters">Clear filters</button>
+        </div>
+
+        <div v-else class="table-wrap">
+          <table class="flag-table">
+            <thead>
+              <tr>
+                <th class="col-check">
+                  <input
+                    type="checkbox"
+                    :checked="allPageSelected"
+                    :indeterminate="selectedKeys.size > 0 && !allPageSelected"
+                    aria-label="Select all flags on this page"
+                    @change="toggleSelectAll"
+                  />
+                </th>
+                <th class="col-key sortable" @click="toggleSort('key')">
+                  Key
+                  <span v-if="sortKey === 'key'" class="sort-arrow">{{
+                    sortDir === 'asc' ? '↑' : '↓'
+                  }}</span>
+                </th>
+                <th class="col-status sortable" @click="toggleSort('enabled')">
+                  Status
+                  <span v-if="sortKey === 'enabled'" class="sort-arrow">{{
+                    sortDir === 'asc' ? '↑' : '↓'
+                  }}</span>
+                </th>
+                <th class="col-rollout sortable" @click="toggleSort('rollout')">
+                  Rollout
+                  <span v-if="sortKey === 'rollout'" class="sort-arrow">{{
+                    sortDir === 'asc' ? '↑' : '↓'
+                  }}</span>
+                </th>
+                <th class="col-updated sortable" @click="toggleSort('updated')">
+                  Updated
+                  <span v-if="sortKey === 'updated'" class="sort-arrow">{{
+                    sortDir === 'asc' ? '↑' : '↓'
+                  }}</span>
+                </th>
+                <th class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="flag in paged"
+                :key="flag.key"
+                class="flag-row"
+                :class="{
+                  selected: selectedKeys.has(flag.key),
+                  off: !flag.enabled,
+                  archived: flag.archived,
+                }"
+              >
+                <td class="col-check">
+                  <input
+                    type="checkbox"
+                    :checked="selectedKeys.has(flag.key)"
+                    :aria-label="`Select ${flag.key}`"
+                    @change="toggleSelect(flag.key)"
+                  />
+                </td>
+                <td class="col-key">
+                  <div class="key-cell">
+                    <code class="flag-key mono">{{ flag.key }}</code>
+                    <span v-if="flag.description" class="flag-desc">{{ flag.description }}</span>
+                  </div>
+                </td>
+                <td class="col-status">
+                  <span v-if="flag.archived" class="badge badge-archived">archived</span>
+                  <span v-else class="badge" :class="`badge-${flagState(flag).kind}`">{{
+                    flagState(flag).label
+                  }}</span>
+                </td>
+                <td class="col-rollout">
+                  <div class="rollout-cell">
+                    <div class="rollout-bar">
+                      <div
+                        class="rollout-fill"
+                        :style="{ width: `${flag.rollout.percentage}%` }"
+                      ></div>
+                    </div>
+                    <span class="rollout-pct mono">{{ flag.rollout.percentage }}%</span>
+                  </div>
+                </td>
+                <td class="col-updated">
+                  <span class="time-cell">{{ formatTime(flag.metadata.updatedAt) }}</span>
+                  <span class="actor-cell">{{ flag.metadata.updatedBy }}</span>
+                </td>
+                <td class="col-actions">
+                  <div v-if="flag.archived" class="action-group">
+                    <button
+                      class="btn btn-quiet btn-sm"
+                      :disabled="busy.has(flag.key)"
+                      @click="restoreFlag(flag)"
+                    >
+                      Restore
+                    </button>
+                    <button class="btn btn-quiet btn-sm danger-hover" @click="pendingDelete = flag">
+                      Delete
+                    </button>
+                  </div>
+                  <div v-else class="action-group">
+                    <button
+                      class="toggle toggle-sm"
+                      :data-on="flag.enabled"
+                      :disabled="busy.has(flag.key)"
+                      :aria-label="flag.enabled ? `Disable ${flag.key}` : `Enable ${flag.key}`"
+                      @click="toggle(flag)"
+                    ></button>
+                    <button class="btn btn-quiet btn-sm" @click="editor = { flag }">Edit</button>
+                    <button class="btn btn-quiet btn-sm danger-hover" @click="archiveFlag(flag)">
+                      Archive
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <nav v-if="totalPages > 1" class="pagination" aria-label="Flag list pages">
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="page <= 1"
+            @click="page = Math.max(1, page - 1)"
+          >
+            Previous
+          </button>
+          <span class="page-info mono">{{ page }} / {{ totalPages }}</span>
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="page >= totalPages"
+            @click="page = Math.min(totalPages, page + 1)"
+          >
+            Next
+          </button>
+        </nav>
+
+        <ConfirmDialog
+          v-if="pendingDelete"
+          :title="`Delete ${pendingDelete.key}?`"
+          :body="`This removes the flag from storage. Anything reading it falls back to the default your code passes in. This cannot be undone.`"
+          :busy="busy.has(pendingDelete.key)"
+          @confirm="confirmDelete"
+          @cancel="pendingDelete = null"
+        />
+
+        <p v-if="!loading && flags.length > 0" class="hintbar">
+          <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>g</kbd><kbd>a</kbd> audit ·
+          <kbd>esc</kbd> clear
+        </p>
+      </main>
+
+      <!-- Audit -->
+      <AuditLog
+        v-else-if="view === 'audit'"
+        :server-url="serverUrl"
+        :token="serverToken"
+        @back="view = 'flags'"
+      />
+
+      <!-- Settings -->
+      <SettingsPage
+        v-else-if="view === 'settings'"
+        :server-url="serverUrl"
+        :session-age="sessionAge"
+        :theme="resolvedTheme()"
+        @disconnect="disconnect()"
+        @toggle-theme="toggleTheme"
+      />
+    </div>
 
     <FlagEditor
       v-if="editor"
@@ -609,110 +984,80 @@ onUnmounted(() => {
       @save="saveFromEditor"
       @cancel="editor = null"
     />
+
+    <ToastStack :toasts="toasts" @dismiss="dismissToast" />
   </div>
 </template>
 
 <style scoped>
 .shell {
   min-height: 100dvh;
+  padding-left: 220px;
+  transition: padding-left 0.2s ease;
+}
+.shell.sidebar-collapsed {
+  padding-left: 56px;
 }
 
-/* ---- topbar ---- */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
+.main-area {
+  min-height: 100dvh;
+}
+
+/* ---- mobile header ---- */
+.mobile-header {
+  display: none;
   align-items: center;
-  gap: 1rem;
-  padding: 0.7rem 1.2rem;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(10px);
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
   border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
-.brand {
+.mobile-menu {
   display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--text);
-}
-.wordmark {
-  font-size: 1.02rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-.wordmark span {
-  color: var(--signal);
-}
-.server {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.75rem;
-  color: var(--text-mute);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.session-info {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.72rem;
-  color: var(--text-mute);
-  white-space: nowrap;
-}
-.session-icon {
-  width: 13px;
-  height: 13px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-}
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-.icon-btn {
-  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid transparent;
+  border: none;
   border-radius: var(--r-sm);
   background: none;
   color: var(--text-2);
-  transition:
-    color 0.12s,
-    background 0.12s;
+  padding: 0;
 }
-.icon-btn:hover {
-  color: var(--text);
-  background: var(--accent-wash);
-}
-.icon-btn svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
+.mobile-menu svg {
+  width: 18px;
+  height: 18px;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 2;
   stroke-linecap: round;
+}
+.mobile-title {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 /* ---- content ---- */
 .content {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.4rem 1.2rem 4rem;
+  padding: 1.4rem 1.5rem 4rem;
+}
+.flags-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.page-title {
+  font-size: 1.2rem;
 }
 .toolbar {
   display: flex;
   align-items: center;
   gap: 0.8rem;
   flex-wrap: wrap;
-  margin-bottom: 1.1rem;
+  margin-bottom: 1rem;
 }
 .search {
   position: relative;
@@ -788,50 +1133,253 @@ onUnmounted(() => {
   font-size: 0.7rem;
   opacity: 0.75;
 }
-
-.notice {
-  margin: 0 0 0.9rem;
-  padding: 0.6rem 0.8rem;
+.archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.82rem;
-  border-radius: var(--r-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  margin-left: 0.5rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--line);
 }
-.notice.error {
-  color: var(--red-text);
-  background: var(--red-wash);
-}
-.notice.ok {
-  color: var(--green-text);
-  background: var(--green-wash);
+.archive-toggle input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--signal);
+  cursor: pointer;
 }
 
-/* Hairline list rather than a stack of cards: denser, and the eye tracks one column of keys. */
-.list {
+/* ---- bulk bar ---- */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  margin-bottom: 0.75rem;
+  background: var(--accent-wash);
+  border: 1px solid var(--signal);
+  border-radius: var(--r-sm);
+  font-size: 0.82rem;
+}
+.bulk-count {
+  font-weight: 600;
+  color: var(--accent-text);
+  margin-right: auto;
+}
+
+/* ---- data table ---- */
+.table-wrap {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--surface);
-  overflow: hidden;
+  overflow-x: auto;
+}
+.flag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.flag-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  user-select: none;
+}
+.flag-table th.sortable {
+  cursor: pointer;
+}
+.flag-table th.sortable:hover {
+  color: var(--text);
+}
+.sort-arrow {
+  font-size: 0.7rem;
+  margin-left: 0.2rem;
+}
+.flag-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+.flag-table tr:last-child td {
+  border-bottom: none;
+}
+.flag-row {
+  transition: background 0.1s;
+}
+.flag-row:hover {
+  background: var(--surface-2);
+}
+.flag-row.selected {
+  background: var(--accent-wash);
+}
+.flag-row.off .col-key,
+.flag-row.off .col-rollout {
+  opacity: 0.55;
+}
+.flag-row.archived {
+  opacity: 0.6;
+}
+.flag-row.archived .col-key,
+.flag-row.archived .col-rollout {
+  opacity: 0.55;
 }
 
-/* ---- states ---- */
-.blank {
+.badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: var(--r-pill);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.badge-on {
+  background: var(--green-wash);
+  color: var(--green-text);
+}
+.badge-off,
+.badge-disabled {
+  background: var(--surface-2);
+  color: var(--text-mute);
+}
+.badge-split {
+  background: var(--accent-wash);
+  color: var(--accent-text);
+}
+.badge-archived {
+  background: var(--surface-2);
+  color: var(--text-mute);
+  font-style: italic;
+}
+
+.col-check {
+  width: 36px;
+  text-align: center;
+}
+.col-check input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--signal);
+  cursor: pointer;
+}
+.col-key {
+  min-width: 160px;
+}
+.key-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.flag-key {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.flag-desc {
+  font-size: 0.74rem;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+.col-status {
+  width: 70px;
+}
+.col-rollout {
+  width: 130px;
+}
+.rollout-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.rollout-bar {
+  flex: 1;
+  height: 4px;
+  background: light-dark(rgba(11, 30, 58, 0.12), rgba(247, 244, 236, 0.12));
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.rollout-fill {
+  height: 100%;
+  background: var(--signal);
+  border-radius: var(--r-pill);
+  transition: width 0.2s ease;
+}
+.rollout-pct {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-text);
+  width: 2.4rem;
+  text-align: right;
+}
+.col-updated {
+  width: 140px;
+}
+.time-cell {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+.actor-cell {
+  font-size: 0.68rem;
+  color: var(--text-mute);
+}
+.col-actions {
+  width: 160px;
+}
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.danger-hover:hover {
+  color: var(--red-text);
+  background: var(--red-wash);
+}
+
+/* ---- empty states ---- */
+.empty-state {
   text-align: center;
   padding: 3.5rem 2rem;
   border: 1px dashed var(--line);
   border-radius: var(--r-md);
 }
-.blank h2 {
+.empty-illus {
+  width: 140px;
+  height: 110px;
+  margin-bottom: 1rem;
+}
+.empty-state h2 {
   font-size: 1.05rem;
 }
-.blank p {
+.empty-state p {
   margin: 0.4rem 0 1.1rem;
   font-size: 0.88rem;
   color: var(--text-2);
 }
-.blank code {
+.empty-state code {
   font-size: 0.85em;
   background: var(--accent-wash);
   padding: 0.08rem 0.32rem;
   border-radius: 4px;
+}
+
+.list {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
 }
 .skeleton-row {
   padding: 0.95rem 1rem;
@@ -878,7 +1426,6 @@ onUnmounted(() => {
 }
 .page-info {
   font-size: 0.78rem;
-  font-family: var(--font-mono);
   color: var(--text-2);
 }
 .hintbar {
@@ -888,16 +1435,40 @@ onUnmounted(() => {
   color: var(--text-mute);
 }
 
-@media (max-width: 640px) {
-  .server,
-  .session-info {
+/* ---- mobile overlay sidebar ---- */
+@media (max-width: 768px) {
+  .shell {
+    padding-left: 0;
+  }
+  .shell.sidebar-collapsed {
+    padding-left: 0;
+  }
+  .mobile-header {
+    display: flex;
+  }
+  :deep(.sidebar) {
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    width: 260px;
+    box-shadow: var(--shadow);
+  }
+  .shell:not(.sidebar-collapsed) :deep(.sidebar) {
+    transform: translateX(0);
+  }
+  .shell.sidebar-collapsed :deep(.sidebar) {
+    transform: translateX(-100%);
+  }
+  .flags-header .btn {
     display: none;
   }
-  .topbar {
-    flex-wrap: wrap;
+  .col-check,
+  .col-rollout,
+  .col-updated {
+    display: none;
   }
-  .pagination {
-    gap: 0.5rem;
+  .flag-table th,
+  .flag-table td {
+    padding: 0.5rem;
   }
 }
 </style>

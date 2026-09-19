@@ -8,6 +8,7 @@ import {
   type FeatureFlag,
   type FlagInput,
 } from './api'
+import AuditLog from './components/AuditLog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
 import FlagRow from './components/FlagRow.vue'
@@ -25,6 +26,8 @@ type Filter = 'all' | 'live' | 'paused' | 'targeted'
 
 const api = ref<AdminClient | null>(null)
 const serverUrl = ref('')
+const serverToken = ref('')
+const showAudit = ref(false)
 const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
 const connecting = ref(false)
@@ -141,6 +144,7 @@ async function connect(url: string, token: string, persist = true) {
     flags.value = await client.list()
     api.value = client
     serverUrl.value = url
+    serverToken.value = token
     startSessionClock()
     resetIdleTimer()
     if (persist) sessionStorage.setItem(STORAGE, JSON.stringify({ url, token }))
@@ -158,6 +162,8 @@ function disconnect(message = '') {
   stopSessionClock()
   sessionStorage.removeItem(STORAGE)
   api.value = null
+  serverToken.value = ''
+  showAudit.value = false
   flags.value = []
   notice.value = null
   gateError.value = message
@@ -354,7 +360,8 @@ function onKey(e: KeyboardEvent) {
   const typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)
 
   if (e.key === 'Escape') {
-    if (pendingDelete.value) pendingDelete.value = null
+    if (showAudit.value) showAudit.value = false
+    else if (pendingDelete.value) pendingDelete.value = null
     else if (editor.value) editor.value = null
     else if (query.value) query.value = ''
     else if (typing) (el as HTMLElement).blur()
@@ -369,6 +376,9 @@ function onKey(e: KeyboardEvent) {
   } else if (e.key === 'n') {
     e.preventDefault()
     editor.value = { flag: null }
+  } else if (e.key === 'a') {
+    e.preventDefault()
+    showAudit.value = !showAudit.value
   }
 }
 
@@ -459,6 +469,7 @@ onUnmounted(() => {
             <path d="M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1Z" />
           </svg>
         </button>
+        <button class="btn btn-ghost btn-sm" @click="showAudit = true">Audit log</button>
         <button class="btn btn-ghost btn-sm" @click="disconnect()">Disconnect</button>
         <button class="btn btn-primary btn-sm" @click="editor = { flag: null }">New flag</button>
       </div>
@@ -578,7 +589,7 @@ onUnmounted(() => {
       />
 
       <p v-if="!loading && flags.length > 0" class="hintbar">
-        <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>esc</kbd> clear
+        <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>a</kbd> audit · <kbd>esc</kbd> clear
       </p>
     </main>
 
@@ -590,6 +601,13 @@ onUnmounted(() => {
       :existing-keys="flags.map((f) => f.key)"
       @save="saveFromEditor"
       @cancel="editor = null"
+    />
+
+    <AuditLog
+      v-if="showAudit"
+      :server-url="serverUrl"
+      :token="serverToken"
+      @close="showAudit = false"
     />
   </div>
 </template>

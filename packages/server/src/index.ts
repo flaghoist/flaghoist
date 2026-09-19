@@ -106,7 +106,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     }
     if (c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-      c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key')
+      c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, If-Match')
       return c.body(null, 204)
     }
     return next()

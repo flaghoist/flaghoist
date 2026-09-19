@@ -89,18 +89,23 @@ const sorted = computed(() => {
   const arr = [...flags.value]
   const dir = sortDir.value === 'asc' ? 1 : -1
   arr.sort((a, b) => {
+    let cmp = 0
     switch (sortKey.value) {
       case 'key':
-        return dir * a.key.localeCompare(b.key)
+        cmp = a.key.localeCompare(b.key)
+        break
       case 'enabled':
-        return dir * (Number(a.enabled) - Number(b.enabled))
+        cmp = Number(a.enabled) - Number(b.enabled)
+        break
       case 'rollout':
-        return dir * (a.rollout.percentage - b.rollout.percentage)
+        cmp = a.rollout.percentage - b.rollout.percentage
+        break
       case 'updated':
-        return dir * a.metadata.updatedAt.localeCompare(b.metadata.updatedAt)
-      default:
-        return 0
+        cmp = a.metadata.updatedAt.localeCompare(b.metadata.updatedAt)
+        break
     }
+    if (cmp !== 0) return dir * cmp
+    return a.key.localeCompare(b.key)
   })
   return arr
 })

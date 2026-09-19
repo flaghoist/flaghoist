@@ -8,7 +8,7 @@ const props = defineProps<{
   error?: string
   existingKeys?: string[]
 }>()
-const emit = defineEmits<{ save: [key: string, input: FlagInput]; cancel: [] }>()
+const emit = defineEmits<{ save: [key: string, input: FlagInput, changeDescription: string]; cancel: [] }>()
 
 interface EditableCondition {
   attribute: string
@@ -27,6 +27,8 @@ const enabled = ref(props.flag?.enabled ?? false)
 const percentage = ref(props.flag?.rollout.percentage ?? 0)
 const keyEl = ref<HTMLInputElement | null>(null)
 const descEl = ref<HTMLInputElement | null>(null)
+
+const changeDescription = ref('')
 
 const rules = reactive<EditableRule[]>(
   (props.flag?.rules ?? []).map((r) => ({
@@ -106,7 +108,7 @@ function buildInput(): FlagInput {
 
 function save() {
   if (!canSave.value) return
-  emit('save', key.value.trim(), buildInput())
+  emit('save', key.value.trim(), buildInput(), changeDescription.value.trim())
 }
 </script>
 
@@ -246,6 +248,16 @@ function save() {
       </div>
 
       <footer class="foot">
+        <div class="change-reason">
+          <label class="label" for="fe-reason">Reason for change <span class="optional">(optional)</span></label>
+          <input
+            id="fe-reason"
+            v-model="changeDescription"
+            class="full"
+            placeholder="e.g. turning off for incident #42"
+            maxlength="280"
+          />
+        </div>
         <p v-if="error" class="err" role="alert">{{ error }}</p>
         <div class="foot-actions">
           <button class="btn btn-ghost" @click="emit('cancel')">Cancel</button>
@@ -427,6 +439,17 @@ function save() {
 .foot {
   padding: 0.9rem 1.2rem;
   border-top: 1px solid var(--line);
+}
+.change-reason {
+  margin-bottom: 0.75rem;
+}
+.change-reason .label {
+  margin-bottom: 0.3rem;
+}
+.optional {
+  font-weight: 400;
+  color: var(--text-mute);
+  font-size: 0.76rem;
 }
 .err {
   margin: 0 0 0.7rem;

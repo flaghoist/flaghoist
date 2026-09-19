@@ -120,6 +120,53 @@ describe('audit log', () => {
     expect(body2.entries).toHaveLength(2)
   })
 
+  it('records changeDescription from the PUT body', async () => {
+    const app = makeServer()
+
+    await app.request('/api/v1/flags/desc-flag', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ enabled: true, changeDescription: 'turning on for launch' }),
+    })
+
+    await app.request('/api/v1/flags/desc-flag', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ enabled: false, changeDescription: 'rollback after incident #7' }),
+    })
+
+    await app.request('/api/v1/flags/desc-flag', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ enabled: true }),
+    })
+
+    const res = await app.request('/api/v1/audit', { headers: adminHeaders })
+    const body = (await res.json()) as {
+      entries: { action: string; changeDescription?: string }[]
+    }
+
+    expect(body.entries[0]!.changeDescription).toBeUndefined()
+    expect(body.entries[1]!.changeDescription).toBe('rollback after incident #7')
+    expect(body.entries[2]!.changeDescription).toBe('turning on for launch')
+  })
+
+  it('ignores blank changeDescription', async () => {
+    const app = makeServer()
+
+    await app.request('/api/v1/flags/blank-desc', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ enabled: true, changeDescription: '   ' }),
+    })
+
+    const res = await app.request('/api/v1/audit', { headers: adminHeaders })
+    const body = (await res.json()) as {
+      entries: { changeDescription?: string }[]
+    }
+    expect(body.entries[0]!.changeDescription).toBeUndefined()
+  })
+
   it('is also available at the legacy unversioned path', async () => {
     const app = makeServer()
 

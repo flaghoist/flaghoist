@@ -258,7 +258,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-      return c.json({ flags: await cfg.storage.list() })
+      const all = await cfg.storage.list()
+      const includeArchived = c.req.query('includeArchived') === 'true'
+      return c.json({ flags: includeArchived ? all : all.filter((f) => !f.archived) })
     })
 
     app.get(`${prefix}/flags/:key`, async (c) => {
@@ -297,6 +299,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
       const parsed = await readJsonBody(await c.req.text())
       if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
+      const changeDescription =
+        parsed.value &&
+        typeof parsed.value === 'object' &&
+        typeof (parsed.value as Record<string, unknown>).changeDescription === 'string'
+          ? ((parsed.value as Record<string, unknown>).changeDescription as string).trim() ||
+            undefined
+          : undefined
       const built = buildFlag(key, parsed.value, auth.identity ?? 'unknown', existing)
       if (!built.ok) return c.json({ error: built.error }, 400)
       await cfg.storage.put(key, built.flag)
@@ -307,9 +316,55 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         actor: auth.identity ?? 'unknown',
         previous: existing ? snapshot(existing) : undefined,
         current: snapshot(built.flag),
+        changeDescription,
       })
       c.header('ETag', flagEtag(built.flag))
       return c.json(built.flag)
+    })
+
+    app.post(`${prefix}/flags/:key/archive`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const key = c.req.param('key')
+      const existing = await cfg.storage.get(key)
+      if (!existing) return c.json({ error: 'Flag not found' }, 404)
+      if (existing.archived) return c.json({ error: 'Flag is already archived' }, 409)
+      const archived: typeof existing = {
+        ...existing,
+        archived: true,
+        archivedAt: new Date().toISOString(),
+      }
+      await cfg.storage.put(key, archived)
+      cache.invalidate()
+      await audit.record({
+        action: 'archive',
+        flagKey: key,
+        actor: auth.identity ?? 'unknown',
+        previous: snapshot(existing),
+      })
+      return c.json(archived)
+    })
+
+    app.post(`${prefix}/flags/:key/restore`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const key = c.req.param('key')
+      const existing = await cfg.storage.get(key)
+      if (!existing) return c.json({ error: 'Flag not found' }, 404)
+      if (!existing.archived) return c.json({ error: 'Flag is not archived' }, 409)
+      const { archived: _, archivedAt: __, ...rest } = existing
+      const restored = rest as typeof existing
+      await cfg.storage.put(key, restored)
+      cache.invalidate()
+      await audit.record({
+        action: 'restore',
+        flagKey: key,
+        actor: auth.identity ?? 'unknown',
+        current: snapshot(restored),
+      })
+      return c.json(restored)
     })
 
     app.delete(`${prefix}/flags/:key`, async (c) => {
@@ -336,9 +391,17 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const limit = Math.min(Math.max(parseInt(c.req.query('limit') ?? '50', 10) || 50, 1), 200)
       const offset = Math.max(parseInt(c.req.query('offset') ?? '0', 10) || 0, 0)
       const flagKey = c.req.query('flagKey') || undefined
-      const action = c.req.query('action') as 'create' | 'update' | 'delete' | undefined
+      const action = c.req.query('action') as
+        | 'create'
+        | 'update'
+        | 'delete'
+        | 'archive'
+        | 'restore'
+        | undefined
       const validAction =
-        action && ['create', 'update', 'delete'].includes(action) ? action : undefined
+        action && ['create', 'update', 'delete', 'archive', 'restore'].includes(action)
+          ? action
+          : undefined
       return c.json(await audit.list({ limit, offset, flagKey, action: validAction }))
     })
   }

@@ -50,12 +50,23 @@ export interface AdminClientOptions {
   timeoutMs?: number
 }
 
+export interface PutOptions {
+  ifMatch?: string
+  changeDescription?: string
+}
+
+export interface ListOptions {
+  includeArchived?: boolean
+}
+
 export interface AdminClient {
-  list(): Promise<FeatureFlag[]>
+  list(options?: ListOptions): Promise<FeatureFlag[]>
   get(key: string): Promise<FeatureFlag | null>
   /** `ifMatch` is an ETag from `flagEtag()`. The server rejects with 412 if the flag changed. */
-  put(key: string, input: FlagInput, ifMatch?: string): Promise<FeatureFlag>
+  put(key: string, input: FlagInput, ifMatchOrOptions?: string | PutOptions): Promise<FeatureFlag>
   delete(key: string): Promise<void>
+  archive(key: string): Promise<FeatureFlag>
+  restore(key: string): Promise<FeatureFlag>
 }
 
 // ---------------------------------------------------------------------------
@@ -139,8 +150,9 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
   }
 
   return {
-    async list() {
-      const body = await readJson(await request('/api/v1/flags'))
+    async list(options) {
+      const qs = options?.includeArchived ? '?includeArchived=true' : ''
+      const body = await readJson(await request(`/api/v1/flags${qs}`))
       const flags = (body as { flags?: unknown } | null)?.flags
       if (!Array.isArray(flags)) {
         throw new ApiError(502, 'Unexpected response: the flag list was missing or malformed.')
@@ -159,12 +171,19 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
       }
     },
 
-    async put(key, input, ifMatch) {
-      const extra = ifMatch ? { 'if-match': ifMatch } : undefined
+    async put(key, input, ifMatchOrOptions) {
+      const opts: PutOptions =
+        typeof ifMatchOrOptions === 'string'
+          ? { ifMatch: ifMatchOrOptions }
+          : ifMatchOrOptions ?? {}
+      const extra = opts.ifMatch ? { 'if-match': opts.ifMatch } : undefined
+      const payload = opts.changeDescription
+        ? { ...input, changeDescription: opts.changeDescription }
+        : input
       const body = await readJson(
         await request(
           `/api/v1/flags/${encodeURIComponent(key)}`,
-          { method: 'PUT', body: JSON.stringify(input) },
+          { method: 'PUT', body: JSON.stringify(payload) },
           extra,
         ),
       )
@@ -176,6 +195,26 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
 
     async delete(key) {
       await request(`/api/v1/flags/${encodeURIComponent(key)}`, { method: 'DELETE' })
+    },
+
+    async archive(key) {
+      const body = await readJson(
+        await request(`/api/v1/flags/${encodeURIComponent(key)}/archive`, { method: 'POST' }),
+      )
+      if (!isFeatureFlag(body)) {
+        throw new ApiError(502, 'Unexpected response: the archived flag was malformed.')
+      }
+      return body
+    },
+
+    async restore(key) {
+      const body = await readJson(
+        await request(`/api/v1/flags/${encodeURIComponent(key)}/restore`, { method: 'POST' }),
+      )
+      if (!isFeatureFlag(body)) {
+        throw new ApiError(502, 'Unexpected response: the restored flag was malformed.')
+      }
+      return body
     },
   }
 }

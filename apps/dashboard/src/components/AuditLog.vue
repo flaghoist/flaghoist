@@ -10,7 +10,7 @@ interface FlagSnapshot {
   description: string
 }
 
-type Action = 'create' | 'update' | 'delete'
+type Action = 'create' | 'update' | 'delete' | 'archive' | 'restore'
 
 interface AuditEntry {
   id: string
@@ -20,6 +20,7 @@ interface AuditEntry {
   actor: string
   previous?: FlagSnapshot
   current?: FlagSnapshot
+  changeDescription?: string
 }
 
 const PAGE_SIZE = 30
@@ -35,6 +36,8 @@ const actions: { value: Action | ''; label: string }[] = [
   { value: 'create', label: 'Created' },
   { value: 'update', label: 'Updated' },
   { value: 'delete', label: 'Deleted' },
+  { value: 'archive', label: 'Archived' },
+  { value: 'restore', label: 'Restored' },
 ]
 
 const totalPages = () => Math.max(1, Math.ceil(total.value / PAGE_SIZE))
@@ -82,6 +85,8 @@ const actionLabel: Record<string, string> = {
   create: 'Created',
   update: 'Updated',
   delete: 'Deleted',
+  archive: 'Archived',
+  restore: 'Restored',
 }
 
 function describeChange(entry: AuditEntry): string {
@@ -111,6 +116,8 @@ function describeChange(entry: AuditEntry): string {
     }
     return changes.join(', ') || 'No visible change'
   }
+  if (entry.action === 'archive') return 'Flag archived'
+  if (entry.action === 'restore') return 'Flag restored'
   return ''
 }
 
@@ -161,7 +168,10 @@ onMounted(() => void load())
         <span class="log-time" :title="entry.timestamp">{{ formatTime(entry.timestamp) }}</span>
         <span class="log-action" :class="entry.action">{{ actionLabel[entry.action] }}</span>
         <code class="mono log-key">{{ entry.flagKey }}</code>
-        <span class="log-delta">{{ describeChange(entry) }}</span>
+        <span class="log-delta">
+          {{ describeChange(entry) }}
+          <span v-if="entry.changeDescription" class="log-reason">· {{ entry.changeDescription }}</span>
+        </span>
         <span class="log-actor">{{ entry.actor }}</span>
       </div>
     </div>
@@ -303,6 +313,14 @@ onMounted(() => void load())
   color: var(--red-text);
   background: var(--red-wash);
 }
+.log-action.archive {
+  color: var(--text-mute);
+  background: var(--surface-2);
+}
+.log-action.restore {
+  color: var(--green-text);
+  background: var(--green-wash);
+}
 .log-key {
   font-size: 0.82rem;
   overflow: hidden;
@@ -315,6 +333,10 @@ onMounted(() => void load())
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.log-reason {
+  color: var(--text-mute);
+  font-style: italic;
 }
 .log-actor {
   font-size: 0.74rem;

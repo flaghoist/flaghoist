@@ -30,6 +30,7 @@ export async function evaluate(
   flag: FeatureFlag,
   context: EvaluationContext = {},
 ): Promise<EvaluationResult> {
+  if (flag.archived) return { value: false, reason: 'DISABLED' }
   if (!flag.enabled) return { value: false, reason: 'DISABLED' }
 
   const targetingKey = context.targetingKey ?? ''

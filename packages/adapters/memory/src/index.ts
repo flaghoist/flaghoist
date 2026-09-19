@@ -1,4 +1,10 @@
-import type { AuditEntry, AuditListOptions, AuditPage, FeatureFlag, StorageAdapter } from '@flaghoist/core'
+import type {
+  AuditEntry,
+  AuditListOptions,
+  AuditPage,
+  FeatureFlag,
+  StorageAdapter,
+} from '@flaghoist/core'
 
 /**
  * An in-memory StorageAdapter backed by a Map — for local development, tests, and as a

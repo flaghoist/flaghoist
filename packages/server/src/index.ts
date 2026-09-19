@@ -1,4 +1,9 @@
-import { evaluate, type EvaluationContext, type FeatureFlag, type FlagSnapshot } from '@flaghoist/core'
+import {
+  evaluate,
+  type EvaluationContext,
+  type FeatureFlag,
+  type FlagSnapshot,
+} from '@flaghoist/core'
 import { Hono } from 'hono'
 import { createAuditLog } from './audit'
 import { createDefinitionCache } from './cache'

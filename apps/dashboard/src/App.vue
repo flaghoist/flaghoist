@@ -609,7 +609,6 @@ onUnmounted(() => {
       @save="saveFromEditor"
       @cancel="editor = null"
     />
-
   </div>
 </template>
 

@@ -54,7 +54,9 @@ describe('security headers', () => {
   const expectSecure = (res: Response) => {
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(res.headers.get('X-Frame-Options')).toBe('DENY')
-    expect(res.headers.get('Content-Security-Policy')).toBe("frame-ancestors 'none'")
+    expect(res.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'")
+    expect(res.headers.get('Content-Security-Policy')).toContain("default-src 'none'")
+    expect(res.headers.get('Content-Security-Policy')).toContain("base-uri 'none'")
     expect(res.headers.get('Referrer-Policy')).toBe('no-referrer')
     expect(res.headers.get('Permissions-Policy')).toContain('camera=()')
   }

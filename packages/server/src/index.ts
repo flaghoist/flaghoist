@@ -1,11 +1,13 @@
 import { evaluate, type EvaluationContext } from '@flaghoist/core'
 import { Hono } from 'hono'
+import { createAuditLog } from './audit'
 import { createDefinitionCache } from './cache'
 import { buildFlag, flagEtag } from './flags'
 import { openApiDocument } from './openapi'
-import { defaultRateLimitKey } from './ratelimit'
+import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
 
+export type { AuditEntry, AuditLog } from './audit'
 export { apiKey, bearerToken, oidc, type OidcOptions } from './auth'
 export {
   defaultRateLimitKey,
@@ -59,21 +61,32 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   config: ConfigResolver<Env>,
 ) {
   const cache = createDefinitionCache()
+  const audit = createAuditLog()
   const resolve = (env: unknown): ServerConfig =>
     typeof config === 'function' ? (config as (env: Env) => ServerConfig)(env as Env) : config
   const app = new Hono<{ Bindings: Env }>()
 
-  // Baseline security headers on every response, set on the way out so they land on the dashboard
-  // HTML, the API JSON and error responses alike. The admin dashboard is the one at real risk here:
-  // without `frame-ancestors` an attacker could frame `/admin` and clickjack a signed-in operator
-  // into a destructive click. These are additive and do not touch API behaviour; the only visible
-  // effect is that the dashboard can no longer be embedded in a frame, which an admin tool should
-  // not be.
+  // Baseline security headers on every response. The dashboard is the primary beneficiary but the
+  // headers are harmless on API JSON too. default-src 'none' blocks everything not explicitly
+  // allowed; script/style 'unsafe-inline' is required because vite-plugin-singlefile inlines all
+  // JS and CSS into the HTML. connect-src is wide because the admin URL is user-provided.
+  const csp = [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    'connect-src *',
+    'img-src data:',
+    'font-src data:',
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ')
+
   app.use('*', async (c, next) => {
     await next()
     c.header('X-Content-Type-Options', 'nosniff')
     c.header('X-Frame-Options', 'DENY')
-    c.header('Content-Security-Policy', "frame-ancestors 'none'")
+    c.header('Content-Security-Policy', csp)
     c.header('Referrer-Policy', 'no-referrer')
     c.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=(), usb=()')
   })
@@ -126,13 +139,31 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
   // ---- Admin dashboard SPA (served at /admin when a build is configured) ----
 
-  app.get('/admin', (c) => {
+  // The SPA payload is large relative to an API JSON response, so it gets its own fixed-window
+  // rate limit (30 req/min per IP) that is always on, separate from the configurable API limiter.
+  const dashboardLimiter = memoryRateLimit({ max: 30, windowMs: 60_000 })
+
+  app.get('/admin', async (c) => {
     const cfg = resolve(c.env)
-    return cfg.dashboard ? c.html(cfg.dashboard) : c.text('Dashboard not configured', 404)
+    if (!cfg.dashboard) return c.text('Dashboard not configured', 404)
+    const ip = defaultRateLimitKey(c.req.raw.headers)
+    const result = dashboardLimiter.check(`admin:${ip}`)
+    if (!result.ok) {
+      if (result.retryAfter) c.header('Retry-After', String(result.retryAfter))
+      return c.text('Too many requests', 429)
+    }
+    return c.html(cfg.dashboard)
   })
-  app.get('/admin/*', (c) => {
+  app.get('/admin/*', async (c) => {
     const cfg = resolve(c.env)
-    return cfg.dashboard ? c.html(cfg.dashboard) : c.text('Dashboard not configured', 404)
+    if (!cfg.dashboard) return c.text('Dashboard not configured', 404)
+    const ip = defaultRateLimitKey(c.req.raw.headers)
+    const result = dashboardLimiter.check(`admin:${ip}`)
+    if (!result.ok) {
+      if (result.retryAfter) c.header('Retry-After', String(result.retryAfter))
+      return c.text('Too many requests', 429)
+    }
+    return c.html(cfg.dashboard)
   })
 
   // ---- OFREP read path (API-key auth) ----
@@ -260,6 +291,11 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       if (!built.ok) return c.json({ error: built.error }, 400)
       await cfg.storage.put(key, built.flag)
       cache.invalidate()
+      audit.record({
+        action: existing ? 'update' : 'create',
+        flagKey: key,
+        actor: auth.identity ?? 'unknown',
+      })
       c.header('ETag', flagEtag(built.flag))
       return c.json(built.flag)
     })
@@ -268,9 +304,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-      await cfg.storage.delete(c.req.param('key'))
+      const key = c.req.param('key')
+      await cfg.storage.delete(key)
       cache.invalidate()
+      audit.record({ action: 'delete', flagKey: key, actor: auth.identity ?? 'unknown' })
       return c.body(null, 204)
+    })
+
+    app.get(`${prefix}/audit`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      return c.json({ entries: audit.entries() })
     })
   }
 

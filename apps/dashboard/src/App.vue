@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   ApiError,
   createAdminClient,
@@ -8,6 +8,7 @@ import {
   type FeatureFlag,
   type FlagInput,
 } from './api'
+import AuditLog from './components/AuditLog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
 import FlagRow from './components/FlagRow.vue'
@@ -25,6 +26,8 @@ type Filter = 'all' | 'live' | 'paused' | 'targeted'
 
 const api = ref<AdminClient | null>(null)
 const serverUrl = ref('')
+const serverToken = ref('')
+const showAudit = ref(false)
 const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
 const connecting = ref(false)
@@ -89,6 +92,20 @@ function matchesActiveView(flag: FeatureFlag): boolean {
 
 const visible = computed(() => sorted.value.filter(matchesActiveView))
 
+/* ---- pagination ----------------------------------------------------------- */
+
+const PAGE_SIZE = 20
+const page = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(visible.value.length / PAGE_SIZE)))
+const paged = computed(() => {
+  const start = (page.value - 1) * PAGE_SIZE
+  return visible.value.slice(start, start + PAGE_SIZE)
+})
+
+watch([query, filter], () => {
+  page.value = 1
+})
+
 /* ---- theme ---------------------------------------------------------------- */
 
 function resolvedTheme(): 'light' | 'dark' {
@@ -127,6 +144,8 @@ async function connect(url: string, token: string, persist = true) {
     flags.value = await client.list()
     api.value = client
     serverUrl.value = url
+    serverToken.value = token
+    startSessionClock()
     resetIdleTimer()
     if (persist) sessionStorage.setItem(STORAGE, JSON.stringify({ url, token }))
   } catch (e) {
@@ -140,8 +159,11 @@ async function connect(url: string, token: string, persist = true) {
 
 function disconnect(message = '') {
   stopIdleTimer()
+  stopSessionClock()
   sessionStorage.removeItem(STORAGE)
   api.value = null
+  serverToken.value = ''
+  showAudit.value = false
   flags.value = []
   notice.value = null
   gateError.value = message
@@ -281,7 +303,38 @@ async function saveFromEditor(key: string, input: FlagInput) {
 /* ---- session idle timeout ------------------------------------------------- */
 
 const IDLE_MS = 30 * 60 * 1000
+const sessionStart = ref<number | null>(null)
+const sessionAge = ref('')
+const idleRemaining = ref(IDLE_MS)
 let idleTimer: ReturnType<typeof setTimeout> | null = null
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  const m = Math.floor(s / 60)
+  const h = Math.floor(m / 60)
+  if (h > 0) return `${h}h ${m % 60}m`
+  if (m > 0) return `${m}m`
+  return `${s}s`
+}
+
+function startSessionClock() {
+  sessionStart.value = Date.now()
+  idleRemaining.value = IDLE_MS
+  tickTimer = setInterval(() => {
+    if (sessionStart.value) sessionAge.value = formatDuration(Date.now() - sessionStart.value)
+  }, 60_000)
+  sessionAge.value = '0m'
+}
+
+function stopSessionClock() {
+  if (tickTimer) {
+    clearInterval(tickTimer)
+    tickTimer = null
+  }
+  sessionStart.value = null
+  sessionAge.value = ''
+}
 
 function resetIdleTimer() {
   if (idleTimer) clearTimeout(idleTimer)
@@ -307,7 +360,8 @@ function onKey(e: KeyboardEvent) {
   const typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)
 
   if (e.key === 'Escape') {
-    if (pendingDelete.value) pendingDelete.value = null
+    if (showAudit.value) showAudit.value = false
+    else if (pendingDelete.value) pendingDelete.value = null
     else if (editor.value) editor.value = null
     else if (query.value) query.value = ''
     else if (typing) (el as HTMLElement).blur()
@@ -322,6 +376,9 @@ function onKey(e: KeyboardEvent) {
   } else if (e.key === 'n') {
     e.preventDefault()
     editor.value = { flag: null }
+  } else if (e.key === 'a') {
+    e.preventDefault()
+    showAudit.value = !showAudit.value
   }
 }
 
@@ -359,6 +416,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
   for (const evt of IDLE_EVENTS) window.removeEventListener(evt, resetIdleTimer)
   stopIdleTimer()
+  stopSessionClock()
 })
 </script>
 
@@ -385,6 +443,14 @@ onUnmounted(() => {
 
       <span class="server mono" :title="serverUrl">{{ serverUrl }}</span>
 
+      <span v-if="sessionAge" class="session-info" :title="`Connected for ${sessionAge}`">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="session-icon">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3.5 2" />
+        </svg>
+        {{ sessionAge }}
+      </span>
+
       <div class="topbar-actions">
         <button
           class="icon-btn"
@@ -403,12 +469,20 @@ onUnmounted(() => {
             <path d="M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1Z" />
           </svg>
         </button>
+        <button class="btn btn-ghost btn-sm" @click="showAudit = true">Audit log</button>
         <button class="btn btn-ghost btn-sm" @click="disconnect()">Disconnect</button>
         <button class="btn btn-primary btn-sm" @click="editor = { flag: null }">New flag</button>
       </div>
     </header>
 
-    <main class="content">
+    <AuditLog
+      v-if="showAudit"
+      :server-url="serverUrl"
+      :token="serverToken"
+      @back="showAudit = false"
+    />
+
+    <main v-else class="content">
       <div class="toolbar">
         <div class="search">
           <svg viewBox="0 0 24 24" aria-hidden="true" class="search-icon">
@@ -483,7 +557,7 @@ onUnmounted(() => {
 
       <div v-else class="list">
         <FlagRow
-          v-for="flag in visible"
+          v-for="flag in paged"
           :key="flag.key"
           :flag="flag"
           :busy="busy.has(flag.key)"
@@ -493,6 +567,24 @@ onUnmounted(() => {
           @remove="pendingDelete = flag"
         />
       </div>
+
+      <nav v-if="totalPages > 1" class="pagination" aria-label="Flag list pages">
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="page <= 1"
+          @click="page = Math.max(1, page - 1)"
+        >
+          Previous
+        </button>
+        <span class="page-info">{{ page }} / {{ totalPages }}</span>
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="page >= totalPages"
+          @click="page = Math.min(totalPages, page + 1)"
+        >
+          Next
+        </button>
+      </nav>
 
       <ConfirmDialog
         v-if="pendingDelete"
@@ -504,7 +596,7 @@ onUnmounted(() => {
       />
 
       <p v-if="!loading && flags.length > 0" class="hintbar">
-        <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>esc</kbd> clear
+        <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>a</kbd> audit · <kbd>esc</kbd> clear
       </p>
     </main>
 
@@ -517,6 +609,7 @@ onUnmounted(() => {
       @save="saveFromEditor"
       @cancel="editor = null"
     />
+
   </div>
 </template>
 
@@ -560,6 +653,22 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.session-info {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+.session-icon {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
 }
 .topbar-actions {
   display: flex;
@@ -761,6 +870,18 @@ onUnmounted(() => {
   }
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  margin: 1rem 0 0;
+}
+.page-info {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
 .hintbar {
   margin: 1rem 0 0;
   text-align: center;
@@ -769,11 +890,15 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
-  .server {
+  .server,
+  .session-info {
     display: none;
   }
   .topbar {
     flex-wrap: wrap;
+  }
+  .pagination {
+    gap: 0.5rem;
   }
 }
 </style>

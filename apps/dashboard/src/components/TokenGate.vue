@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 defineProps<{ error?: string; connecting?: boolean; theme?: 'light' | 'dark' }>()
 const emit = defineEmits<{ connect: [url: string, token: string]; toggleTheme: [] }>()
@@ -11,6 +11,22 @@ const url = ref(
 )
 const token = ref('')
 const tokenEl = ref<HTMLInputElement | null>(null)
+
+const insecureUrl = computed(() => {
+  try {
+    const parsed = new URL(url.value.trim())
+    if (parsed.protocol !== 'http:') return false
+    const host = parsed.hostname
+    return host !== 'localhost' && host !== '127.0.0.1' && host !== '::1'
+  } catch {
+    return false
+  }
+})
+
+const weakToken = ref(false)
+watch(token, (v) => {
+  weakToken.value = v.length > 0 && v.length < 16
+})
 
 onMounted(() => tokenEl.value?.focus())
 
@@ -57,6 +73,10 @@ function submit() {
           placeholder="https://flags.example.com"
         />
 
+        <p v-if="insecureUrl" class="warn" role="status">
+          Plain HTTP sends the token in the clear. Use HTTPS in production.
+        </p>
+
         <label class="label spaced" for="gate-token">Admin token</label>
         <input
           id="gate-token"
@@ -65,8 +85,13 @@ function submit() {
           type="password"
           class="full"
           placeholder="Bearer token"
-          autocomplete="current-password"
+          autocomplete="off"
         />
+
+        <p v-if="weakToken" class="warn" role="status">
+          Short tokens are guessable. Use at least 16 characters (e.g.
+          <code class="mono">openssl rand -hex 32</code>).
+        </p>
 
         <p v-if="error" class="err" role="alert">{{ error }}</p>
 
@@ -149,6 +174,14 @@ function submit() {
 }
 .connect {
   margin-top: 1.2rem;
+}
+.warn {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--yellow-text);
+  background: var(--yellow-wash);
+  border-radius: var(--r-sm);
 }
 .err {
   margin: 0.9rem 0 0;

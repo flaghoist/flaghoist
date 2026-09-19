@@ -25,8 +25,11 @@
   --green-text: light-dark(#0f6b52, #4fd1a0);
   --red-wash: light-dark(rgba(226, 75, 74, 0.12), rgba(226, 75, 74, 0.2));
   --red-text: light-dark(#a32d2d, #ff9b9a);
+  --yellow-wash: light-dark(rgba(202, 138, 4, 0.12), rgba(202, 138, 4, 0.18));
+  --yellow-text: light-dark(#92400e, #fbbf24);
 
-  --shadow: 0 1px 2px light-dark(rgba(11, 30, 58, 0.05), rgba(0, 0, 0, 0.3)),
+  --shadow:
+    0 1px 2px light-dark(rgba(11, 30, 58, 0.05), rgba(0, 0, 0, 0.3)),
     0 10px 30px -18px light-dark(rgba(11, 30, 58, 0.3), rgba(0, 0, 0, 0.7));
 
   /* One radius scale. Controls, surfaces, capsules. Nothing else. */

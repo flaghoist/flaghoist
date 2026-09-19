@@ -1,4 +1,4 @@
-import { evaluate, type EvaluationContext } from '@flaghoist/core'
+import { evaluate, type EvaluationContext, type FeatureFlag, type FlagSnapshot } from '@flaghoist/core'
 import { Hono } from 'hono'
 import { createAuditLog } from './audit'
 import { createDefinitionCache } from './cache'
@@ -7,7 +7,7 @@ import { openApiDocument } from './openapi'
 import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
 
-export type { AuditEntry, AuditLog } from './audit'
+export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
 export { apiKey, bearerToken, oidc, type OidcOptions } from './auth'
 export {
   defaultRateLimitKey,
@@ -61,9 +61,14 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   config: ConfigResolver<Env>,
 ) {
   const cache = createDefinitionCache()
-  const audit = createAuditLog()
   const resolve = (env: unknown): ServerConfig =>
     typeof config === 'function' ? (config as (env: Env) => ServerConfig)(env as Env) : config
+  const directConfig = typeof config === 'function' ? null : config
+  const audit = createAuditLog(directConfig?.storage)
+
+  function snapshot(flag: FeatureFlag): FlagSnapshot {
+    return { enabled: flag.enabled, rollout: flag.rollout, description: flag.description }
+  }
   const app = new Hono<{ Bindings: Env }>()
 
   // Baseline security headers on every response. The dashboard is the primary beneficiary but the
@@ -106,7 +111,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     }
     if (c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-      c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key')
+      c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, If-Match')
       return c.body(null, 204)
     }
     return next()
@@ -291,10 +296,12 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       if (!built.ok) return c.json({ error: built.error }, 400)
       await cfg.storage.put(key, built.flag)
       cache.invalidate()
-      audit.record({
+      await audit.record({
         action: existing ? 'update' : 'create',
         flagKey: key,
         actor: auth.identity ?? 'unknown',
+        previous: existing ? snapshot(existing) : undefined,
+        current: snapshot(built.flag),
       })
       c.header('ETag', flagEtag(built.flag))
       return c.json(built.flag)
@@ -305,9 +312,15 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
       const key = c.req.param('key')
+      const existing = await cfg.storage.get(key)
       await cfg.storage.delete(key)
       cache.invalidate()
-      audit.record({ action: 'delete', flagKey: key, actor: auth.identity ?? 'unknown' })
+      await audit.record({
+        action: 'delete',
+        flagKey: key,
+        actor: auth.identity ?? 'unknown',
+        previous: existing ? snapshot(existing) : undefined,
+      })
       return c.body(null, 204)
     })
 
@@ -315,7 +328,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-      return c.json({ entries: audit.entries() })
+      const limit = Math.min(Math.max(parseInt(c.req.query('limit') ?? '50', 10) || 50, 1), 200)
+      const offset = Math.max(parseInt(c.req.query('offset') ?? '0', 10) || 0, 0)
+      const flagKey = c.req.query('flagKey') || undefined
+      const action = c.req.query('action') as 'create' | 'update' | 'delete' | undefined
+      const validAction =
+        action && ['create', 'update', 'delete'].includes(action) ? action : undefined
+      return c.json(await audit.list({ limit, offset, flagKey, action: validAction }))
     })
   }
 

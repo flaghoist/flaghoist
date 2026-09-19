@@ -845,7 +845,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                 v-for="flag in paged"
                 :key="flag.key"
                 class="flag-row"
-                :class="{ selected: selectedKeys.has(flag.key), off: !flag.enabled, archived: flag.archived }"
+                :class="{
+                  selected: selectedKeys.has(flag.key),
+                  off: !flag.enabled,
+                  archived: flag.archived,
+                }"
               >
                 <td class="col-check">
                   <input

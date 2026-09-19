@@ -170,7 +170,9 @@ onMounted(() => void load())
         <code class="mono log-key">{{ entry.flagKey }}</code>
         <span class="log-delta">
           {{ describeChange(entry) }}
-          <span v-if="entry.changeDescription" class="log-reason">· {{ entry.changeDescription }}</span>
+          <span v-if="entry.changeDescription" class="log-reason"
+            >· {{ entry.changeDescription }}</span
+          >
         </span>
         <span class="log-actor">{{ entry.actor }}</span>
       </div>

@@ -392,12 +392,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const offset = Math.max(parseInt(c.req.query('offset') ?? '0', 10) || 0, 0)
       const flagKey = c.req.query('flagKey') || undefined
       const action = c.req.query('action') as
-        | 'create'
-        | 'update'
-        | 'delete'
-        | 'archive'
-        | 'restore'
-        | undefined
+        'create' | 'update' | 'delete' | 'archive' | 'restore' | undefined
       const validAction =
         action && ['create', 'update', 'delete', 'archive', 'restore'].includes(action)
           ? action

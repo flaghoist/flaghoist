@@ -8,7 +8,10 @@ const props = defineProps<{
   error?: string
   existingKeys?: string[]
 }>()
-const emit = defineEmits<{ save: [key: string, input: FlagInput, changeDescription: string]; cancel: [] }>()
+const emit = defineEmits<{
+  save: [key: string, input: FlagInput, changeDescription: string]
+  cancel: []
+}>()
 
 interface EditableCondition {
   attribute: string
@@ -249,7 +252,9 @@ function save() {
 
       <footer class="foot">
         <div class="change-reason">
-          <label class="label" for="fe-reason">Reason for change <span class="optional">(optional)</span></label>
+          <label class="label" for="fe-reason"
+            >Reason for change <span class="optional">(optional)</span></label
+          >
           <input
             id="fe-reason"
             v-model="changeDescription"

@@ -175,7 +175,7 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
       const opts: PutOptions =
         typeof ifMatchOrOptions === 'string'
           ? { ifMatch: ifMatchOrOptions }
-          : ifMatchOrOptions ?? {}
+          : (ifMatchOrOptions ?? {})
       const extra = opts.ifMatch ? { 'if-match': opts.ifMatch } : undefined
       const payload = opts.changeDescription
         ? { ...input, changeDescription: opts.changeDescription }

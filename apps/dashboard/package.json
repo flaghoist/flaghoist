@@ -14,7 +14,7 @@
     "@flaghoist/admin-client": "workspace:*",
     "@fontsource/geist-mono": "^5.3.0",
     "@fontsource/geist-sans": "^5.3.0",
-    "vue": "^3.5.41"
+    "vue": "^3.5.43"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",

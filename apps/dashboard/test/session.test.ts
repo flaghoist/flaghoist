@@ -41,6 +41,27 @@ function client(over: Partial<AdminClient> = {}): AdminClient {
     restore: vi.fn(async () => flag()),
     exportFlags: vi.fn(async () => ({ version: 1, exportedAt: '', flags: [] })),
     importFlags: vi.fn(async () => ({ created: 0, updated: 0, errors: [] })),
+    listWebhooks: vi.fn(async () => []),
+    createWebhook: vi.fn(async () => ({
+      id: 'wh1',
+      url: '',
+      secret: '',
+      events: [],
+      enabled: true,
+      createdAt: '',
+      updatedAt: '',
+    })),
+    updateWebhook: vi.fn(async () => ({
+      id: 'wh1',
+      url: '',
+      secret: '',
+      events: [],
+      enabled: true,
+      createdAt: '',
+      updatedAt: '',
+    })),
+    deleteWebhook: vi.fn(async () => undefined),
+    testWebhook: vi.fn(async () => ({ status: 200, ok: true })),
     ...over,
   }
 }

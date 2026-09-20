@@ -19,12 +19,13 @@ import SettingsPage from './components/SettingsPage.vue'
 import Sidebar from './components/Sidebar.vue'
 import ToastStack, { type Toast } from './components/ToastStack.vue'
 import TokenGate from './components/TokenGate.vue'
+import WebhooksPage from './components/WebhooksPage.vue'
 
 const STORAGE = 'flaghoist.admin'
 const THEME = 'flaghoist.theme'
 const SIDEBAR = 'flaghoist.sidebar'
 
-type View = 'overview' | 'flags' | 'audit' | 'settings'
+type View = 'overview' | 'flags' | 'webhooks' | 'audit' | 'settings'
 type SortKey = 'key' | 'enabled' | 'rollout' | 'updated'
 type SortDir = 'asc' | 'desc'
 type Filter = 'all' | 'live' | 'paused' | 'targeted'
@@ -578,6 +579,9 @@ function onKey(e: KeyboardEvent) {
     } else if (e.key === 'o') {
       e.preventDefault()
       view.value = 'overview'
+    } else if (e.key === 'w') {
+      e.preventDefault()
+      view.value = 'webhooks'
     } else if (e.key === 's') {
       e.preventDefault()
       view.value = 'settings'
@@ -722,9 +726,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
             ? 'Overview'
             : view === 'flags'
               ? 'Flags'
-              : view === 'audit'
-                ? 'Audit log'
-                : 'Settings'
+              : view === 'webhooks'
+                ? 'Webhooks'
+                : view === 'audit'
+                  ? 'Audit log'
+                  : 'Settings'
         }}</span>
         <button
           class="btn btn-primary btn-sm"
@@ -1090,6 +1096,13 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         :server-url="serverUrl"
         :token="serverToken"
         @back="view = 'flags'"
+      />
+
+      <!-- Webhooks -->
+      <WebhooksPage
+        v-else-if="view === 'webhooks' && api"
+        :api="api"
+        @toast="(text, tone) => toast(text, tone)"
       />
 
       <!-- Settings -->

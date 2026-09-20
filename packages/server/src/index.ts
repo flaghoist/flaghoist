@@ -1,8 +1,10 @@
 import {
   evaluate,
+  WEBHOOK_EVENTS,
   type EvaluationContext,
   type FeatureFlag,
   type FlagSnapshot,
+  type WebhookEvent,
 } from '@flaghoist/core'
 import { Hono } from 'hono'
 import { createAuditLog } from './audit'
@@ -11,6 +13,15 @@ import { buildFlag, flagEtag } from './flags'
 import { openApiDocument } from './openapi'
 import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
+import {
+  createWebhookStore,
+  dispatchWebhooks,
+  generateId,
+  generateSecret,
+  sign as signWebhook,
+  validateWebhookInput,
+  type WebhookPayload,
+} from './webhooks'
 
 export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
 export { apiKey, bearerToken, oidc, type OidcOptions } from './auth'
@@ -23,6 +34,7 @@ export {
 } from './ratelimit'
 export { openApiDocument } from './openapi'
 export type { AuthResult, Authenticator, ConfigResolver, ServerConfig } from './types'
+export type { WebhookPayload } from './webhooks'
 
 const DEFAULT_CACHE_TTL_SECONDS = 30
 const MAX_BODY_BYTES = 64 * 1024
@@ -70,10 +82,34 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     typeof config === 'function' ? (config as (env: Env) => ServerConfig)(env as Env) : config
   const directConfig = typeof config === 'function' ? null : config
   const audit = createAuditLog(directConfig?.storage)
+  const webhookStore = createWebhookStore(directConfig?.storage)
 
   function snapshot(flag: FeatureFlag): FlagSnapshot {
     return { enabled: flag.enabled, rollout: flag.rollout, description: flag.description }
   }
+
+  function fireWebhook(
+    event: WebhookEvent,
+    flagKey: string,
+    actor: string,
+    current?: FlagSnapshot,
+    previous?: FlagSnapshot,
+  ) {
+    const payload: WebhookPayload = {
+      event,
+      timestamp: new Date().toISOString(),
+      flag: {
+        key: flagKey,
+        enabled: current?.enabled ?? previous?.enabled ?? false,
+        rollout: current?.rollout ?? previous?.rollout ?? { percentage: 0 },
+        description: current?.description ?? previous?.description ?? '',
+      },
+      actor,
+      previous,
+    }
+    dispatchWebhooks(webhookStore, event, payload).catch(() => {})
+  }
+
   const app = new Hono<{ Bindings: Env }>()
 
   // Baseline security headers on every response. The dashboard is the primary beneficiary but the
@@ -310,14 +346,22 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       if (!built.ok) return c.json({ error: built.error }, 400)
       await cfg.storage.put(key, built.flag)
       cache.invalidate()
+      const flagAction = existing ? 'update' : 'create'
       await audit.record({
-        action: existing ? 'update' : 'create',
+        action: flagAction,
         flagKey: key,
         actor: auth.identity ?? 'unknown',
         previous: existing ? snapshot(existing) : undefined,
         current: snapshot(built.flag),
         changeDescription,
       })
+      fireWebhook(
+        `flag.${flagAction === 'update' ? 'updated' : 'created'}`,
+        key,
+        auth.identity ?? 'unknown',
+        snapshot(built.flag),
+        existing ? snapshot(existing) : undefined,
+      )
       c.header('ETag', flagEtag(built.flag))
       return c.json(built.flag)
     })
@@ -343,6 +387,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         actor: auth.identity ?? 'unknown',
         previous: snapshot(existing),
       })
+      fireWebhook('flag.archived', key, auth.identity ?? 'unknown', undefined, snapshot(existing))
       return c.json(archived)
     })
 
@@ -364,6 +409,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         actor: auth.identity ?? 'unknown',
         current: snapshot(restored),
       })
+      fireWebhook('flag.restored', key, auth.identity ?? 'unknown', snapshot(restored))
       return c.json(restored)
     })
 
@@ -381,6 +427,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         actor: auth.identity ?? 'unknown',
         previous: existing ? snapshot(existing) : undefined,
       })
+      if (existing) {
+        fireWebhook('flag.deleted', key, auth.identity ?? 'unknown', undefined, snapshot(existing))
+      }
       return c.body(null, 204)
     })
 
@@ -465,6 +514,131 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           ? action
           : undefined
       return c.json(await audit.list({ limit, offset, flagKey, action: validAction }))
+    })
+
+    // ---- Webhook CRUD ----
+
+    app.get(`${prefix}/webhooks`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      return c.json({ webhooks: await webhookStore.list() })
+    })
+
+    app.get(`${prefix}/webhooks/:id`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const hook = await webhookStore.get(c.req.param('id'))
+      if (!hook) return c.json({ error: 'Webhook not found' }, 404)
+      return c.json(hook)
+    })
+
+    app.post(`${prefix}/webhooks`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const parsed = await readJsonBody(await c.req.text())
+      if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
+      const validated = validateWebhookInput(parsed.value)
+      if (!validated.ok) return c.json({ error: validated.error }, 400)
+      const now = new Date().toISOString()
+      const hook = {
+        id: generateId(),
+        url: validated.value.url,
+        secret: generateSecret(),
+        events: validated.value.events ?? [...WEBHOOK_EVENTS],
+        enabled: validated.value.enabled ?? true,
+        createdAt: now,
+        updatedAt: now,
+      }
+      await webhookStore.put(hook.id, hook)
+      return c.json(hook, 201)
+    })
+
+    app.put(`${prefix}/webhooks/:id`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const id = c.req.param('id')
+      const existing = await webhookStore.get(id)
+      if (!existing) return c.json({ error: 'Webhook not found' }, 404)
+      const parsed = await readJsonBody(await c.req.text())
+      if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
+      const obj = parsed.value as Record<string, unknown>
+
+      if (obj.url !== undefined) {
+        const v = validateWebhookInput({ url: obj.url })
+        if (!v.ok) return c.json({ error: v.error }, 400)
+        existing.url = v.value.url
+      }
+      if (obj.events !== undefined) {
+        if (!Array.isArray(obj.events)) return c.json({ error: 'events must be an array' }, 400)
+        for (const e of obj.events) {
+          if (!WEBHOOK_EVENTS.includes(e as WebhookEvent)) {
+            return c.json({ error: `Unknown event: ${String(e)}` }, 400)
+          }
+        }
+        existing.events = obj.events as WebhookEvent[]
+      }
+      if (obj.enabled !== undefined) {
+        if (typeof obj.enabled !== 'boolean') {
+          return c.json({ error: 'enabled must be a boolean' }, 400)
+        }
+        existing.enabled = obj.enabled
+      }
+      existing.updatedAt = new Date().toISOString()
+      await webhookStore.put(id, existing)
+      return c.json(existing)
+    })
+
+    app.delete(`${prefix}/webhooks/:id`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const id = c.req.param('id')
+      const existing = await webhookStore.get(id)
+      if (!existing) return c.json({ error: 'Webhook not found' }, 404)
+      await webhookStore.delete(id)
+      return c.body(null, 204)
+    })
+
+    app.post(`${prefix}/webhooks/:id/test`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const hook = await webhookStore.get(c.req.param('id'))
+      if (!hook) return c.json({ error: 'Webhook not found' }, 404)
+      const payload: WebhookPayload = {
+        event: 'flag.updated',
+        timestamp: new Date().toISOString(),
+        flag: {
+          key: 'test-flag',
+          enabled: true,
+          rollout: { percentage: 100 },
+          description: 'Test webhook delivery',
+        },
+        actor: auth.identity ?? 'unknown',
+      }
+      try {
+        const body = JSON.stringify(payload)
+        const signature = await signWebhook(hook.secret, body)
+        const res = await fetch(hook.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Flaghoist-Event': 'flag.updated',
+            'X-Flaghoist-Signature': signature,
+            'X-Flaghoist-Webhook-Id': hook.id,
+          },
+          body,
+          signal: AbortSignal.timeout(10_000),
+        })
+        return c.json({ status: res.status, ok: res.ok })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Request failed'
+        return c.json({ status: 0, ok: false, error: message })
+      }
     })
   }
 

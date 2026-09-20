@@ -69,6 +69,10 @@ const emit = defineEmits<{
           <span>Go to Flags</span>
         </div>
         <div class="shortcut-row">
+          <kbd>g</kbd> <kbd>w</kbd>
+          <span>Go to Webhooks</span>
+        </div>
+        <div class="shortcut-row">
           <kbd>g</kbd> <kbd>a</kbd>
           <span>Go to Audit log</span>
         </div>

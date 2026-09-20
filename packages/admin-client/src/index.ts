@@ -1,6 +1,14 @@
-import type { FeatureFlag, TargetingRule } from '@flaghoist/core'
+import type { FeatureFlag, TargetingRule, WebhookEndpoint, WebhookEvent } from '@flaghoist/core'
 
-export type { Condition, FeatureFlag, FlagMetadata, Operator, TargetingRule } from '@flaghoist/core'
+export type {
+  Condition,
+  FeatureFlag,
+  FlagMetadata,
+  Operator,
+  TargetingRule,
+  WebhookEndpoint,
+  WebhookEvent,
+} from '@flaghoist/core'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,6 +87,18 @@ export interface ImportResult {
   errors: { key: string; error: string }[]
 }
 
+export interface WebhookInput {
+  url: string
+  events?: WebhookEvent[]
+  enabled?: boolean
+}
+
+export interface WebhookTestResult {
+  status: number
+  ok: boolean
+  error?: string
+}
+
 export interface AdminClient {
   list(options?: ListOptions): Promise<FeatureFlag[]>
   get(key: string): Promise<FeatureFlag | null>
@@ -89,6 +109,11 @@ export interface AdminClient {
   restore(key: string): Promise<FeatureFlag>
   exportFlags(): Promise<ExportPayload>
   importFlags(payload: ExportPayload): Promise<ImportResult>
+  listWebhooks(): Promise<WebhookEndpoint[]>
+  createWebhook(input: WebhookInput): Promise<WebhookEndpoint>
+  updateWebhook(id: string, input: Partial<WebhookInput>): Promise<WebhookEndpoint>
+  deleteWebhook(id: string): Promise<void>
+  testWebhook(id: string): Promise<WebhookTestResult>
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +277,46 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
         }),
       )
       return body as ImportResult
+    },
+
+    async listWebhooks() {
+      const body = await readJson(await request('/api/v1/webhooks'))
+      const hooks = (body as { webhooks?: unknown } | null)?.webhooks
+      if (!Array.isArray(hooks)) {
+        throw new ApiError(502, 'Unexpected response: the webhook list was missing or malformed.')
+      }
+      return hooks as WebhookEndpoint[]
+    },
+
+    async createWebhook(input) {
+      const body = await readJson(
+        await request('/api/v1/webhooks', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        }),
+      )
+      return body as WebhookEndpoint
+    },
+
+    async updateWebhook(id, input) {
+      const body = await readJson(
+        await request(`/api/v1/webhooks/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          body: JSON.stringify(input),
+        }),
+      )
+      return body as WebhookEndpoint
+    },
+
+    async deleteWebhook(id) {
+      await request(`/api/v1/webhooks/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+
+    async testWebhook(id) {
+      const body = await readJson(
+        await request(`/api/v1/webhooks/${encodeURIComponent(id)}/test`, { method: 'POST' }),
+      )
+      return body as WebhookTestResult
     },
   }
 }

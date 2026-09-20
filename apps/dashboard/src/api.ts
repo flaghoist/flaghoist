@@ -16,4 +16,8 @@ export {
   type ListOptions,
   type PutOptions,
   type TargetingRule,
+  type WebhookEndpoint,
+  type WebhookEvent,
+  type WebhookInput,
+  type WebhookTestResult,
 } from '@flaghoist/admin-client'

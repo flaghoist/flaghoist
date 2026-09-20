@@ -103,6 +103,15 @@ export interface StorageAdapter {
   appendAudit?(entry: AuditEntry): Promise<void>
   /** List audit entries with optional filtering and pagination. */
   listAudit?(options?: AuditListOptions): Promise<AuditPage>
+
+  /** Store a webhook endpoint. Optional; the server falls back to in-memory. */
+  putWebhook?(id: string, webhook: WebhookEndpoint): Promise<void>
+  /** Retrieve a webhook by id. */
+  getWebhook?(id: string): Promise<WebhookEndpoint | null>
+  /** Remove a webhook. */
+  deleteWebhook?(id: string): Promise<void>
+  /** List all webhook endpoints. */
+  listWebhooks?(): Promise<WebhookEndpoint[]>
 }
 
 /** A point-in-time snapshot of a flag's evaluable state, recorded in audit entries. */
@@ -133,6 +142,31 @@ export interface AuditListOptions {
 export interface AuditPage {
   entries: AuditEntry[]
   total: number
+}
+
+// ---------------------------------------------------------------------------
+// Webhooks
+// ---------------------------------------------------------------------------
+
+export type WebhookEvent =
+  'flag.created' | 'flag.updated' | 'flag.deleted' | 'flag.archived' | 'flag.restored'
+
+export const WEBHOOK_EVENTS: WebhookEvent[] = [
+  'flag.created',
+  'flag.updated',
+  'flag.deleted',
+  'flag.archived',
+  'flag.restored',
+]
+
+export interface WebhookEndpoint {
+  id: string
+  url: string
+  secret: string
+  events: WebhookEvent[]
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 /** The authenticated caller, extracted from a validated admin token. */

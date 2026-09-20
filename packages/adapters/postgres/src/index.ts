@@ -1,4 +1,9 @@
-import { parseFlag, type FeatureFlag, type StorageAdapter } from '@flaghoist/core'
+import {
+  parseFlag,
+  type FeatureFlag,
+  type StorageAdapter,
+  type WebhookEndpoint,
+} from '@flaghoist/core'
 
 /**
  * The minimal structural subset of a `node-postgres` client this adapter uses. A `pg` `Pool` or
@@ -11,6 +16,9 @@ export interface PgQueryable {
 export interface PostgresAdapterOptions {
   /** Table name. Must be a plain SQL identifier. Default: `"flaghoist_flags"`. */
   table?: string
+
+  /** Webhook table name. Must be a plain SQL identifier. Default: `"flaghoist_webhooks"`. */
+  webhookTable?: string
 }
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -33,9 +41,19 @@ export function postgresSchema(table = 'flaghoist_flags'): string {
   return `CREATE TABLE IF NOT EXISTS ${assertIdentifier(table)} (key text PRIMARY KEY, value jsonb NOT NULL)`
 }
 
-/** Create the flags table if it does not already exist. */
-export async function initPostgres(client: PgQueryable, table = 'flaghoist_flags'): Promise<void> {
+/** SQL that creates the webhooks table. */
+export function postgresWebhookSchema(table = 'flaghoist_webhooks'): string {
+  return `CREATE TABLE IF NOT EXISTS ${assertIdentifier(table)} (id text PRIMARY KEY, value jsonb NOT NULL)`
+}
+
+/** Create the flags and webhooks tables if they do not already exist. */
+export async function initPostgres(
+  client: PgQueryable,
+  table = 'flaghoist_flags',
+  webhookTable = 'flaghoist_webhooks',
+): Promise<void> {
   await client.query(postgresSchema(table))
+  await client.query(postgresWebhookSchema(webhookTable))
 }
 
 function toFlag(value: unknown): FeatureFlag | null {
@@ -60,6 +78,7 @@ export function postgresAdapter(
   options: PostgresAdapterOptions = {},
 ): StorageAdapter {
   const table = assertIdentifier(options.table ?? 'flaghoist_flags')
+  const whTable = assertIdentifier(options.webhookTable ?? 'flaghoist_webhooks')
 
   return {
     async get(key) {
@@ -85,6 +104,30 @@ export function postgresAdapter(
         if (flag) flags.push(flag)
       }
       return flags
+    },
+
+    async putWebhook(id, webhook) {
+      await client.query(
+        `INSERT INTO ${whTable} (id, value) VALUES ($1, $2::jsonb)
+         ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value`,
+        [id, JSON.stringify(webhook)],
+      )
+    },
+    async getWebhook(id) {
+      const { rows } = await client.query(`SELECT value FROM ${whTable} WHERE id = $1`, [id])
+      const row = rows[0] as { value: unknown } | undefined
+      if (!row) return null
+      return (typeof row.value === 'string' ? JSON.parse(row.value) : row.value) as WebhookEndpoint
+    },
+    async deleteWebhook(id) {
+      await client.query(`DELETE FROM ${whTable} WHERE id = $1`, [id])
+    },
+    async listWebhooks() {
+      const { rows } = await client.query(`SELECT value FROM ${whTable}`)
+      return rows.map((row) => {
+        const v = (row as { value: unknown }).value
+        return (typeof v === 'string' ? JSON.parse(v) : v) as WebhookEndpoint
+      })
     },
   }
 }

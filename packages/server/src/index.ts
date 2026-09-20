@@ -384,6 +384,73 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       return c.body(null, 204)
     })
 
+    app.get(`${prefix}/export`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const all = await cfg.storage.list()
+      const active = all.filter((f) => !f.archived)
+      const payload = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        flags: active.map((f) => ({
+          key: f.key,
+          enabled: f.enabled,
+          rollout: f.rollout,
+          description: f.description,
+          ...(f.rules && f.rules.length > 0 ? { rules: f.rules } : {}),
+        })),
+      }
+      c.header('Content-Disposition', 'attachment; filename="flaghoist-export.json"')
+      return c.json(payload)
+    })
+
+    app.post(`${prefix}/import`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const parsed = await readJsonBody(await c.req.text())
+      if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
+      const body = parsed.value as Record<string, unknown>
+      if (!body || typeof body !== 'object' || !Array.isArray(body.flags)) {
+        return c.json({ error: 'Expected { flags: [...] }' }, 400)
+      }
+      const incoming = body.flags as unknown[]
+      if (incoming.length > 500) {
+        return c.json({ error: 'Import limited to 500 flags' }, 400)
+      }
+      const identity = auth.identity ?? 'unknown'
+      let created = 0
+      let updated = 0
+      const errors: { key: string; error: string }[] = []
+      for (const raw of incoming) {
+        const obj = raw as Record<string, unknown>
+        if (!obj || typeof obj !== 'object' || typeof obj.key !== 'string') {
+          errors.push({ key: String(obj?.key ?? '(missing)'), error: 'Missing or invalid key' })
+          continue
+        }
+        const existing = await cfg.storage.get(obj.key)
+        const built = buildFlag(obj.key, obj, identity, existing)
+        if (!built.ok) {
+          errors.push({ key: obj.key, error: built.error })
+          continue
+        }
+        await cfg.storage.put(obj.key, built.flag)
+        await audit.record({
+          action: existing ? 'update' : 'create',
+          flagKey: obj.key,
+          actor: identity,
+          previous: existing ? snapshot(existing) : undefined,
+          current: snapshot(built.flag),
+          changeDescription: 'Bulk import',
+        })
+        if (existing) updated++
+        else created++
+      }
+      cache.invalidate()
+      return c.json({ created, updated, errors })
+    })
+
     app.get(`${prefix}/audit`, async (c) => {
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)

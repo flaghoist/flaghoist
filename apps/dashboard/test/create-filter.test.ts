@@ -39,6 +39,8 @@ function client(over: Partial<AdminClient> = {}): AdminClient {
       archivedAt: new Date().toISOString(),
     })),
     restore: vi.fn(async () => flag()),
+    exportFlags: vi.fn(async () => ({ version: 1, exportedAt: '', flags: [] })),
+    importFlags: vi.fn(async () => ({ created: 0, updated: 0, errors: [] })),
     ...over,
   }
 }

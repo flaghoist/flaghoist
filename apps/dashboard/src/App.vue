@@ -5,8 +5,11 @@ import {
   createAdminClient,
   flagEtag,
   type AdminClient,
+  type ExportedFlag,
+  type ExportPayload,
   type FeatureFlag,
   type FlagInput,
+  type ImportResult,
 } from './api'
 import AuditLog from './components/AuditLog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
@@ -411,6 +414,76 @@ function restoreFlag(flag: FeatureFlag) {
   })
 }
 
+/* ---- export/import -------------------------------------------------------- */
+
+const importPreview = ref<ExportedFlag[] | null>(null)
+const importBusy = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+async function exportFlags() {
+  if (!api.value) return
+  try {
+    const payload = await api.value.exportFlags()
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `flaghoist-export-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast(`Exported ${payload.flags.length} flag${payload.flags.length === 1 ? '' : 's'}.`, 'ok')
+  } catch (e) {
+    const msg = handle(e)
+    if (msg) toast(msg, 'error')
+  }
+}
+
+function openImportPicker() {
+  fileInput.value?.click()
+}
+
+async function handleImportFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  try {
+    const text = await file.text()
+    const payload = JSON.parse(text) as ExportPayload
+    if (!Array.isArray(payload?.flags) || payload.flags.length === 0) {
+      toast('File contains no flags.', 'error')
+      return
+    }
+    importPreview.value = payload.flags
+  } catch {
+    toast('Could not read file. Make sure it is valid JSON.', 'error')
+  }
+}
+
+async function confirmImport() {
+  if (!api.value || !importPreview.value) return
+  importBusy.value = true
+  try {
+    const result: ImportResult = await api.value.importFlags({
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      flags: importPreview.value,
+    })
+    importPreview.value = null
+    flags.value = await api.value.list({ includeArchived: showArchived.value })
+    const parts: string[] = []
+    if (result.created > 0) parts.push(`${result.created} created`)
+    if (result.updated > 0) parts.push(`${result.updated} updated`)
+    if (result.errors.length > 0) parts.push(`${result.errors.length} failed`)
+    toast(`Import complete: ${parts.join(', ')}.`, result.errors.length > 0 ? 'error' : 'ok')
+  } catch (e) {
+    const msg = handle(e)
+    if (msg) toast(msg, 'error')
+  } finally {
+    importBusy.value = false
+  }
+}
+
 async function toggleShowArchived() {
   showArchived.value = !showArchived.value
   if (!api.value) return
@@ -680,7 +753,30 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
       <main v-else-if="view === 'flags'" class="content">
         <div class="flags-header">
           <h1 class="page-title">Flags</h1>
-          <button class="btn btn-primary btn-sm" @click="editor = { flag: null }">New flag</button>
+          <div class="flags-actions">
+            <button class="btn btn-ghost btn-sm" @click="exportFlags" title="Export flags">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              Export
+            </button>
+            <button class="btn btn-ghost btn-sm" @click="openImportPicker" title="Import flags">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+              </svg>
+              Import
+            </button>
+            <input
+              ref="fileInput"
+              type="file"
+              accept=".json,application/json"
+              hidden
+              @change="handleImportFile"
+            />
+            <button class="btn btn-primary btn-sm" @click="editor = { flag: null }">
+              New flag
+            </button>
+          </div>
         </div>
 
         <div class="toolbar">
@@ -950,6 +1046,38 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
           @cancel="pendingDelete = null"
         />
 
+        <div v-if="importPreview" class="import-overlay" @click.self="importPreview = null">
+          <div class="import-dialog card" role="dialog" aria-labelledby="import-title">
+            <h2 id="import-title">
+              Import {{ importPreview.length }} flag{{ importPreview.length === 1 ? '' : 's' }}
+            </h2>
+            <p class="import-hint">
+              Existing flags with the same key will be updated. New keys will be created.
+            </p>
+            <div class="import-list">
+              <div v-for="f in importPreview" :key="f.key" class="import-row">
+                <code class="mono">{{ f.key }}</code>
+                <span class="badge" :class="f.enabled ? 'badge-on' : 'badge-off'">{{
+                  f.enabled ? 'on' : 'off'
+                }}</span>
+                <span class="import-pct mono">{{ f.rollout.percentage }}%</span>
+              </div>
+            </div>
+            <div class="import-actions">
+              <button
+                class="btn btn-ghost btn-sm"
+                :disabled="importBusy"
+                @click="importPreview = null"
+              >
+                Cancel
+              </button>
+              <button class="btn btn-primary btn-sm" :disabled="importBusy" @click="confirmImport">
+                {{ importBusy ? 'Importing...' : 'Import' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <p v-if="!loading && flags.length > 0" class="hintbar">
           <kbd>/</kbd> search · <kbd>n</kbd> new flag · <kbd>g</kbd><kbd>a</kbd> audit ·
           <kbd>esc</kbd> clear
@@ -1048,6 +1176,22 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+.flags-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -2px;
+  margin-right: 0.2rem;
 }
 .page-title {
   font-size: 1.2rem;
@@ -1458,7 +1602,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   .shell.sidebar-collapsed :deep(.sidebar) {
     transform: translateX(-100%);
   }
-  .flags-header .btn {
+  .flags-header .flags-actions .btn-primary {
     display: none;
   }
   .col-check,
@@ -1470,5 +1614,65 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   .flag-table td {
     padding: 0.5rem;
   }
+}
+
+/* ---- import dialog ---- */
+.import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: light-dark(rgba(11, 30, 58, 0.34), rgba(2, 8, 16, 0.62));
+  backdrop-filter: blur(3px);
+}
+.import-dialog {
+  width: min(32rem, 100%);
+  padding: 1.25rem;
+}
+.import-dialog h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+.import-hint {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.import-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  margin-bottom: 1rem;
+}
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.import-row:last-child {
+  border-bottom: none;
+}
+.import-row code {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-pct {
+  font-size: 0.74rem;
+  color: var(--text-mute);
+}
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 </style>

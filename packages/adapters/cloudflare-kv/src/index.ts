@@ -1,4 +1,4 @@
-import { parseFlag, type FeatureFlag, type StorageAdapter } from '@flaghoist/core'
+import { parseFlag, type FeatureFlag, type StorageAdapter, type WebhookEndpoint } from '@flaghoist/core'
 
 /**
  * The minimal structural subset of the Cloudflare Workers `KVNamespace` API this adapter uses.
@@ -29,6 +29,9 @@ export interface CloudflareKVOptions {
    * @example cloudflareKV(env.FLAGS, { prefix: 'flag:' })
    */
   prefix?: string
+
+  /** Key prefix for webhook entries. Default: `"webhook:"`. */
+  webhookPrefix?: string
 }
 
 function safeParse(raw: string | null): FeatureFlag | null {
@@ -46,11 +49,21 @@ function safeParse(raw: string | null): FeatureFlag | null {
  * through `parseFlag`, so tampered or corrupted data degrades to "flag ignored" rather than a
  * crash or a malformed evaluation.
  */
+function safeParseWebhook(raw: string | null): WebhookEndpoint | null {
+  if (raw == null) return null
+  try {
+    return JSON.parse(raw) as WebhookEndpoint
+  } catch {
+    return null
+  }
+}
+
 export function cloudflareKV(
   kv: KVNamespaceLike,
   options: CloudflareKVOptions = {},
 ): StorageAdapter {
   const prefix = options.prefix ?? ''
+  const whPrefix = options.webhookPrefix ?? 'webhook:'
 
   return {
     async get(key) {
@@ -77,6 +90,32 @@ export function cloudflareKV(
         cursor = page.list_complete ? undefined : page.cursor
       } while (cursor)
       return flags
+    },
+
+    async putWebhook(id, webhook) {
+      await kv.put(whPrefix + id, JSON.stringify(webhook))
+    },
+    async getWebhook(id) {
+      return safeParseWebhook(await kv.get(whPrefix + id, { type: 'text' }))
+    },
+    async deleteWebhook(id) {
+      await kv.delete(whPrefix + id)
+    },
+    async listWebhooks() {
+      const hooks: WebhookEndpoint[] = []
+      let cursor: string | undefined
+      do {
+        const page = await kv.list({ prefix: whPrefix, cursor })
+        const raws = await Promise.all(
+          page.keys.map((entry) => kv.get(entry.name, { type: 'text' })),
+        )
+        for (const raw of raws) {
+          const hook = safeParseWebhook(raw)
+          if (hook) hooks.push(hook)
+        }
+        cursor = page.list_complete ? undefined : page.cursor
+      } while (cursor)
+      return hooks
     },
   }
 }

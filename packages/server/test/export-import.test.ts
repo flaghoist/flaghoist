@@ -36,10 +36,10 @@ describe('export', () => {
     const res = await app.request('/api/v1/export', { headers: adminHeaders })
     const body = (await res.json()) as { version: number; flags: Record<string, unknown>[] }
     expect(body.flags).toHaveLength(1)
-    expect(body.flags[0].key).toBe('my-flag')
-    expect(body.flags[0].enabled).toBe(true)
-    expect(body.flags[0].rollout).toEqual({ percentage: 50 })
-    expect(body.flags[0].description).toBe('Test')
+    expect(body.flags[0]!.key).toBe('my-flag')
+    expect(body.flags[0]!.enabled).toBe(true)
+    expect(body.flags[0]!.rollout).toEqual({ percentage: 50 })
+    expect(body.flags[0]!.description).toBe('Test')
     expect(body.flags[0]).not.toHaveProperty('metadata')
   })
 
@@ -62,7 +62,7 @@ describe('export', () => {
     const res = await app.request('/api/v1/export', { headers: adminHeaders })
     const body = (await res.json()) as { flags: { key: string }[] }
     expect(body.flags).toHaveLength(1)
-    expect(body.flags[0].key).toBe('active-flag')
+    expect(body.flags[0]!.key).toBe('active-flag')
   })
 
   it('sets Content-Disposition header', async () => {
@@ -155,7 +155,7 @@ describe('import', () => {
     }
     expect(body.created).toBe(2)
     expect(body.errors).toHaveLength(1)
-    expect(body.errors[0].key).toBe('!!!bad')
+    expect(body.errors[0]!.key).toBe('!!!bad')
   })
 
   it('rejects a missing flags array', async () => {
@@ -183,8 +183,8 @@ describe('import', () => {
       entries: { action: string; flagKey: string; changeDescription?: string }[]
     }
     expect(body.entries).toHaveLength(1)
-    expect(body.entries[0].action).toBe('create')
-    expect(body.entries[0].flagKey).toBe('imported')
-    expect(body.entries[0].changeDescription).toBe('Bulk import')
+    expect(body.entries[0]!.action).toBe('create')
+    expect(body.entries[0]!.flagKey).toBe('imported')
+    expect(body.entries[0]!.changeDescription).toBe('Bulk import')
   })
 })

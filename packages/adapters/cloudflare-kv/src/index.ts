@@ -1,4 +1,9 @@
-import { parseFlag, type FeatureFlag, type StorageAdapter, type WebhookEndpoint } from '@flaghoist/core'
+import {
+  parseFlag,
+  type FeatureFlag,
+  type StorageAdapter,
+  type WebhookEndpoint,
+} from '@flaghoist/core'
 
 /**
  * The minimal structural subset of the Cloudflare Workers `KVNamespace` API this adapter uses.

@@ -18,6 +18,7 @@ const emit = defineEmits<{
 const nav = [
   { id: 'overview', label: 'Overview', icon: 'grid' },
   { id: 'flags', label: 'Flags', icon: 'flag' },
+  { id: 'webhooks', label: 'Webhooks', icon: 'webhook' },
   { id: 'audit', label: 'Audit log', icon: 'clock' },
   { id: 'settings', label: 'Settings', icon: 'gear' },
   { id: 'logout', label: 'Log out', icon: 'logout' },
@@ -72,6 +73,9 @@ const nav = [
           <template v-if="item.icon === 'clock'">
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3.5 2" />
+          </template>
+          <template v-if="item.icon === 'webhook'">
+            <path d="M12 2a4 4 0 0 0-3.46 6L3 18h6l3-5.2L15 18h6l-5.54-10A4 4 0 0 0 12 2z" />
           </template>
           <template v-if="item.icon === 'gear'">
             <circle cx="12" cy="12" r="3" />

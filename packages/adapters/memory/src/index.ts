@@ -4,6 +4,7 @@ import type {
   AuditPage,
   FeatureFlag,
   StorageAdapter,
+  WebhookEndpoint,
 } from '@flaghoist/core'
 
 /**
@@ -16,6 +17,7 @@ export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
   for (const flag of seed) store.set(flag.key, structuredClone(flag))
 
   const auditBuf: AuditEntry[] = []
+  const webhooks = new Map<string, WebhookEndpoint>()
 
   return {
     async get(key) {
@@ -43,6 +45,20 @@ export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
       const offset = options?.offset ?? 0
       const limit = options?.limit ?? 50
       return { entries: entries.slice(offset, offset + limit), total }
+    },
+
+    async putWebhook(id: string, webhook: WebhookEndpoint) {
+      webhooks.set(id, structuredClone(webhook))
+    },
+    async getWebhook(id: string) {
+      const w = webhooks.get(id)
+      return w ? structuredClone(w) : null
+    },
+    async deleteWebhook(id: string) {
+      webhooks.delete(id)
+    },
+    async listWebhooks() {
+      return [...webhooks.values()].map((w) => structuredClone(w))
     },
   }
 }

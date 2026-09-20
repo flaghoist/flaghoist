@@ -101,60 +101,86 @@ export function testStorageAdapter(
       const listed = (await adapter.list()).find((f) => f.key === 'checkout')
       expect(listed).toEqual(flag)
     })
+  })
+}
 
-    describe('webhooks', () => {
-      const hook: WebhookEndpoint = {
-        id: 'wh1',
-        url: 'https://example.com/hook',
-        secret: 'abc123',
-        events: ['flag.created', 'flag.updated'],
-        enabled: true,
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
+/**
+ * Conformance suite for the optional webhook-persistence methods (`putWebhook`/`getWebhook`/
+ * `deleteWebhook`/`listWebhooks`). These are not part of the required StorageAdapter interface —
+ * a webhook store falls back to in-memory without them — so this is opt-in, separate from
+ * `testStorageAdapter`: call it only from an adapter that implements webhook persistence.
+ *
+ * @example
+ *   testWebhookStorage('my-db', () => myDbAdapter(freshConnection()))
+ */
+export function testWebhookStorage(
+  name: string,
+  factory: () => StorageAdapter | Promise<StorageAdapter>,
+): void {
+  describe(`StorageAdapter webhook persistence: ${name}`, () => {
+    let adapter: Required<
+      Pick<StorageAdapter, 'putWebhook' | 'getWebhook' | 'deleteWebhook' | 'listWebhooks'>
+    >
+
+    beforeEach(async () => {
+      const a = await factory()
+      if (!a.putWebhook || !a.getWebhook || !a.deleteWebhook || !a.listWebhooks) {
+        throw new Error(`${name} does not implement webhook persistence`)
       }
+      adapter = a as typeof adapter
+    })
 
-      it('returns null for a missing webhook', async () => {
-        expect(await adapter.getWebhook!('missing')).toBeNull()
-      })
+    const hook: WebhookEndpoint = {
+      id: 'wh1',
+      url: 'https://example.com/hook',
+      secret: 'abc123',
+      events: ['flag.created', 'flag.updated'],
+      enabled: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
 
-      it('stores and retrieves a webhook', async () => {
-        await adapter.putWebhook!(hook.id, hook)
-        const got = await adapter.getWebhook!(hook.id)
-        expect(got).toEqual(hook)
-      })
+    it('returns null for a missing webhook', async () => {
+      expect(await adapter.getWebhook('missing')).toBeNull()
+    })
 
-      it('overwrites an existing webhook', async () => {
-        await adapter.putWebhook!(hook.id, hook)
-        const updated = { ...hook, url: 'https://new.example.com', enabled: false }
-        await adapter.putWebhook!(hook.id, updated)
-        const got = await adapter.getWebhook!(hook.id)
-        expect(got?.url).toBe('https://new.example.com')
-        expect(got?.enabled).toBe(false)
-      })
+    it('stores and retrieves a webhook', async () => {
+      await adapter.putWebhook(hook.id, hook)
+      const got = await adapter.getWebhook(hook.id)
+      expect(got).toEqual(hook)
+    })
 
-      it('deletes a webhook', async () => {
-        await adapter.putWebhook!(hook.id, hook)
-        await adapter.deleteWebhook!(hook.id)
-        expect(await adapter.getWebhook!(hook.id)).toBeNull()
-      })
+    it('overwrites an existing webhook', async () => {
+      await adapter.putWebhook(hook.id, hook)
+      const updated = { ...hook, url: 'https://new.example.com', enabled: false }
+      await adapter.putWebhook(hook.id, updated)
+      const got = await adapter.getWebhook(hook.id)
+      expect(got?.url).toBe('https://new.example.com')
+      expect(got?.enabled).toBe(false)
+    })
 
-      it('lists all webhooks', async () => {
-        const hook2: WebhookEndpoint = { ...hook, id: 'wh2', url: 'https://b.example.com' }
-        await adapter.putWebhook!(hook.id, hook)
-        await adapter.putWebhook!(hook2.id, hook2)
-        const ids = (await adapter.listWebhooks!()).map((w) => w.id).sort()
-        expect(ids).toEqual(['wh1', 'wh2'])
-      })
+    it('deletes a webhook', async () => {
+      await adapter.putWebhook(hook.id, hook)
+      await adapter.deleteWebhook(hook.id)
+      expect(await adapter.getWebhook(hook.id)).toBeNull()
+    })
 
-      it('returns an empty list when no webhooks exist', async () => {
-        expect(await adapter.listWebhooks!()).toEqual([])
-      })
+    it('lists all webhooks', async () => {
+      const hook2: WebhookEndpoint = { ...hook, id: 'wh2', url: 'https://b.example.com' }
+      await adapter.putWebhook(hook.id, hook)
+      await adapter.putWebhook(hook2.id, hook2)
+      const ids = (await adapter.listWebhooks()).map((w) => w.id).sort()
+      expect(ids).toEqual(['wh1', 'wh2'])
+    })
 
-      it('reflects deletions in the list', async () => {
-        await adapter.putWebhook!(hook.id, hook)
-        await adapter.deleteWebhook!(hook.id)
-        expect(await adapter.listWebhooks!()).toEqual([])
-      })
+    it('returns an empty list when no webhooks exist', async () => {
+      expect(await adapter.listWebhooks()).toEqual([])
+    })
+
+    it('reflects deletions in the list', async () => {
+      await adapter.putWebhook(hook.id, hook)
+      await adapter.deleteWebhook(hook.id)
+      expect(await adapter.listWebhooks()).toEqual([])
     })
   })
 }

@@ -12,9 +12,10 @@ without it, and see [Self-hosting](/self-hosting/#serving-the-dashboard) for wir
 
 ## Signing in
 
-Open `https://<your-server>/admin` and enter your server URL and admin token. The token is kept in
-the browser's local storage and sent only to that server. It is never sent anywhere else, and
-nothing here can read it back out.
+Open `https://<your-server>/admin` and enter your server URL and admin token. The token is kept
+only for that browser tab's session (it is cleared when the tab closes, and after 30 minutes of
+inactivity) and sent only to that server. It is never sent anywhere else, and nothing here can read
+it back out.
 
 ![The Flaghoist dashboard listing five flags, each with a toggle, a rollout slider, and a percentage.](/shot-flags.png)
 
@@ -26,11 +27,16 @@ flags are in each state before you click.
 
 Keyboard shortcuts work anywhere on the page:
 
-| Key   | Action                            |
-| ----- | --------------------------------- |
-| `/`   | Focus search                      |
-| `n`   | Open the new-flag editor          |
-| `Esc` | Clear search, or close the editor |
+| Key     | Action                            |
+| ------- | --------------------------------- |
+| `/`     | Focus search                      |
+| `n`     | Open the new-flag editor          |
+| `g` `o` | Go to Overview                    |
+| `g` `f` | Go to Flags                       |
+| `g` `w` | Go to Webhooks                    |
+| `g` `a` | Go to Audit log                   |
+| `g` `s` | Go to Settings                    |
+| `Esc`   | Clear search, or close the editor |
 
 ## Changing a flag
 
@@ -43,6 +49,42 @@ rollout, or targeting rules.
 A rule reads as a sentence: **if** a condition holds, **then serve** on or off, optionally to a
 percentage of the matches. Rules are checked in order and the first match wins; a flag with no
 matching rule falls back to its default rollout.
+
+## Archiving a flag
+
+**Archive** on a flag's row soft-deletes it: it stops evaluating and drops out of the main list, but
+its definition and history are kept, so **Restore** brings it back exactly as it was. Check
+**Archived** in the toolbar to see archived flags in the list; **Delete** (which is permanent) only
+appears there, on an already-archived flag, so an active flag can't be deleted by accident.
+
+## Exporting and importing flags
+
+**Export** downloads every active flag as JSON. **Import** reads a JSON file in the same shape,
+shows a preview of what will change, and on confirmation creates any new keys and updates any
+existing ones. Archived flags are not included in an export, and importing never archives or
+deletes anything.
+
+## Audit log
+
+Every create, update, delete, archive, and restore is recorded with who made it and when, whether it
+came from the dashboard, the CLI, or a script against the admin API. Open it from the sidebar, `g`
+`a`, or **View audit log** on Overview, and filter by action.
+
+## Webhooks
+
+The Webhooks page (`g` `w`) manages HTTP callbacks fired when a flag changes. **Add webhook** takes a
+URL and which events to send (or all of them); the signing secret used to verify deliveries is shown
+once on creation and can be revealed again later from the card. **Test** sends a synthetic delivery
+to your URL without touching a real flag, so you can verify your endpoint's handler before relying on
+it. See [the API reference](/api-reference/#webhooks) for the delivery format and signature scheme.
+
+## Environments
+
+When the server has more than one [environment](/api-reference/#environments) configured, an
+**Environment** dropdown appears at the top of the sidebar. Switching it reloads the flag list, the
+audit log, and everything else in the dashboard scoped to that environment — the same flag key can be
+on in staging and off in production, and each keeps its own history. With one environment (or none
+configured), the dropdown is hidden and the dashboard behaves exactly as it always has.
 
 ## Session and errors
 

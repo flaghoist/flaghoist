@@ -1,4 +1,4 @@
-import { testStorageAdapter } from '@flaghoist/adapter-conformance'
+import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ function freshAdapter() {
 }
 
 testStorageAdapter('sqlite', () => freshAdapter())
+testWebhookStorage('sqlite', () => freshAdapter())
 
 describe('sqliteAdapter -- specifics', () => {
   it('rejects an unsafe table name (SQL injection defense)', () => {

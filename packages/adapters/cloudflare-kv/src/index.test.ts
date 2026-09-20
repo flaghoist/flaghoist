@@ -1,4 +1,4 @@
-import { testStorageAdapter } from '@flaghoist/adapter-conformance'
+import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import { describe, expect, it } from 'vitest'
 import { cloudflareKV, type KVNamespaceLike } from './index'
@@ -37,6 +37,7 @@ class FakeKV implements KVNamespaceLike {
 }
 
 testStorageAdapter('cloudflare-kv', () => cloudflareKV(new FakeKV()))
+testWebhookStorage('cloudflare-kv', () => cloudflareKV(new FakeKV()))
 
 describe('cloudflareKV — specifics', () => {
   it('writes the flag key as given, with no prefix by default', async () => {

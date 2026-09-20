@@ -1,4 +1,4 @@
-import { testStorageAdapter } from '@flaghoist/adapter-conformance'
+import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import { newDb } from 'pg-mem'
 import { describe, expect, it } from 'vitest'
@@ -13,6 +13,7 @@ async function freshAdapter(): Promise<ReturnType<typeof postgresAdapter>> {
 }
 
 testStorageAdapter('postgres', () => freshAdapter())
+testWebhookStorage('postgres', () => freshAdapter())
 
 describe('postgresAdapter — specifics', () => {
   it('rejects an unsafe table name (SQL injection defense)', () => {

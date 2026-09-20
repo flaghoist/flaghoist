@@ -8,7 +8,8 @@ import {
 } from '@flaghoist/core'
 import { Hono } from 'hono'
 import { createAuditLog } from './audit'
-import { createDefinitionCache } from './cache'
+import { createDefinitionCache, type DefinitionCache } from './cache'
+import { resolveAdminEnvironment, resolveReadEnvironment, scopedStorage } from './environments'
 import { buildFlag, flagEtag } from './flags'
 import { openApiDocument } from './openapi'
 import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
@@ -24,7 +25,13 @@ import {
 } from './webhooks'
 
 export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
-export { apiKey, bearerToken, oidc, type OidcOptions } from './auth'
+export { apiKey, apiKeys, bearerToken, oidc, type OidcOptions } from './auth'
+export {
+  resolveAdminEnvironment,
+  resolveReadEnvironment,
+  scopedStorage,
+  type EnvironmentResolution,
+} from './environments'
 export {
   defaultRateLimitKey,
   memoryRateLimit,
@@ -77,12 +84,27 @@ function resolveContext(body: unknown, cfg: ServerConfig, headers: Headers): Eva
 export function createFlagServer<Env extends object = Record<string, unknown>>(
   config: ConfigResolver<Env>,
 ) {
-  const cache = createDefinitionCache()
+  // One definition cache per environment: a write to staging must not invalidate production's
+  // cached flag set, and vice versa. Keyed by environment name, created lazily on first use.
+  const caches = new Map<string, DefinitionCache>()
+  function cacheFor(environment: string): DefinitionCache {
+    let c = caches.get(environment)
+    if (!c) {
+      c = createDefinitionCache()
+      caches.set(environment, c)
+    }
+    return c
+  }
+
   const resolve = (env: unknown): ServerConfig =>
     typeof config === 'function' ? (config as (env: Env) => ServerConfig)(env as Env) : config
   const directConfig = typeof config === 'function' ? null : config
   const audit = createAuditLog(directConfig?.storage)
   const webhookStore = createWebhookStore(directConfig?.storage)
+
+  function defaultEnvOf(cfg: ServerConfig): string {
+    return cfg.defaultEnvironment ?? 'production'
+  }
 
   function snapshot(flag: FeatureFlag): FlagSnapshot {
     return { enabled: flag.enabled, rollout: flag.rollout, description: flag.description }
@@ -92,6 +114,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     event: WebhookEvent,
     flagKey: string,
     actor: string,
+    environment: string | undefined,
     current?: FlagSnapshot,
     previous?: FlagSnapshot,
   ) {
@@ -106,6 +129,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       },
       actor,
       previous,
+      environment,
     }
     dispatchWebhooks(webhookStore, event, payload).catch(() => {})
   }
@@ -152,7 +176,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     }
     if (c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-      c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, If-Match')
+      c.header(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, x-api-key, If-Match, X-Flaghoist-Environment',
+      )
       return c.body(null, 204)
     }
     return next()
@@ -242,7 +269,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       return c.json({ errorCode, errorDetails: parsed.message }, parsed.status)
     }
     const context = resolveContext(parsed.value, cfg, c.req.raw.headers)
-    const flags = await cache.load(cfg.storage, ttlMs(cfg))
+    const defaultEnv = defaultEnvOf(cfg)
+    const environment = resolveReadEnvironment(cfg.environments, defaultEnv, auth.environment)
+    const scoped = scopedStorage(cfg.storage, environment, defaultEnv)
+    const flags = await cacheFor(environment).load(scoped, ttlMs(cfg))
     const results = await Promise.all(
       flags.map(async (flag) => {
         const result = await evaluate(flag, context)
@@ -270,7 +300,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       return c.json({ key, errorCode, errorDetails: parsed.message }, parsed.status)
     }
     const context = resolveContext(parsed.value, cfg, c.req.raw.headers)
-    const flags = await cache.load(cfg.storage, ttlMs(cfg))
+    const defaultEnv = defaultEnvOf(cfg)
+    const environment = resolveReadEnvironment(cfg.environments, defaultEnv, auth.environment)
+    const scoped = scopedStorage(cfg.storage, environment, defaultEnv)
+    const flags = await cacheFor(environment).load(scoped, ttlMs(cfg))
     const flag = flags.find((f) => f.key === key)
     if (!flag) {
       return c.json(
@@ -294,7 +327,11 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-      const all = await cfg.storage.list()
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const scoped = scopedStorage(cfg.storage, envResult.environment, defaultEnv)
+      const all = await scoped.list()
       const includeArchived = c.req.query('includeArchived') === 'true'
       return c.json({ flags: includeArchived ? all : all.filter((f) => !f.archived) })
     })
@@ -303,7 +340,11 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-      const flag = await cfg.storage.get(c.req.param('key'))
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const scoped = scopedStorage(cfg.storage, envResult.environment, defaultEnv)
+      const flag = await scoped.get(c.req.param('key'))
       if (!flag) return c.json({ error: 'Flag not found' }, 404)
       c.header('ETag', flagEtag(flag))
       return c.json(flag)
@@ -313,8 +354,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const environment = envResult.environment
+      const scoped = scopedStorage(cfg.storage, environment, defaultEnv)
       const key = c.req.param('key')
-      const existing = await cfg.storage.get(key)
+      const existing = await scoped.get(key)
 
       // Optimistic concurrency, opt-in. A client that sends `If-Match` asserts the version it last
       // saw; if the stored flag has moved on (or was deleted) since, reject with 412 rather than
@@ -344,9 +390,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           : undefined
       const built = buildFlag(key, parsed.value, auth.identity ?? 'unknown', existing)
       if (!built.ok) return c.json({ error: built.error }, 400)
-      await cfg.storage.put(key, built.flag)
-      cache.invalidate()
+      await scoped.put(key, built.flag)
+      cacheFor(environment).invalidate()
       const flagAction = existing ? 'update' : 'create'
+      const auditEnv = cfg.environments ? environment : undefined
       await audit.record({
         action: flagAction,
         flagKey: key,
@@ -354,11 +401,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         previous: existing ? snapshot(existing) : undefined,
         current: snapshot(built.flag),
         changeDescription,
+        environment: auditEnv,
       })
       fireWebhook(
         `flag.${flagAction === 'update' ? 'updated' : 'created'}`,
         key,
         auth.identity ?? 'unknown',
+        auditEnv,
         snapshot(built.flag),
         existing ? snapshot(existing) : undefined,
       )
@@ -370,8 +419,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const environment = envResult.environment
+      const scoped = scopedStorage(cfg.storage, environment, defaultEnv)
       const key = c.req.param('key')
-      const existing = await cfg.storage.get(key)
+      const existing = await scoped.get(key)
       if (!existing) return c.json({ error: 'Flag not found' }, 404)
       if (existing.archived) return c.json({ error: 'Flag is already archived' }, 409)
       const archived: typeof existing = {
@@ -379,15 +433,24 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         archived: true,
         archivedAt: new Date().toISOString(),
       }
-      await cfg.storage.put(key, archived)
-      cache.invalidate()
+      await scoped.put(key, archived)
+      cacheFor(environment).invalidate()
+      const auditEnv = cfg.environments ? environment : undefined
       await audit.record({
         action: 'archive',
         flagKey: key,
         actor: auth.identity ?? 'unknown',
         previous: snapshot(existing),
+        environment: auditEnv,
       })
-      fireWebhook('flag.archived', key, auth.identity ?? 'unknown', undefined, snapshot(existing))
+      fireWebhook(
+        'flag.archived',
+        key,
+        auth.identity ?? 'unknown',
+        auditEnv,
+        undefined,
+        snapshot(existing),
+      )
       return c.json(archived)
     })
 
@@ -395,21 +458,28 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const environment = envResult.environment
+      const scoped = scopedStorage(cfg.storage, environment, defaultEnv)
       const key = c.req.param('key')
-      const existing = await cfg.storage.get(key)
+      const existing = await scoped.get(key)
       if (!existing) return c.json({ error: 'Flag not found' }, 404)
       if (!existing.archived) return c.json({ error: 'Flag is not archived' }, 409)
       const { archived: _, archivedAt: __, ...rest } = existing
       const restored = rest as typeof existing
-      await cfg.storage.put(key, restored)
-      cache.invalidate()
+      await scoped.put(key, restored)
+      cacheFor(environment).invalidate()
+      const auditEnv = cfg.environments ? environment : undefined
       await audit.record({
         action: 'restore',
         flagKey: key,
         actor: auth.identity ?? 'unknown',
         current: snapshot(restored),
+        environment: auditEnv,
       })
-      fireWebhook('flag.restored', key, auth.identity ?? 'unknown', snapshot(restored))
+      fireWebhook('flag.restored', key, auth.identity ?? 'unknown', auditEnv, snapshot(restored))
       return c.json(restored)
     })
 
@@ -417,18 +487,32 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const environment = envResult.environment
+      const scoped = scopedStorage(cfg.storage, environment, defaultEnv)
       const key = c.req.param('key')
-      const existing = await cfg.storage.get(key)
-      await cfg.storage.delete(key)
-      cache.invalidate()
+      const existing = await scoped.get(key)
+      await scoped.delete(key)
+      cacheFor(environment).invalidate()
+      const auditEnv = cfg.environments ? environment : undefined
       await audit.record({
         action: 'delete',
         flagKey: key,
         actor: auth.identity ?? 'unknown',
         previous: existing ? snapshot(existing) : undefined,
+        environment: auditEnv,
       })
       if (existing) {
-        fireWebhook('flag.deleted', key, auth.identity ?? 'unknown', undefined, snapshot(existing))
+        fireWebhook(
+          'flag.deleted',
+          key,
+          auth.identity ?? 'unknown',
+          auditEnv,
+          undefined,
+          snapshot(existing),
+        )
       }
       return c.body(null, 204)
     })
@@ -437,7 +521,11 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-      const all = await cfg.storage.list()
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const scoped = scopedStorage(cfg.storage, envResult.environment, defaultEnv)
+      const all = await scoped.list()
       const active = all.filter((f) => !f.archived)
       const payload = {
         version: 1,
@@ -458,6 +546,11 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
+      const environment = envResult.environment
+      const scoped = scopedStorage(cfg.storage, environment, defaultEnv)
       const parsed = await readJsonBody(await c.req.text())
       if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
       const body = parsed.value as Record<string, unknown>
@@ -469,6 +562,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         return c.json({ error: 'Import limited to 500 flags' }, 400)
       }
       const identity = auth.identity ?? 'unknown'
+      const auditEnv = cfg.environments ? environment : undefined
       let created = 0
       let updated = 0
       const errors: { key: string; error: string }[] = []
@@ -478,13 +572,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           errors.push({ key: String(obj?.key ?? '(missing)'), error: 'Missing or invalid key' })
           continue
         }
-        const existing = await cfg.storage.get(obj.key)
+        const existing = await scoped.get(obj.key)
         const built = buildFlag(obj.key, obj, identity, existing)
         if (!built.ok) {
           errors.push({ key: obj.key, error: built.error })
           continue
         }
-        await cfg.storage.put(obj.key, built.flag)
+        await scoped.put(obj.key, built.flag)
         await audit.record({
           action: existing ? 'update' : 'create',
           flagKey: obj.key,
@@ -492,11 +586,12 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           previous: existing ? snapshot(existing) : undefined,
           current: snapshot(built.flag),
           changeDescription: 'Bulk import',
+          environment: auditEnv,
         })
         if (existing) updated++
         else created++
       }
-      cache.invalidate()
+      cacheFor(environment).invalidate()
       return c.json({ created, updated, errors })
     })
 
@@ -504,6 +599,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const cfg = resolve(c.env)
       const auth = await cfg.auth.admin(c.req.raw.headers)
       if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const defaultEnv = defaultEnvOf(cfg)
+      const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
+      if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
       const limit = Math.min(Math.max(parseInt(c.req.query('limit') ?? '50', 10) || 50, 1), 200)
       const offset = Math.max(parseInt(c.req.query('offset') ?? '0', 10) || 0, 0)
       const flagKey = c.req.query('flagKey') || undefined
@@ -513,7 +611,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         action && ['create', 'update', 'delete', 'archive', 'restore'].includes(action)
           ? action
           : undefined
-      return c.json(await audit.list({ limit, offset, flagKey, action: validAction }))
+      const environment = cfg.environments ? envResult.environment : undefined
+      return c.json(await audit.list({ limit, offset, flagKey, action: validAction, environment }))
+    })
+
+    app.get(`${prefix}/environments`, async (c) => {
+      const cfg = resolve(c.env)
+      const auth = await cfg.auth.admin(c.req.raw.headers)
+      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const defaultEnvironment = defaultEnvOf(cfg)
+      const environments =
+        cfg.environments && cfg.environments.length > 0 ? cfg.environments : [defaultEnvironment]
+      return c.json({ environments, default: defaultEnvironment })
     })
 
     // ---- Webhook CRUD ----

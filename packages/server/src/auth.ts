@@ -86,6 +86,35 @@ export function apiKey(expected: string): Authenticator {
 }
 
 /**
+ * Read-path verifier for multiple environments: each environment gets its own `x-api-key`
+ * secret, so a key scoped to staging cannot read production and a leaked staging key has no
+ * blast radius beyond it. The matched environment is attached to the `AuthResult` and flows
+ * through to `ServerConfig.environments` scoping — see `resolveReadEnvironment` in
+ * environments.ts.
+ *
+ * All configured keys are compared in parallel (rather than short-circuiting on first match) so
+ * the number of environments configured does not itself become a timing signal.
+ *
+ * @example apiKeys({ production: env.READ_KEY_PROD, staging: env.READ_KEY_STAGING })
+ */
+export function apiKeys(keys: Record<string, string>): Authenticator {
+  const entries = Object.entries(keys)
+  for (const [env, secret] of entries) {
+    warnIfWeakSecret(`read API key for "${env}"`, secret)
+  }
+  return async (headers) => {
+    const provided = headers.get('x-api-key')
+    if (!provided) return { ok: false, status: 401, message: 'Invalid or missing API key' }
+    const results = await Promise.all(
+      entries.map(async ([env, secret]) => ({ env, match: await safeEqual(provided, secret) })),
+    )
+    const hit = results.find((r) => r.match)
+    if (!hit) return { ok: false, status: 401, message: 'Invalid or missing API key' }
+    return { ok: true, identity: 'api-key', environment: hit.env }
+  }
+}
+
+/**
  * Admin-path verifier: matches an `Authorization: Bearer <token>` against a shared secret in
  * constant time. The zero-config default — possession of the token is admin authorization.
  */

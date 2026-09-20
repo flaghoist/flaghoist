@@ -68,6 +68,12 @@ export interface FeatureFlag {
   metadata: FlagMetadata
   archived?: boolean
   archivedAt?: string
+  /**
+   * The environment this flag belongs to, when the server has environments configured. Absent
+   * means the default environment ("production"), so existing bare-keyed flags need no migration
+   * when environments are turned on for the first time.
+   */
+  environment?: string
 }
 
 /**
@@ -130,6 +136,8 @@ export interface AuditEntry {
   previous?: FlagSnapshot
   current?: FlagSnapshot
   changeDescription?: string
+  /** The environment the change happened in. Absent means the default environment. */
+  environment?: string
 }
 
 export interface AuditListOptions {
@@ -137,6 +145,8 @@ export interface AuditListOptions {
   offset?: number
   flagKey?: string
   action?: 'create' | 'update' | 'delete' | 'archive' | 'restore'
+  /** Restrict to entries recorded in this environment. Absent means the default environment. */
+  environment?: string
 }
 
 export interface AuditPage {

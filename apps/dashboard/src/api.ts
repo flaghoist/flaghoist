@@ -7,6 +7,7 @@ export {
   type AdminClient,
   type AdminClientOptions,
   type Condition,
+  type EnvironmentsResult,
   type ExportedFlag,
   type ExportPayload,
   type FeatureFlag,

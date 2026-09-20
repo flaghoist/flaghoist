@@ -6,6 +6,12 @@ export interface AuthResult {
   ok: boolean
   /** Caller identity (email/subject/'api-key') recorded in audit metadata when ok. */
   identity?: string
+  /**
+   * The environment this credential is scoped to, when the read verifier is environment-aware
+   * (see `apiKeys()` in auth.ts). Absent means "not environment-specific" — the request maps to
+   * the server's default environment.
+   */
+  environment?: string
   /** HTTP status to return when not ok. */
   status?: 401 | 403
   /** Public, non-sensitive error message when not ok. */
@@ -55,6 +61,23 @@ export interface ServerConfig {
    * set this to `false` and stop advertising its own API surface.
    */
   exposeOpenApi?: boolean
+  /**
+   * Named environments this deployment serves (e.g. `['production', 'staging', 'development']`).
+   * When set, flags are partitioned per environment: the same key can be on in staging and off in
+   * production, each with its own audit trail. Admin requests choose one with the
+   * `X-Flaghoist-Environment` header (defaulting to `defaultEnvironment` when omitted); the read
+   * (OFREP) path is scoped by whichever environment the read credential maps to (see `apiKeys()`).
+   *
+   * Omit entirely to run with a single, unnamed environment exactly as before — no migration
+   * needed, and existing flags are unaffected.
+   */
+  environments?: string[]
+  /**
+   * Which configured environment is the default: it uses bare storage keys and never stamps
+   * `environment` on a flag, so flags created before environments existed are already in it with
+   * zero migration. Default: `'production'`.
+   */
+  defaultEnvironment?: string
 }
 
 /** Config, or a function that derives it from the runtime environment (e.g. Workers bindings). */

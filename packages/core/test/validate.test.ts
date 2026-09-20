@@ -32,6 +32,21 @@ describe('parseFlag', () => {
     expect(flag?.metadata.createdBy).toBe('unknown')
   })
 
+  it('preserves the environment field when present', () => {
+    const flag = parseFlag({ key: 'k', enabled: true, environment: 'staging' })
+    expect(flag?.environment).toBe('staging')
+  })
+
+  it('leaves environment unset when absent, for zero-migration default-env flags', () => {
+    const flag = parseFlag({ key: 'k', enabled: true })
+    expect(flag?.environment).toBeUndefined()
+  })
+
+  it('ignores a non-string or empty environment value', () => {
+    expect(parseFlag({ key: 'k', enabled: true, environment: 42 })?.environment).toBeUndefined()
+    expect(parseFlag({ key: 'k', enabled: true, environment: '' })?.environment).toBeUndefined()
+  })
+
   it('parses valid targeting rules', () => {
     const flag = parseFlag({
       key: 'k',

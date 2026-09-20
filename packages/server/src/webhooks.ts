@@ -131,6 +131,8 @@ export interface WebhookPayload {
   }
   actor: string
   previous?: FlagSnapshot
+  /** The environment the change happened in. Absent means the default environment. */
+  environment?: string
 }
 
 export async function dispatchWebhooks(

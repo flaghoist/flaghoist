@@ -123,6 +123,9 @@ export function parseFlag(input: unknown): FeatureFlag | null {
     flag.archived = true
     if (typeof o.archivedAt === 'string') flag.archivedAt = o.archivedAt
   }
+  if (typeof o.environment === 'string' && o.environment.length > 0) {
+    flag.environment = o.environment
+  }
   return flag
 }
 

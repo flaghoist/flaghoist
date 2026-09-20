@@ -41,6 +41,9 @@ export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
       let entries = auditBuf.slice().reverse()
       if (options?.flagKey) entries = entries.filter((e) => e.flagKey === options.flagKey)
       if (options?.action) entries = entries.filter((e) => e.action === options.action)
+      if (options?.environment !== undefined) {
+        entries = entries.filter((e) => e.environment === options.environment)
+      }
       const total = entries.length
       const offset = options?.offset ?? 0
       const limit = options?.limit ?? 50

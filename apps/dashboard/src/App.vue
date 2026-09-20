@@ -33,6 +33,9 @@ type Filter = 'all' | 'live' | 'paused' | 'targeted'
 const api = ref<AdminClient | null>(null)
 const serverUrl = ref('')
 const serverToken = ref('')
+const environments = ref<string[]>(['production'])
+const defaultEnvironment = ref('production')
+const currentEnvironment = ref('production')
 const view = ref<View>('overview')
 const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
@@ -204,24 +207,68 @@ function describe(e: unknown): string {
   return 'Something went wrong.'
 }
 
-async function connect(url: string, token: string, persist = true) {
+async function connect(url: string, token: string, persist = true, environment?: string) {
   connecting.value = true
   gateError.value = ''
-  const client = createAdminClient({ url, token })
+  const client = createAdminClient({ url, token, environment })
   try {
     flags.value = await client.list({ includeArchived: showArchived.value })
     api.value = client
     serverUrl.value = url
     serverToken.value = token
+
+    // Older servers predate the environments feature and 404 on this endpoint -- fall back to a
+    // single unnamed environment so the dashboard behaves exactly as it did before.
+    try {
+      const envResult = await client.listEnvironments()
+      environments.value = envResult.environments
+      defaultEnvironment.value = envResult.default
+      currentEnvironment.value =
+        environment && envResult.environments.includes(environment)
+          ? environment
+          : envResult.default
+    } catch {
+      environments.value = ['production']
+      defaultEnvironment.value = 'production'
+      currentEnvironment.value = 'production'
+    }
+
     startSessionClock()
     resetIdleTimer()
-    if (persist) sessionStorage.setItem(STORAGE, JSON.stringify({ url, token }))
+    if (persist) {
+      sessionStorage.setItem(
+        STORAGE,
+        JSON.stringify({ url, token, environment: currentEnvironment.value }),
+      )
+    }
   } catch (e) {
     gateError.value = describe(e)
     api.value = null
   } finally {
     connecting.value = false
     loading.value = false
+  }
+}
+
+async function switchEnvironment(environment: string) {
+  if (!api.value || environment === currentEnvironment.value) return
+  const client = createAdminClient({ url: serverUrl.value, token: serverToken.value, environment })
+  try {
+    const nextFlags = await client.list({ includeArchived: showArchived.value })
+    api.value = client
+    currentEnvironment.value = environment
+    flags.value = nextFlags
+    selectedKeys.value = new Set()
+    clearFilters()
+    page.value = 1
+    sessionStorage.setItem(
+      STORAGE,
+      JSON.stringify({ url: serverUrl.value, token: serverToken.value, environment }),
+    )
+    toast(`Switched to ${environment}.`, 'ok')
+  } catch (e) {
+    const msg = handle(e)
+    if (msg) toast(msg, 'error')
   }
 }
 
@@ -235,6 +282,9 @@ function disconnect(message = '') {
   flags.value = []
   toasts.value = []
   selectedKeys.value = new Set()
+  environments.value = ['production']
+  defaultEnvironment.value = 'production'
+  currentEnvironment.value = 'production'
   gateError.value = message
 }
 
@@ -650,8 +700,12 @@ onMounted(() => {
     return
   }
   try {
-    const { url, token } = JSON.parse(saved) as { url: string; token: string }
-    void connect(url, token, false)
+    const { url, token, environment } = JSON.parse(saved) as {
+      url: string
+      token: string
+      environment?: string
+    }
+    void connect(url, token, false, environment)
   } catch {
     sessionStorage.removeItem(STORAGE)
     loading.value = false
@@ -700,6 +754,8 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
       :session-age="sessionAge"
       :theme="resolvedTheme()"
       :counts="{ all: counts.all, live: counts.live, paused: counts.paused }"
+      :environments="environments"
+      :current-environment="currentEnvironment"
       @navigate="
         (v: string) => {
           view = v as View
@@ -709,6 +765,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
       @disconnect="disconnect()"
       @toggle-theme="toggleTheme"
       @toggle-collapse="toggleSidebar"
+      @switch-environment="switchEnvironment"
     />
 
     <div class="main-area">
@@ -1095,6 +1152,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         v-else-if="view === 'audit'"
         :server-url="serverUrl"
         :token="serverToken"
+        :environment="currentEnvironment"
         @back="view = 'flags'"
       />
 

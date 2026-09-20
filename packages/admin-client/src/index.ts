@@ -59,6 +59,26 @@ export interface ListOptions {
   includeArchived?: boolean
 }
 
+export interface ExportPayload {
+  version: number
+  exportedAt: string
+  flags: ExportedFlag[]
+}
+
+export interface ExportedFlag {
+  key: string
+  enabled: boolean
+  rollout: { percentage: number }
+  description?: string
+  rules?: TargetingRule[]
+}
+
+export interface ImportResult {
+  created: number
+  updated: number
+  errors: { key: string; error: string }[]
+}
+
 export interface AdminClient {
   list(options?: ListOptions): Promise<FeatureFlag[]>
   get(key: string): Promise<FeatureFlag | null>
@@ -67,6 +87,8 @@ export interface AdminClient {
   delete(key: string): Promise<void>
   archive(key: string): Promise<FeatureFlag>
   restore(key: string): Promise<FeatureFlag>
+  exportFlags(): Promise<ExportPayload>
+  importFlags(payload: ExportPayload): Promise<ImportResult>
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +237,21 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
         throw new ApiError(502, 'Unexpected response: the restored flag was malformed.')
       }
       return body
+    },
+
+    async exportFlags() {
+      const body = await readJson(await request('/api/v1/export'))
+      return body as ExportPayload
+    },
+
+    async importFlags(payload) {
+      const body = await readJson(
+        await request('/api/v1/import', {
+          method: 'POST',
+          body: JSON.stringify({ version: payload.version, flags: payload.flags }),
+        }),
+      )
+      return body as ImportResult
     },
   }
 }

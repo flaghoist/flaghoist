@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 
-const props = defineProps<{ serverUrl: string; token: string }>()
+const props = defineProps<{ serverUrl: string; token: string; environment?: string }>()
 const emit = defineEmits<{ back: [] }>()
 
 interface FlagSnapshot {
@@ -50,9 +50,9 @@ async function load() {
     params.set('limit', String(PAGE_SIZE))
     params.set('offset', String((page.value - 1) * PAGE_SIZE))
     if (actionFilter.value) params.set('action', actionFilter.value)
-    const res = await fetch(`${props.serverUrl}/api/v1/audit?${params}`, {
-      headers: { authorization: `Bearer ${props.token}` },
-    })
+    const headers: Record<string, string> = { authorization: `Bearer ${props.token}` }
+    if (props.environment) headers['x-flaghoist-environment'] = props.environment
+    const res = await fetch(`${props.serverUrl}/api/v1/audit?${params}`, { headers })
     if (!res.ok) {
       error.value = res.status === 401 ? 'Unauthorized' : `Server error (${res.status})`
       return
@@ -127,6 +127,14 @@ watch(actionFilter, () => {
 })
 
 watch(page, () => void load())
+
+watch(
+  () => props.environment,
+  () => {
+    page.value = 1
+    void load()
+  },
+)
 
 onMounted(() => void load())
 </script>

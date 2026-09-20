@@ -52,6 +52,11 @@ type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export interface AdminClientOptions {
   url: string
   token: string
+  /**
+   * Which environment admin requests target, sent as `X-Flaghoist-Environment` on every request.
+   * Omit for a server with no environments configured, or to use its default environment.
+   */
+  environment?: string
   /** Injectable fetch for tests -- drives an in-process server with no network. */
   fetch?: FetchLike
   /** Request timeout in ms. Ignored when `fetch` is injected. Default: 15000. */
@@ -99,6 +104,11 @@ export interface WebhookTestResult {
   error?: string
 }
 
+export interface EnvironmentsResult {
+  environments: string[]
+  default: string
+}
+
 export interface AdminClient {
   list(options?: ListOptions): Promise<FeatureFlag[]>
   get(key: string): Promise<FeatureFlag | null>
@@ -114,6 +124,8 @@ export interface AdminClient {
   updateWebhook(id: string, input: Partial<WebhookInput>): Promise<WebhookEndpoint>
   deleteWebhook(id: string): Promise<void>
   testWebhook(id: string): Promise<WebhookTestResult>
+  /** The server's configured environments and its default. Always returns at least one. */
+  listEnvironments(): Promise<EnvironmentsResult>
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +180,9 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
   const baseHeaders: Record<string, string> = {
     authorization: `Bearer ${options.token}`,
     'content-type': 'application/json',
+  }
+  if (options.environment) {
+    baseHeaders['x-flaghoist-environment'] = options.environment
   }
 
   async function request(
@@ -317,6 +332,11 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
         await request(`/api/v1/webhooks/${encodeURIComponent(id)}/test`, { method: 'POST' }),
       )
       return body as WebhookTestResult
+    },
+
+    async listEnvironments() {
+      const body = await readJson(await request('/api/v1/environments'))
+      return body as EnvironmentsResult
     },
   }
 }

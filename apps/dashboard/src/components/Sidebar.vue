@@ -6,6 +6,8 @@ defineProps<{
   sessionAge: string
   theme: 'light' | 'dark'
   counts: { all: number; live: number; paused: number }
+  environments: string[]
+  currentEnvironment: string
 }>()
 
 const emit = defineEmits<{
@@ -13,6 +15,7 @@ const emit = defineEmits<{
   disconnect: []
   toggleTheme: []
   toggleCollapse: []
+  switchEnvironment: [environment: string]
 }>()
 
 const nav = [
@@ -47,6 +50,18 @@ const nav = [
           <path v-else d="M15 18l-6-6 6-6" />
         </svg>
       </button>
+    </div>
+
+    <div v-if="!collapsed && environments.length > 1" class="env-switcher">
+      <label class="env-label" for="env-select">Environment</label>
+      <select
+        id="env-select"
+        class="env-select"
+        :value="currentEnvironment"
+        @change="emit('switchEnvironment', ($event.target as HTMLSelectElement).value)"
+      >
+        <option v-for="env in environments" :key="env" :value="env">{{ env }}</option>
+      </select>
     </div>
 
     <nav class="nav-list">
@@ -189,6 +204,34 @@ const nav = [
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.env-switcher {
+  padding: 0.3rem 0.75rem 0.5rem;
+}
+.env-label {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+  margin-bottom: 0.25rem;
+}
+.env-select {
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 0.32rem 0.5rem;
+  text-transform: capitalize;
+}
+.env-select:focus {
+  outline: none;
+  border-color: var(--signal);
 }
 
 .nav-list {

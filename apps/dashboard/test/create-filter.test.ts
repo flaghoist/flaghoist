@@ -62,6 +62,7 @@ function client(over: Partial<AdminClient> = {}): AdminClient {
     })),
     deleteWebhook: vi.fn(async () => undefined),
     testWebhook: vi.fn(async () => ({ status: 200, ok: true })),
+    listEnvironments: vi.fn(async () => ({ environments: ['production'], default: 'production' })),
     ...over,
   }
 }

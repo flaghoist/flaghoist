@@ -427,7 +427,10 @@ const sustain = [
       </div>
       <div class="wrap foot-fine">
         <p>Apache-2.0. Copyright Damilola Oluwafemi and the Flaghoist contributors.</p>
-        <p>Not affiliated with or endorsed by the OpenFeature project or the CNCF.</p>
+        <p>
+          Listed in the <a href="https://openfeature.dev/ecosystem/">OpenFeature ecosystem</a> as an
+          OFREP implementation. Not endorsed by the OpenFeature project or the CNCF.
+        </p>
       </div>
     </footer>
 
@@ -1273,6 +1276,12 @@ const sustain = [
       }
       .foot-fine p + p {
         margin-top: 0.25rem;
+      }
+      /* Inherits --text-2 (already checked against the AA floor above) rather than introducing a
+         new color; the underline alone makes it a distinguishable link per WCAG 1.4.1. */
+      .foot-fine a {
+        text-decoration: underline;
+        text-underline-offset: 2px;
       }
 
       /* ── responsive ──────────────────────────────────────────── */

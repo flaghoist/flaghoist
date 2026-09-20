@@ -35,6 +35,9 @@ rather than appearing as broken rows, so nothing breaks, but you pay a read for 
 the prefix later hides the flags written under the old one: they are still in KV, the adapter is
 just no longer looking there.
 
+Webhook endpoints live in the same namespace, under a separate `webhook:` prefix by default (`{
+webhookPrefix: '...' }` to change it).
+
 ## Redis
 
 Works with `ioredis` (Node) and Upstash (edge). All flags live in one hash, so `list()` is a single
@@ -53,6 +56,9 @@ key to keep it separate from anything else in the same Redis:
 ```ts
 redisAdapter(new Redis(process.env.REDIS_URL), { hashKey: 'flags:staging' })
 ```
+
+Webhook endpoints live in their own hash, `flaghoist:webhooks` by default (`{ webhookHashKey: '...'
+}` to change it).
 
 ## Postgres
 
@@ -75,6 +81,14 @@ identifier, so it is injection-safe:
 ```ts
 await initPostgres(pool, 'flags_staging')
 postgresAdapter(pool, { table: 'flags_staging' })
+```
+
+Webhook endpoints live in a second table, `flaghoist_webhooks` by default; `initPostgres` creates it
+alongside the flags table. Pass a second argument (or `webhookTable` to the adapter) to rename it:
+
+```ts
+await initPostgres(pool, 'flags_staging', 'webhooks_staging')
+postgresAdapter(pool, { table: 'flags_staging', webhookTable: 'webhooks_staging' })
 ```
 
 ## SQLite
@@ -105,13 +119,51 @@ await initSqlite(db, 'flags_staging')
 sqliteAdapter(db, { table: 'flags_staging' })
 ```
 
+Webhook endpoints live in a second table, `flaghoist_webhooks` by default; `initSqlite` creates it
+alongside the flags table. Pass a second argument (or `webhookTable` to the adapter) to rename it:
+
+```ts
+await initSqlite(db, 'flags_staging', 'webhooks_staging')
+sqliteAdapter(db, { table: 'flags_staging', webhookTable: 'webhooks_staging' })
+```
+
 SQLite works in any Node or container deployment. It does not work on Cloudflare Workers (no
 filesystem access); use Cloudflare KV or Redis there.
 
 ## Scoping to an environment
 
-Flaghoist has no ORM-style naming strategy, and no adapter reads a table name from the environment on
-its own. Each adapter instead takes one code option that decides where its flags live:
+There are two ways to keep `production` and `staging` apart. Which one fits depends on how much
+isolation you want.
+
+### Built-in environments (one server, one backend)
+
+Pass `environments` to `createFlagServer` and every adapter above already knows what to do — no
+separate config, no second table to think about. The same key can be on in staging and off in
+production, sharing one storage instance:
+
+```ts
+createFlagServer({
+  storage: postgresAdapter(pool),
+  environments: ['production', 'staging', 'development'],
+  auth: { admin: bearerToken(env.ADMIN_TOKEN), read: apiKeys({/* one key per env */}) },
+})
+```
+
+Under the hood, the default environment's flags use the bare key you'd expect (`checkout`), and
+every other environment's flags are stored under `{env}:{key}` (`staging:checkout`) with an
+`environment` field on the stored JSON so `list()` can tell them apart. This is why turning
+environments on for the first time needs no migration: existing flags are already the default
+environment. See [Environments in the API reference](/api-reference/#environments) for the full
+picture, including per-environment read keys.
+
+This is the right default for most self-hosted setups: one deploy, one database to operate, and
+environments are just a header away.
+
+### Separate deployments (one server + backend per environment)
+
+For harder isolation — different databases, independent scaling, a compromised staging credential
+that can't even see production's storage — run one server per environment instead, each pointed at
+its own adapter instance. Each adapter takes one code option that decides where its flags live:
 
 | Adapter       | Option    | Default           |
 | ------------- | --------- | ----------------- |
@@ -120,8 +172,7 @@ its own. Each adapter instead takes one code option that decides where its flags
 | Postgres      | `table`   | `flaghoist_flags` |
 | SQLite        | `table`   | `flaghoist_flags` |
 
-To keep environments apart, run one server per environment and point each at a different value. Wire
-it from an env var in your own entry file if you want, for example a `FLAGS_TABLE` you define:
+Wire it from an env var in your own entry file if you want, for example a `FLAGS_TABLE` you define:
 
 ```ts
 const table = process.env.FLAGS_TABLE ?? 'flaghoist_flags'
@@ -130,7 +181,9 @@ createFlagServer({ storage: postgresAdapter(pool, { table }), auth: {/* … */} 
 ```
 
 There is nothing to rename and no migration step. The option is read at startup, and `initPostgres`
-creates the table if it does not exist yet.
+creates the table if it does not exist yet. This approach predates built-in environments and still
+works exactly as described; it composes with a completely different Postgres instance, or a
+different Cloudflare account, per environment in a way the shared-backend option above does not.
 
 ## Memory
 
@@ -152,6 +205,8 @@ import { createFlag } from '@flaghoist/core'
 
 memoryAdapter([createFlag({ key: 'new-checkout', enabled: true, rollout: { percentage: 25 } })])
 ```
+
+Webhook endpoints and audit entries are also kept in memory, with the same lifetime as the flags.
 
 ## Writing your own
 
@@ -189,3 +244,17 @@ testStorageAdapter('my-db', () => myAdapter(freshClient()))
 
 For SQL adapters, use parameterized queries everywhere, and validate any table/identifier names:
 they cannot be parameterized and are the one place injection could enter.
+
+### Optional: persisting audit history and webhooks
+
+Two more groups of methods are optional on `StorageAdapter`: `appendAudit`/`listAudit`, and
+`putWebhook`/`getWebhook`/`deleteWebhook`/`listWebhooks`. Implement neither, one, or both — whatever
+you skip falls back to an in-memory store instead (lost on restart, fine for local development, not
+for production). All five shipped adapters implement both groups; see their source for the shape.
+
+If you do implement the webhook methods, prove them with the matching, separately opt-in suite:
+
+```ts
+import { testWebhookStorage } from '@flaghoist/adapter-conformance'
+testWebhookStorage('my-db', () => myAdapter(freshClient()))
+```

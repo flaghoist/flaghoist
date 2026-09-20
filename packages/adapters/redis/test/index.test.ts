@@ -1,4 +1,4 @@
-import { testStorageAdapter } from '@flaghoist/adapter-conformance'
+import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import { describe, expect, it } from 'vitest'
 import { redisAdapter, type RedisClientLike } from '../src/index'
@@ -32,6 +32,7 @@ class FakeRedis implements RedisClientLike {
 }
 
 testStorageAdapter('redis', () => redisAdapter(new FakeRedis()))
+testWebhookStorage('redis', () => redisAdapter(new FakeRedis()))
 
 describe('redisAdapter — specifics', () => {
   it('stores all flags under a single configurable hash key', async () => {

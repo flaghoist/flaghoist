@@ -24,7 +24,8 @@ memoryAdapter([{ key: 'new-checkout', enabled: true, rollout: { percentage: 100 
 ```
 
 Everything disappears when the process exits. That is the point, but it does mean this is not the
-one to reach for in production.
+one to reach for in production. Webhook endpoints and audit entries are kept in memory too, with the
+same lifetime as the flags.
 
 It is validated by the same conformance suite as the other adapters, so it behaves like the real
 thing rather than like a stub that drifts.

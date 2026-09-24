@@ -29,6 +29,11 @@ db.exec(sqliteSchema())
 
 Pass a name if you want it somewhere other than `flaghoist_flags`.
 
+Webhook endpoints (if you use them) live in a second table, `flaghoist_webhooks` by default;
+`initSqlite(db)` already creates it alongside the flags table (that's what the example above does).
+`sqliteWebhookSchema()` gives you that table's SQL on its own, and `sqliteAdapter(db, {
+webhookTable: '...' })` renames it.
+
 This is the one to choose for local development, a single-server VPS where you do not want to run
 a separate database process, or any deploy where SQLite's simplicity and zero-dependency setup is
 the right fit. The adapter stores flags as JSON text and prepares all statements at creation time,

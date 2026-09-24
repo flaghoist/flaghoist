@@ -28,6 +28,11 @@ await pool.query(postgresSchema())
 
 Pass a name if you want it somewhere other than `flaghoist_flags`.
 
+Webhook endpoints (if you use them) live in a second table, `flaghoist_webhooks` by default —
+`postgresWebhookSchema()` gives you that table's SQL the same way, and `postgresAdapter(pool, {
+webhookTable: '...' })` renames it. `initPostgres(pool)` creates both tables in one call, if you'd
+rather not run two statements by hand.
+
 This is the one to choose when your flags should live in a database you already back up, or when the
 database sits inside a VPC that a Worker cannot reach anyway. Note that it wants a real TCP
 connection, so it suits Node, Bun or a container rather than an edge runtime.

@@ -6,6 +6,8 @@ const props = defineProps<{
   flags: FeatureFlag[]
   serverUrl: string
   token: string
+  /** Show toggles without letting them change anything, for the viewer role. */
+  readOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -132,6 +134,7 @@ function formatTime(iso: string): string {
               class="toggle toggle-sm"
               :data-on="flag.enabled"
               :aria-label="flag.enabled ? `Disable ${flag.key}` : `Enable ${flag.key}`"
+              :disabled="readOnly"
               @click="emit('toggle', flag)"
             ></button>
           </div>

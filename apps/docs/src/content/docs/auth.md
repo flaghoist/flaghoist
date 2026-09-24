@@ -85,12 +85,12 @@ find the values in their console -- see [OIDC provider setup](/oidc-providers/).
 An admin verifier can say which role its caller has, and every admin route checks it. Roles are
 cumulative: each one can do everything the roles above it in this table can.
 
-| Role     | Can                                                                   |
-| -------- | --------------------------------------------------------------------- |
-| `viewer` | Read flags, environments, exports and the audit log                   |
-| `editor` | Also create, edit, toggle, archive and restore flags                  |
-| `admin`  | Also delete flags, import, manage webhooks, and read the security log |
-| `owner`  | Everything                                                            |
+| Role     | Can                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------- |
+| `viewer` | Read flags, environments, exports and the audit log                                               |
+| `editor` | Also create, edit, toggle, archive and restore flags                                              |
+| `admin`  | Also delete flags, import, manage webhooks, manage members up to admin, and read the security log |
+| `owner`  | Everything, including managing other owners                                                       |
 
 A verifier that returns no role grants `owner`, which is the full access every admin verifier had
 before roles existed. `bearerToken` and `oidc` return no role, so they behave exactly as they always
@@ -145,6 +145,23 @@ keep accounts in memory and lose them on the next restart.
 token. Sign in with it, open **Account**, and create the owner account. After that, sign in with
 your email.
 
+**Inviting people.** Admins and owners invite from the dashboard's **Members** page (or
+`flaghoist users invite`): enter an email and a role, and Flaghoist gives you a link to pass on
+yourself. It does not send email. The link works once, for that email only, for 7 days (change it
+with `users.invites.expiresInDays`). Opening it lets the person choose a password and signs them
+in. An open invite can be given a new link, which stops the old one working, or cancelled.
+
+**Managing members.** From the same page, change someone's role, disable them (they are signed out
+at once and cannot sign in until enabled again), or remove them. A demotion signs the member out,
+so their next sign-in carries the new role. Only an owner can grant the owner role or change,
+disable or remove an owner, and the last active owner cannot be demoted, disabled or removed. No
+one can change their own role or remove themselves.
+
+**Forgotten passwords.** An admin creates a reset link for the member on the **Members** page (or
+`flaghoist users reset`). It works once, for 24 hours; setting a new password with it signs out
+every session that member had. Admins cannot reset an owner's password; another owner, or the admin
+token, can.
+
 **The admin token stays.** `auth.admin` keeps working as a break-glass Owner credential for
 recovery, and the audit log records its changes as `owner (break-glass)` so they stand out. The
 dashboard offers it under **Use an access token**.
@@ -168,8 +185,8 @@ itself is eventually consistent.
 lock that address for 15 minutes. Unknown emails are locked and answered exactly like real ones, so
 neither the response nor the lockout reveals which accounts exist.
 
-**Security log.** Sign-ins, failed sign-ins, sign-outs, password changes, account creation and
-webhook changes go to a separate security log. Admins and owners see it under **Audit log**,
+**Security log.** Sign-ins, failed sign-ins, sign-outs, password changes and resets, invites,
+member changes and webhook changes go to a separate security log. Admins and owners see it under **Audit log**,
 **Security**; see the [API reference](/api-reference/#audit-log).
 
 ## Security notes

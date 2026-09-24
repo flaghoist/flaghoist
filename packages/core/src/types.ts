@@ -160,7 +160,13 @@ export type SecurityAuditAction =
   | 'logout'
   | 'password.changed'
   | 'session.revoked'
+  | 'password.reset'
   | 'user.created'
+  | 'user.updated'
+  | 'user.removed'
+  | 'invite.created'
+  | 'invite.accepted'
+  | 'invite.revoked'
   | 'webhook.created'
   | 'webhook.updated'
   | 'webhook.deleted'
@@ -184,7 +190,7 @@ export function auditCategory(action: AuditAction): AuditCategory {
 
 /** What a security event touched. */
 export interface AuditTarget {
-  type: 'user' | 'session' | 'webhook'
+  type: 'user' | 'session' | 'invite' | 'webhook'
   id: string
 }
 

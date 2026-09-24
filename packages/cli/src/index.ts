@@ -38,6 +38,7 @@ import {
   needsKvNamespace,
   parseKvNamespaceId,
 } from './generate'
+import { runUsers, USERS_USAGE } from './users'
 import { VERSION } from './version'
 
 function writeFileSafe(path: string, content: string): void {
@@ -140,6 +141,23 @@ async function runFlag(args: string[]): Promise<void> {
     }
     default:
       throw new Error(`Unknown flag command: ${sub ?? '(none)'}. Try "flaghoist flag list".`)
+  }
+}
+
+async function runUsersCommand(args: string[]): Promise<void> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      url: { type: 'string' },
+      token: { type: 'string' },
+      role: { type: 'string' },
+    },
+  })
+  const client = clientFrom(values)
+  const url = (values.url ?? process.env.FLAGS_URL) as string
+  for (const line of await runUsers(client, url, positionals, { role: values.role })) {
+    console.log(line)
   }
 }
 
@@ -402,7 +420,10 @@ Flag management (needs --url/--token or FLAGS_URL/FLAGS_ADMIN_TOKEN)
   flag toggle <key> [--on|--off]
   flag rollout <key> <percentage>
   flag rules set <key> --file rules.json
-  flag delete <key>`)
+  flag delete <key>
+
+Members, on a server with accounts on (same --url/--token; needs the admin role)
+${USERS_USAGE}`)
 }
 
 async function main(): Promise<void> {
@@ -410,6 +431,8 @@ async function main(): Promise<void> {
   switch (command) {
     case 'flag':
       return runFlag(rest)
+    case 'users':
+      return runUsersCommand(rest)
     case 'init':
       return runInit(rest)
     case 'eject':

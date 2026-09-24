@@ -2,6 +2,7 @@ import { memoryAdapter } from '@flaghoist/adapter-memory'
 import { ApiError, createAdminClient, createAuthClient } from '@flaghoist/admin-client'
 import { apiKey, bearerToken, createFlagServer } from '@flaghoist/server'
 import { describe, expect, it } from 'vitest'
+import { runUsers } from '../src/users'
 
 const ADMIN_TOKEN = 'break-glass-token-for-tests-0123456789'
 const URL = 'http://flaghoist.local'
@@ -64,5 +65,59 @@ describe('accounts through the admin client', () => {
     // "é" as one code point when set, as "e" plus a combining accent when typed.
     await admin(ADMIN_TOKEN).createOwner({ email: 'e@example.com', password: 'café au lait 42' })
     await expect(auth.signIn('e@example.com', 'café au lait 42')).resolves.toBeTruthy()
+  })
+})
+
+describe('flaghoist users', () => {
+  it('invites, lists, changes a role, resets, disables and removes', async () => {
+    const { auth, admin } = setup()
+    const owner = admin(ADMIN_TOKEN)
+    const [message, link] = await runUsers(owner, URL, ['invite', 'ed@example.com'], {
+      role: 'editor',
+    })
+    expect(message).toMatch(/^Invited ed@example.com as editor/)
+    expect(link).toMatch(/^http:\/\/flaghoist\.local\/admin\/#accept=fh_inv_/)
+
+    const token = decodeURIComponent(link!.split('#accept=')[1]!)
+    expect(await auth.inspectLink(token)).toMatchObject({ kind: 'invite', role: 'editor' })
+    await auth.acceptLink(token, { name: 'Ed', password: 'correct horse battery' })
+
+    const list = await runUsers(owner, URL, ['list'], {})
+    expect(list[0]).toMatch(/^ed@example.com\s+editor\s+active/)
+
+    expect(await runUsers(owner, URL, ['role', 'ed@example.com', 'admin'], {})).toEqual([
+      'ed@example.com is now admin.',
+    ])
+
+    const [, resetLink] = await runUsers(owner, URL, ['reset', 'ed@example.com'], {})
+    const resetToken = decodeURIComponent(resetLink!.split('#accept=')[1]!)
+    await auth.acceptLink(resetToken, { password: 'a brand new passphrase' })
+    await auth.signIn('ed@example.com', 'a brand new passphrase')
+
+    await runUsers(owner, URL, ['disable', 'ed@example.com'], {})
+    const refused = await auth
+      .signIn('ed@example.com', 'a brand new passphrase')
+      .catch((e: unknown) => e)
+    expect((refused as ApiError).status).toBe(401)
+
+    await runUsers(owner, URL, ['remove', 'ed@example.com'], {})
+    expect(await runUsers(owner, URL, ['list'], {})).toEqual(['No members yet.'])
+  })
+
+  it('cancels an open invite', async () => {
+    const { auth, admin } = setup()
+    const owner = admin(ADMIN_TOKEN)
+    const [, link] = await runUsers(owner, URL, ['invite', 'v@example.com'], {})
+    await runUsers(owner, URL, ['revoke', 'v@example.com'], {})
+    const token = decodeURIComponent(link!.split('#accept=')[1]!)
+    const gone = await auth.inspectLink(token).catch((e: unknown) => e)
+    expect((gone as ApiError).status).toBe(410)
+  })
+
+  it('rejects an unknown role before calling the server', async () => {
+    const { admin } = setup()
+    await expect(
+      runUsers(admin(ADMIN_TOKEN), URL, ['invite', 'x@example.com'], { role: 'superuser' }),
+    ).rejects.toThrow(/Role must be one of/)
   })
 })

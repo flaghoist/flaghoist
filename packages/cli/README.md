@@ -31,6 +31,18 @@ flaghoist flag rollout new-checkout 25
 Rollouts are sticky. A user who lands inside 25 percent stays inside it as you go to 50, so nobody
 flickers in and out between deploys.
 
+## Managing members
+
+On a server with user accounts turned on, admins invite and manage people from the command line
+too. Invite and reset commands print a link to send yourself; Flaghoist does not send email.
+
+```bash
+flaghoist users invite ada@example.com --role editor
+flaghoist users list
+flaghoist users role ada@example.com admin
+flaghoist users reset ada@example.com
+```
+
 ## Owning the code
 
 ```bash

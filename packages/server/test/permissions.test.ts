@@ -27,6 +27,13 @@ const ROUTES: Route[] = [
   { method: 'POST', path: '/api/v1/flags/seed/restore', min: 'editor' },
   { method: 'DELETE', path: '/api/v1/flags/seed', min: 'admin' },
   { method: 'GET', path: '/api/v1/audit?category=security', min: 'admin' },
+  { method: 'GET', path: '/api/v1/users', min: 'admin' },
+  { method: 'PUT', path: '/api/v1/users/usr_missing', body: { role: 'viewer' }, min: 'admin' },
+  { method: 'DELETE', path: '/api/v1/users/usr_missing', min: 'admin' },
+  { method: 'POST', path: '/api/v1/users/usr_missing/reset', min: 'admin' },
+  { method: 'GET', path: '/api/v1/invites', min: 'admin' },
+  { method: 'POST', path: '/api/v1/invites', body: { email: 'a@example.com' }, min: 'admin' },
+  { method: 'DELETE', path: '/api/v1/invites/inv_missing', min: 'admin' },
   { method: 'POST', path: '/api/v1/import', body: { flags: [] }, min: 'admin' },
   { method: 'GET', path: '/api/v1/webhooks', min: 'admin' },
   {

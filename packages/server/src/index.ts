@@ -18,10 +18,12 @@ import {
   normalizeName,
   PASSWORD_ITERATIONS,
   PASSWORD_KDF,
+  publicInvite,
   publicSession,
   publicUser,
   SESSION_PREFIX,
   type AccountStore,
+  type InviteRecord,
   type SessionRecord,
   type UserRecord,
 } from './accounts'
@@ -31,7 +33,7 @@ import { createDefinitionCache, type DefinitionCache } from './cache'
 import { resolveAdminEnvironment, resolveReadEnvironment, scopedStorage } from './environments'
 import { buildFlag, flagEtag } from './flags'
 import { openApiDocument } from './openapi'
-import { can, isRole, minimumRole, type Permission, type Role } from './permissions'
+import { can, isRole, minimumRole, ROLES, type Permission, type Role } from './permissions'
 import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
 import {
@@ -44,7 +46,7 @@ import {
   type WebhookPayload,
 } from './webhooks'
 
-export type { PublicSession, PublicUser, UsersConfig } from './accounts'
+export type { PublicInvite, PublicSession, PublicUser, UsersConfig } from './accounts'
 export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
 export { apiKey, apiKeys, bearerToken, oidc, type OidcOptions } from './auth'
 export {
@@ -1128,6 +1130,333 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       target: { type: 'session', id },
     })
     return c.body(null, 204)
+  })
+
+  // ---- Members: invites, reset links, roles (admin and up; owners only for the owner role) ----
+
+  type MemberCaller = Authorized & { accounts: AccountStore }
+
+  async function memberAdmin(c: Context<{ Bindings: Env }>): Promise<MemberCaller | Response> {
+    const authorized = await authorize(c, 'members:manage')
+    if (authorized instanceof Response) return authorized
+    const accounts = accountsOf(authorized.cfg)
+    if (!accounts) return accountsOff(c)
+    return { ...authorized, accounts }
+  }
+
+  const ownersOnly = (c: Context<{ Bindings: Env }>) =>
+    c.json({ error: 'Only an owner can manage owners.', code: 'insufficient_role' }, 403)
+
+  /** Whether removing, disabling or demoting `user` would leave no active owner. */
+  async function isLastOwner(accounts: AccountStore, user: UserRecord): Promise<boolean> {
+    if (user.role !== 'owner' || user.status !== 'active') return false
+    const owners = (await accounts.listUsers()).filter(
+      (u) => u.role === 'owner' && u.status === 'active',
+    )
+    return owners.length <= 1
+  }
+
+  const lastOwner = (c: Context<{ Bindings: Env }>) =>
+    c.json(
+      {
+        error: 'This is the only owner. Make someone else an owner first.',
+        code: 'last_owner',
+      },
+      409,
+    )
+
+  const notYourself = (c: Context<{ Bindings: Env }>, what: string) =>
+    c.json({ error: `You cannot ${what} yourself.`, code: 'self_change' }, 409)
+
+  function linkResponse(token: string, invite: InviteRecord) {
+    return { token, invite: publicInvite(invite) }
+  }
+
+  app.get('/api/v1/users', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const [users, lastActive] = await Promise.all([
+      caller.accounts.listUsers(),
+      caller.accounts.lastActive(),
+    ])
+    return c.json({
+      users: users.map((u) => {
+        const seen = lastActive.get(u.id)
+        return { ...publicUser(u), ...(seen ? { lastActiveAt: seen } : {}) }
+      }),
+    })
+  })
+
+  app.put('/api/v1/users/:id', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const { accounts } = caller
+    const user = await accounts.getUser(c.req.param('id'))
+    if (!user) return c.json({ error: 'Member not found' }, 404)
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+
+    if (body.role !== undefined && !isRole(body.role)) {
+      return c.json({ error: `role must be one of ${ROLES.join(', ')}` }, 400)
+    }
+    if (body.status !== undefined && body.status !== 'active' && body.status !== 'disabled') {
+      return c.json({ error: 'status must be active or disabled' }, 400)
+    }
+    const role = (body.role as Role | undefined) ?? user.role
+    const status = (body.status as 'active' | 'disabled' | undefined) ?? user.status
+    const name = body.name !== undefined ? normalizeName(body.name) : user.name
+    const roleChanged = role !== user.role
+    const statusChanged = status !== user.status
+
+    if ((user.role === 'owner' || role === 'owner') && caller.role !== 'owner') {
+      if (roleChanged || statusChanged) return ownersOnly(c)
+    }
+    if (caller.user?.id === user.id && (roleChanged || statusChanged)) {
+      return notYourself(c, roleChanged ? 'change the role of' : 'disable')
+    }
+    if ((roleChanged || status === 'disabled') && (await isLastOwner(accounts, user))) {
+      return lastOwner(c)
+    }
+
+    const saved = await accounts.saveUser({ ...user, role, status, name })
+    // Losing access takes effect now: a disabled or demoted member signs in again, or not at all.
+    const demoted = ROLES.indexOf(role) < ROLES.indexOf(user.role)
+    if (status === 'disabled' || demoted) await accounts.revokeSessionsFor(user.id)
+
+    const changes: string[] = []
+    if (roleChanged) changes.push(`role ${user.role} to ${role}`)
+    if (statusChanged) changes.push(status === 'disabled' ? 'disabled' : 'enabled')
+    if (name !== user.name) changes.push('name changed')
+    if (changes.length > 0) {
+      await audit.record({
+        action: 'user.updated',
+        actor: caller.identity,
+        target: { type: 'user', id: user.id },
+        changeDescription: `${user.email}: ${changes.join(', ')}`,
+      })
+    }
+    return c.json(publicUser(saved))
+  })
+
+  app.delete('/api/v1/users/:id', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const { accounts } = caller
+    const user = await accounts.getUser(c.req.param('id'))
+    if (!user) return c.json({ error: 'Member not found' }, 404)
+    if (user.role === 'owner' && caller.role !== 'owner') return ownersOnly(c)
+    if (caller.user?.id === user.id) return notYourself(c, 'remove')
+    if (await isLastOwner(accounts, user)) return lastOwner(c)
+    await accounts.removeUser(user)
+    await audit.record({
+      action: 'user.removed',
+      actor: caller.identity,
+      target: { type: 'user', id: user.id },
+      changeDescription: user.email,
+    })
+    return c.body(null, 204)
+  })
+
+  app.post('/api/v1/users/:id/reset', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const { accounts } = caller
+    const user = await accounts.getUser(c.req.param('id'))
+    if (!user) return c.json({ error: 'Member not found' }, 404)
+    if (user.role === 'owner' && caller.role !== 'owner') return ownersOnly(c)
+    if (caller.user?.id === user.id) {
+      return c.json(
+        {
+          error: 'Change your own password from the Account page instead.',
+          code: 'self_change',
+        },
+        409,
+      )
+    }
+    const { token, invite } = await accounts.createInvite({
+      kind: 'reset',
+      email: user.email,
+      role: user.role,
+      userId: user.id,
+      invitedBy: caller.identity,
+    })
+    await audit.record({
+      action: 'password.reset',
+      actor: caller.identity,
+      target: { type: 'user', id: user.id },
+      changeDescription: `Reset link for ${user.email}`,
+    })
+    return c.json(linkResponse(token, invite), 201)
+  })
+
+  app.get('/api/v1/invites', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const invites = (await caller.accounts.listInvites()).filter((i) => i.kind === 'invite')
+    return c.json({ invites: invites.map(publicInvite) })
+  })
+
+  app.post('/api/v1/invites', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const { accounts } = caller
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const email = normalizeEmail(body.email)
+    if (!email) return c.json({ error: 'Enter a valid email address.' }, 400)
+    const role = body.role ?? 'viewer'
+    if (!isRole(role)) return c.json({ error: `role must be one of ${ROLES.join(', ')}` }, 400)
+    if (role === 'owner' && caller.role !== 'owner') return ownersOnly(c)
+    if (await accounts.findByEmail(email)) {
+      return c.json({ error: 'That email already has an account.', code: 'already_member' }, 409)
+    }
+    const { token, invite } = await accounts.createInvite({
+      kind: 'invite',
+      email,
+      role,
+      invitedBy: caller.identity,
+    })
+    await audit.record({
+      action: 'invite.created',
+      actor: caller.identity,
+      target: { type: 'invite', id: invite.id },
+      changeDescription: `${email} as ${role}`,
+    })
+    return c.json(linkResponse(token, invite), 201)
+  })
+
+  // A new link for an open invite. The old link stops working.
+  app.post('/api/v1/invites/:id/resend', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const { accounts } = caller
+    const existing = (await accounts.listInvites()).find(
+      (i) => i.id === c.req.param('id') && i.kind === 'invite',
+    )
+    if (!existing) return c.json({ error: 'Invite not found' }, 404)
+    if (existing.role === 'owner' && caller.role !== 'owner') return ownersOnly(c)
+    const { token, invite } = await accounts.createInvite({
+      kind: 'invite',
+      email: existing.email,
+      role: existing.role,
+      invitedBy: caller.identity,
+    })
+    await audit.record({
+      action: 'invite.created',
+      actor: caller.identity,
+      target: { type: 'invite', id: invite.id },
+      changeDescription: `${existing.email} as ${existing.role}, resent`,
+    })
+    return c.json(linkResponse(token, invite), 201)
+  })
+
+  app.delete('/api/v1/invites/:id', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const { accounts } = caller
+    const existing = (await accounts.listInvites()).find((i) => i.id === c.req.param('id'))
+    if (!existing) return c.json({ error: 'Invite not found' }, 404)
+    if (existing.role === 'owner' && caller.role !== 'owner') return ownersOnly(c)
+    await accounts.revokeInvite(existing.id)
+    await audit.record({
+      action: 'invite.revoked',
+      actor: caller.identity,
+      target: { type: 'invite', id: existing.id },
+      changeDescription: existing.email,
+    })
+    return c.body(null, 204)
+  })
+
+  // ---- Accepting an invite or a reset link (the link itself is the credential) ----
+
+  const linkGone = (c: Context<{ Bindings: Env }>) =>
+    c.json(
+      {
+        error: 'This link has expired or was already used. Ask an admin for a new one.',
+        code: 'link_invalid',
+      },
+      410,
+    )
+
+  app.post('/api/v1/invites/inspect', async (c) => {
+    const accounts = accountsOf(resolve(c.env))
+    if (!accounts) return accountsOff(c)
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const invite = typeof body.token === 'string' ? await accounts.findInvite(body.token) : null
+    if (!invite) return linkGone(c)
+    return c.json({
+      kind: invite.kind,
+      email: invite.email,
+      role: invite.role,
+      expiresAt: invite.expiresAt,
+      password: { kdf: PASSWORD_KDF, iterations: PASSWORD_ITERATIONS },
+    })
+  })
+
+  app.post('/api/v1/invites/accept', async (c) => {
+    const accounts = accountsOf(resolve(c.env))
+    if (!accounts) return accountsOff(c)
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const token = typeof body.token === 'string' ? body.token : ''
+    const invite = token ? await accounts.findInvite(token) : null
+    if (!invite) return linkGone(c)
+    const salt = decodeSalt(body.salt)
+    const clientKey = decodeClientKey(body.clientKey)
+    if (!salt || !clientKey) return c.json({ error: 'Missing or malformed password key.' }, 400)
+
+    let user: UserRecord | null
+    if (invite.kind === 'invite') {
+      user = await accounts.createUser({
+        email: invite.email,
+        name: normalizeName(body.name),
+        role: invite.role,
+        salt,
+        clientKey,
+      })
+      if (!user) {
+        await accounts.consumeInvite(token)
+        return c.json(
+          { error: 'That email already has an account. Sign in instead.', code: 'already_member' },
+          409,
+        )
+      }
+      await audit.record({
+        action: 'invite.accepted',
+        actor: user.email,
+        target: { type: 'user', id: user.id },
+        changeDescription: `Joined as ${user.role}`,
+      })
+    } else {
+      const existing = invite.userId ? await accounts.getUser(invite.userId) : null
+      if (!existing || existing.email !== invite.email) {
+        await accounts.consumeInvite(token)
+        return linkGone(c)
+      }
+      if (existing.status !== 'active') {
+        return c.json({ error: 'This account is disabled.', code: 'account_disabled' }, 403)
+      }
+      await accounts.setPassword(existing, salt, clientKey)
+      // A reset is for when a password is lost or leaked, so every existing session ends.
+      await accounts.revokeSessionsFor(existing.id)
+      await accounts.clearFailures(existing.email)
+      user = (await accounts.getUser(existing.id)) ?? existing
+      await audit.record({
+        action: 'password.changed',
+        actor: user.email,
+        target: { type: 'user', id: user.id },
+        changeDescription: 'With a reset link',
+      })
+    }
+    await accounts.consumeInvite(token)
+    await accounts.recordLogin(user)
+    const session = await accounts.createSession(user, c.req.header('user-agent'))
+    return c.json({
+      token: session.token,
+      expiresAt: session.session.expiresAt,
+      user: publicUser(user),
+    })
   })
 
   registerAdmin('/api/v1')

@@ -227,6 +227,29 @@ from the client when setting a password. The returned session token is used as
 (`code: "invalid_credentials"`). Too many failures return `429` with `code: "login_throttled"` and a
 `Retry-After` header. A session that has ended returns `401` with `code: "session_expired"`.
 
+### Members and invites
+
+Admin or owner. Only an owner can grant the owner role or act on an owner.
+
+| Method   | Path                          | Purpose                                                        |
+| -------- | ----------------------------- | -------------------------------------------------------------- |
+| `GET`    | `/api/v1/users`               | Members, with `lastActiveAt`                                   |
+| `PUT`    | `/api/v1/users/{id}`          | `{ role?, status?: "active" \| "disabled", name? }`            |
+| `DELETE` | `/api/v1/users/{id}`          | Remove a member                                                |
+| `POST`   | `/api/v1/users/{id}/reset`    | A password reset link: `{ token, invite }`, valid 24 hours     |
+| `GET`    | `/api/v1/invites`             | Open invites                                                   |
+| `POST`   | `/api/v1/invites`             | `{ email, role }` returns `{ token, invite }`, valid 7 days    |
+| `POST`   | `/api/v1/invites/{id}/resend` | A new link for an open invite; the old one stops working       |
+| `DELETE` | `/api/v1/invites/{id}`        | Cancel an open invite                                          |
+| `POST`   | `/api/v1/invites/inspect`     | No auth. `{ token }` returns what the link is for              |
+| `POST`   | `/api/v1/invites/accept`      | No auth. `{ token, name?, salt, clientKey }` returns a session |
+
+The `token` (`fh_inv_...` or `fh_rst_...`) is returned once and stored only as a hash. The
+dashboard link for it is `<dashboard>#accept=<token>`; `inviteLink()` in `@flaghoist/admin-client`
+builds it. A used, cancelled or expired link answers `410` with `code: "link_invalid"`. Refusals
+that protect the owner role return `409` with `code: "last_owner"` (it would leave no active owner)
+or `code: "self_change"` (you cannot change your own role or remove yourself).
+
 ## Webhooks
 
 Get an HTTP callback when a flag changes, instead of polling. Manage endpoints through the admin API

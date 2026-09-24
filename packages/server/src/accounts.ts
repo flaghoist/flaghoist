@@ -26,11 +26,18 @@ export interface UsersConfig {
     /** Sign a session out this many hours after sign-in, active or not. Default 12. */
     maxHours?: number
   }
+  invites?: {
+    /** How long an invite link stays valid. Default 7 days. Password reset links last 24 hours. */
+    expiresInDays?: number
+  }
 }
 
 export const PASSWORD_KDF = 'pbkdf2-sha256'
 export const PASSWORD_ITERATIONS = 600_000
 export const SESSION_PREFIX = 'fh_sess_'
+export const INVITE_PREFIX = 'fh_inv_'
+export const RESET_PREFIX = 'fh_rst_'
+const RESET_LINK_MS = 24 * 3_600_000
 const SALT_BYTES = 16
 const CLIENT_KEY_BYTES = 32
 const MIN_PEPPER_LENGTH = 32
@@ -42,6 +49,7 @@ const USERS = 'users'
 const USERS_BY_EMAIL = 'users-email'
 const SESSIONS = 'sessions'
 const LOGIN_ATTEMPTS = 'login-attempts'
+const INVITES = 'invites'
 
 // Read in place of a user record when an email has no account, so a failed sign-in for an unknown
 // email makes the same storage round trips as one for a real account.
@@ -89,6 +97,21 @@ export interface SessionRecord {
   expiresAt: string
   userAgent?: string
 }
+
+/** An invite to join, or a link to set a new password. Stored under the hash of its token. */
+export interface InviteRecord {
+  id: string
+  kind: 'invite' | 'reset'
+  email: string
+  role: Role
+  /** The account a reset link is for. Absent on invites, whose account does not exist yet. */
+  userId?: string
+  invitedBy: string
+  createdAt: string
+  expiresAt: string
+}
+
+export type PublicInvite = Omit<InviteRecord, 'userId'>
 
 export interface PublicSession {
   id: string
@@ -296,6 +319,23 @@ function isSessionRecord(value: unknown): value is SessionRecord {
   )
 }
 
+function isInviteRecord(value: unknown): value is InviteRecord {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.id === 'string' &&
+    (v.kind === 'invite' || v.kind === 'reset') &&
+    typeof v.email === 'string' &&
+    isRole(v.role) &&
+    typeof v.expiresAt === 'string'
+  )
+}
+
+export function publicInvite(invite: InviteRecord): PublicInvite {
+  const { userId: _, ...rest } = invite
+  return rest
+}
+
 function isAttemptRecord(value: unknown): value is AttemptRecord {
   if (!value || typeof value !== 'object') return false
   const v = value as Record<string, unknown>
@@ -311,6 +351,31 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
   // How stale lastSeenAt may get before a request writes it back. Writing on every request would
   // burn through Cloudflare KV's write quota, so the idle timeout is enforced to within this much.
   const touchMs = Math.min(5 * 60_000, idleMs / 6)
+  const inviteMs = (users.invites?.expiresInDays ?? 7) * 86_400_000
+
+  async function liveInvites(): Promise<{ key: string; invite: InviteRecord }[]> {
+    const now = Date.now()
+    const out: { key: string; invite: InviteRecord }[] = []
+    for (const { id, value } of await records.listRecords(INVITES)) {
+      if (!isInviteRecord(value)) continue
+      if (now >= Date.parse(value.expiresAt)) await records.deleteRecord(INVITES, id)
+      else out.push({ key: id, invite: value })
+    }
+    return out
+  }
+
+  async function allSessions(): Promise<{ key: string; session: SessionRecord }[]> {
+    const now = Date.now()
+    const out: { key: string; session: SessionRecord }[] = []
+    for (const { id, value } of await records.listRecords(SESSIONS)) {
+      if (!isSessionRecord(value)) continue
+      const expired =
+        now >= Date.parse(value.expiresAt) || now - Date.parse(value.lastSeenAt) >= idleMs
+      if (expired) await records.deleteRecord(SESSIONS, id)
+      else out.push({ key: id, session: value })
+    }
+    return out
+  }
 
   async function getUser(id: string): Promise<UserRecord | null> {
     const value = await records.getRecord(USERS, id)
@@ -378,6 +443,120 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
 
     getUser,
     findByEmail,
+
+    async listUsers(): Promise<UserRecord[]> {
+      return (await records.listRecords(USERS))
+        .map((r) => r.value)
+        .filter(isUserRecord)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    },
+
+    async saveUser(user: UserRecord): Promise<UserRecord> {
+      const updated = { ...user, updatedAt: new Date().toISOString() }
+      await records.putRecord(USERS, user.id, updated)
+      return updated
+    },
+
+    /** Delete an account with its email index, sessions and any open reset link. */
+    async removeUser(user: UserRecord): Promise<void> {
+      await Promise.all([
+        ...(await allSessions())
+          .filter((s) => s.session.userId === user.id)
+          .map((s) => records.deleteRecord(SESSIONS, s.key)),
+        ...(await liveInvites())
+          .filter((i) => i.invite.userId === user.id)
+          .map((i) => records.deleteRecord(INVITES, i.key)),
+      ])
+      await records.deleteRecord(USERS_BY_EMAIL, user.email)
+      await records.deleteRecord(USERS, user.id)
+    },
+
+    /** When each user was last seen, from their live sessions. */
+    async lastActive(): Promise<Map<string, string>> {
+      const out = new Map<string, string>()
+      for (const { session } of await allSessions()) {
+        const prev = out.get(session.userId)
+        if (!prev || session.lastSeenAt > prev) out.set(session.userId, session.lastSeenAt)
+      }
+      return out
+    },
+
+    /** Sign out every session of a user, except `keepId`. Returns how many ended. */
+    async revokeSessionsFor(userId: string, keepId?: string): Promise<number> {
+      const ended = (await allSessions()).filter(
+        (s) => s.session.userId === userId && s.session.id !== keepId,
+      )
+      await Promise.all(ended.map((s) => records.deleteRecord(SESSIONS, s.key)))
+      return ended.length
+    },
+
+    // ---- invites and reset links ----
+
+    /**
+     * Issue an invite, or a reset link for an existing account. Any earlier open link of the same
+     * kind for the same email stops working, so only the newest one can be used.
+     */
+    async createInvite(input: {
+      kind: 'invite' | 'reset'
+      email: string
+      role: Role
+      userId?: string
+      invitedBy: string
+    }): Promise<{ token: string; invite: InviteRecord }> {
+      for (const { key, invite } of await liveInvites()) {
+        if (invite.kind === input.kind && invite.email === input.email) {
+          await records.deleteRecord(INVITES, key)
+        }
+      }
+      const prefix = input.kind === 'invite' ? INVITE_PREFIX : RESET_PREFIX
+      const token = prefix + toBase64Url(randomBytes(32))
+      const now = Date.now()
+      const invite: InviteRecord = {
+        id: `inv_${hex(randomBytes(12))}`,
+        kind: input.kind,
+        email: input.email,
+        role: input.role,
+        ...(input.userId ? { userId: input.userId } : {}),
+        invitedBy: input.invitedBy,
+        createdAt: new Date(now).toISOString(),
+        expiresAt: new Date(
+          now + (input.kind === 'invite' ? inviteMs : RESET_LINK_MS),
+        ).toISOString(),
+      }
+      await records.putRecord(INVITES, await sha256Hex(token), invite)
+      return { token, invite }
+    },
+
+    async listInvites(): Promise<InviteRecord[]> {
+      return (await liveInvites())
+        .map((i) => i.invite)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    },
+
+    /** The open invite or reset link behind a token, or null when unknown, used or expired. */
+    async findInvite(token: string): Promise<InviteRecord | null> {
+      if (!token.startsWith(INVITE_PREFIX) && !token.startsWith(RESET_PREFIX)) return null
+      const key = await sha256Hex(token)
+      const value = await records.getRecord(INVITES, key)
+      if (!isInviteRecord(value)) return null
+      if (Date.now() >= Date.parse(value.expiresAt)) {
+        await records.deleteRecord(INVITES, key)
+        return null
+      }
+      return value
+    },
+
+    async consumeInvite(token: string): Promise<void> {
+      await records.deleteRecord(INVITES, await sha256Hex(token))
+    },
+
+    /** Revoke an open invite or reset link by its public id. */
+    async revokeInvite(id: string): Promise<InviteRecord | null> {
+      const match = (await liveInvites()).find((i) => i.invite.id === id)
+      if (!match) return null
+      await records.deleteRecord(INVITES, match.key)
+      return match.invite
+    },
 
     async passwordParams(email: string): Promise<PasswordParams> {
       const user = await findByEmail(email)
@@ -527,16 +706,7 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
 
     /** A user's live sessions, keyed by storage id. Expired ones are cleaned up along the way. */
     async sessionsFor(userId: string): Promise<{ key: string; session: SessionRecord }[]> {
-      const now = Date.now()
-      const out: { key: string; session: SessionRecord }[] = []
-      for (const { id, value } of await records.listRecords(SESSIONS)) {
-        if (!isSessionRecord(value) || value.userId !== userId) continue
-        const expired =
-          now >= Date.parse(value.expiresAt) || now - Date.parse(value.lastSeenAt) >= idleMs
-        if (expired) await records.deleteRecord(SESSIONS, id)
-        else out.push({ key: id, session: value })
-      }
-      return out
+      return (await allSessions()).filter((s) => s.session.userId === userId)
     },
 
     async deleteSessionKey(key: string): Promise<void> {

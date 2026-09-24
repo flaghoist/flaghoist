@@ -91,6 +91,22 @@ any one of them, or all but the one you are using. Changing your password signs 
 
 Signed in with the admin token before any account exists, the same page creates the owner account.
 
+## Members
+
+Admins and owners get a **Members** page. **Create invite link** takes an email and a role and
+shows a link to send the person yourself; it is shown only once, with a **Copy** button. Open
+invites are listed below the members, with **New link** (the old link stops working) and
+**Cancel**.
+
+Each member row changes the role, creates a **Reset password** link, and disables, enables or
+removes the member. Owners are listed but only an owner can change them, and your own row has no
+controls. Someone opening an invite or reset link sees a short form to set their password, then
+lands in the dashboard signed in.
+
+The dashboard follows your role: viewers see flags with the switches turned off, editors do not see
+import or delete, and Webhooks and Members appear only for admins and owners. The server checks
+every action regardless.
+
 ## Environments
 
 When the server has more than one [environment](/api-reference/#environments) configured, an

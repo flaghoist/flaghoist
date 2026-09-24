@@ -167,11 +167,52 @@ export interface PasswordChange {
   newPassword: string
 }
 
+/** A member as the Members page lists them. */
+export interface Member extends AccountUser {
+  /** When one of their sessions last made a request. Absent when none is live. */
+  lastActiveAt?: string
+}
+
+/** An open invite, or a link to set a new password. */
+export interface Invite {
+  id: string
+  kind: 'invite' | 'reset'
+  email: string
+  role: string
+  invitedBy: string
+  createdAt: string
+  expiresAt: string
+}
+
+/**
+ * A new invite or reset link. `token` is shown once and never again: it goes into the link the
+ * person opens (see `inviteLink`).
+ */
+export interface LinkResult {
+  token: string
+  invite: Invite
+}
+
+/** What a link holder learns before accepting it. */
+export interface LinkInfo {
+  kind: 'invite' | 'reset'
+  email: string
+  role: string
+  expiresAt: string
+}
+
 export interface AuthClient {
   /** The server's sign-in options. A server without accounts, or too old to have them, reports `accounts: false`. */
   config(): Promise<AuthConfig>
   /** Sign in with an email and password. The password is stretched here and never sent. */
   signIn(email: string, password: string): Promise<SignInResult>
+  /** What an invite or reset link is for. Fails with 410 when it expired or was used. */
+  inspectLink(token: string): Promise<LinkInfo>
+  /**
+   * Accept an invite (creating the account) or a reset link (replacing the password), and sign
+   * in. The password is stretched here and never sent.
+   */
+  acceptLink(token: string, input: { name?: string; password: string }): Promise<SignInResult>
 }
 
 export interface AdminClient {
@@ -203,6 +244,20 @@ export interface AdminClient {
   revokeSession(id: string): Promise<void>
   /** Sign out every session of the signed-in user except this one. */
   revokeOtherSessions(): Promise<{ revoked: number }>
+  listMembers(): Promise<Member[]>
+  /** Change a member's role, name, or status (`disabled` blocks sign-in and ends their sessions). */
+  updateMember(
+    id: string,
+    changes: { role?: string; status?: 'active' | 'disabled'; name?: string },
+  ): Promise<AccountUser>
+  removeMember(id: string): Promise<void>
+  /** A link that lets a member set a new password, valid for 24 hours. */
+  createResetLink(id: string): Promise<LinkResult>
+  listInvites(): Promise<Invite[]>
+  createInvite(input: { email: string; role: string }): Promise<LinkResult>
+  /** A new link for an open invite. The old one stops working. */
+  resendInvite(id: string): Promise<LinkResult>
+  revokeInvite(id: string): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +420,14 @@ async function passwordIterations(request: Requester): Promise<number> {
   return body.password.iterations
 }
 
+/**
+ * The dashboard link for an invite or reset token: `<dashboard>#accept=<token>`. The token goes in
+ * the fragment, which browsers never send to a server or put in a Referer header.
+ */
+export function inviteLink(dashboardUrl: string, token: string): string {
+  return `${dashboardUrl.replace(/#.*$/, '')}#accept=${encodeURIComponent(token)}`
+}
+
 /** A client for signing in, which needs no credential. */
 export function createAuthClient(
   options: Omit<AdminClientOptions, 'token' | 'environment'>,
@@ -392,6 +455,34 @@ export function createAuthClient(
         }),
       )
       return body as SignInResult
+    },
+
+    async inspectLink(token) {
+      return (await readJson(
+        await request('/api/v1/invites/inspect', {
+          method: 'POST',
+          body: JSON.stringify({ token }),
+        }),
+      )) as LinkInfo & { password: { iterations: number } }
+    },
+
+    async acceptLink(token, input) {
+      const info = (await readJson(
+        await request('/api/v1/invites/inspect', {
+          method: 'POST',
+          body: JSON.stringify({ token }),
+        }),
+      )) as { password?: { iterations?: number } }
+      const iterations = info.password?.iterations
+      if (!iterations) throw new ApiError(502, 'Unexpected response: no password parameters.')
+      const salt = newSalt()
+      const clientKey = await deriveClientKey(input.password, salt, iterations)
+      return (await readJson(
+        await request('/api/v1/invites/accept', {
+          method: 'POST',
+          body: JSON.stringify({ token, name: input.name, salt, clientKey }),
+        }),
+      )) as SignInResult
     },
   }
 }
@@ -586,6 +677,51 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
       return (await readJson(await request('/api/v1/me/sessions', { method: 'DELETE' }))) as {
         revoked: number
       }
+    },
+
+    async listMembers() {
+      const body = (await readJson(await request('/api/v1/users'))) as { users: Member[] }
+      return body.users
+    },
+
+    async updateMember(id, changes) {
+      return (await readJson(
+        await request(`/api/v1/users/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          body: JSON.stringify(changes),
+        }),
+      )) as AccountUser
+    },
+
+    async removeMember(id) {
+      await request(`/api/v1/users/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+
+    async createResetLink(id) {
+      return (await readJson(
+        await request(`/api/v1/users/${encodeURIComponent(id)}/reset`, { method: 'POST' }),
+      )) as LinkResult
+    },
+
+    async listInvites() {
+      const body = (await readJson(await request('/api/v1/invites'))) as { invites: Invite[] }
+      return body.invites
+    },
+
+    async createInvite(input) {
+      return (await readJson(
+        await request('/api/v1/invites', { method: 'POST', body: JSON.stringify(input) }),
+      )) as LinkResult
+    },
+
+    async resendInvite(id) {
+      return (await readJson(
+        await request(`/api/v1/invites/${encodeURIComponent(id)}/resend`, { method: 'POST' }),
+      )) as LinkResult
+    },
+
+    async revokeInvite(id) {
+      await request(`/api/v1/invites/${encodeURIComponent(id)}`, { method: 'DELETE' })
     },
   }
 }

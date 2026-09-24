@@ -14,12 +14,14 @@ export type Permission =
   | 'audit:read'
   | 'audit:security'
   | 'webhooks:manage'
+  | 'members:manage'
 
 /**
  * The lowest role that holds each permission. Webhooks sit at admin, not editor: an endpoint
  * receives every flag change and its signing secret is readable through the API, so managing one
  * is closer to granting access than to editing a flag. The security log sits at admin too, since
- * it lists every email that tried to sign in and where from.
+ * it lists every email that tried to sign in and where from. Admins manage members, but only an
+ * owner can grant, change or remove the owner role; the routes enforce that on top of this table.
  */
 const MINIMUM_ROLE: Record<Permission, Role> = {
   'flags:read': 'viewer',
@@ -29,6 +31,7 @@ const MINIMUM_ROLE: Record<Permission, Role> = {
   'flags:import': 'admin',
   'audit:security': 'admin',
   'webhooks:manage': 'admin',
+  'members:manage': 'admin',
 }
 
 export function isRole(value: unknown): value is Role {

@@ -13,22 +13,25 @@ import {
   type ImportResult,
   type Me,
 } from './api'
+import AcceptLink from './components/AcceptLink.vue'
 import AccountPage from './components/AccountPage.vue'
 import AuditLog from './components/AuditLog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
+import MembersPage from './components/MembersPage.vue'
 import Overview from './components/Overview.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import Sidebar from './components/Sidebar.vue'
 import ToastStack, { type Toast } from './components/ToastStack.vue'
 import TokenGate from './components/TokenGate.vue'
 import WebhooksPage from './components/WebhooksPage.vue'
+import { can } from './roles'
 
 const STORAGE = 'flaghoist.admin'
 const THEME = 'flaghoist.theme'
 const SIDEBAR = 'flaghoist.sidebar'
 
-type View = 'overview' | 'flags' | 'webhooks' | 'audit' | 'settings' | 'account'
+type View = 'overview' | 'flags' | 'webhooks' | 'audit' | 'settings' | 'account' | 'members'
 type SortKey = 'key' | 'enabled' | 'rollout' | 'updated'
 type SortDir = 'asc' | 'desc'
 type Filter = 'all' | 'live' | 'paused' | 'targeted'
@@ -40,9 +43,51 @@ const serverToken = ref('')
 const me = ref<Me | null>(null)
 const setupRequired = ref(false)
 const isSession = computed(() => serverToken.value.startsWith('fh_sess_'))
-const canSeeSecurity = computed(
-  () => me.value !== null && (me.value.role === 'admin' || me.value.role === 'owner'),
+const canSeeSecurity = computed(() => me.value !== null && can(me.value.role, 'audit:security'))
+// A server from before accounts cannot say who is calling, and every credential there is an owner.
+const role = computed(() => (me.value ? me.value.role : 'owner'))
+const canWrite = computed(() => can(role.value, 'flags:write'))
+const canDelete = computed(() => can(role.value, 'flags:delete'))
+const canImport = computed(() => can(role.value, 'flags:import'))
+const canManageWebhooks = computed(() => can(role.value, 'webhooks:manage'))
+const canManageMembers = computed(
+  () => me.value?.accounts === true && can(role.value, 'members:manage'),
 )
+
+// Where invite and reset links send people: this dashboard. When the dashboard is not served by
+// the server it manages (a local build, say), the link also names the server.
+const dashboardUrl = computed(() => {
+  const base = `${window.location.origin}${window.location.pathname}`
+  return serverUrl.value && serverUrl.value !== window.location.origin
+    ? `${base}?server=${encodeURIComponent(serverUrl.value)}`
+    : base
+})
+
+/* ---- invite and reset links (#accept=<token>) ------------------------------ */
+
+function readAcceptLink(): { token: string; server: string } | null {
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('accept')
+  if (!token) return null
+  const server =
+    new URLSearchParams(window.location.search).get('server') ??
+    (window.location.protocol.startsWith('http') ? window.location.origin : 'http://localhost:8787')
+  return { token, server }
+}
+
+const acceptLink = ref(readAcceptLink())
+
+function clearAcceptLink() {
+  acceptLink.value = null
+  // Drop the token from the address bar and history, so it cannot be reused from either.
+  history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+}
+
+async function onLinkAccepted(url: string, token: string) {
+  clearAcceptLink()
+  disconnect()
+  await connect(url, token)
+  if (api.value) toast('You are signed in.', 'ok')
+}
 const environments = ref<string[]>(['production'])
 const defaultEnvironment = ref('production')
 const currentEnvironment = ref('production')
@@ -699,7 +744,7 @@ function onKey(e: KeyboardEvent) {
     } else if (e.key === 'o') {
       e.preventDefault()
       view.value = 'overview'
-    } else if (e.key === 'w') {
+    } else if (e.key === 'w' && canManageWebhooks.value) {
       e.preventDefault()
       view.value = 'webhooks'
     } else if (e.key === 's') {
@@ -720,7 +765,7 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault()
     view.value = 'flags'
     setTimeout(() => searchEl.value?.focus(), 50)
-  } else if (e.key === 'n') {
+  } else if (e.key === 'n' && canWrite.value) {
     e.preventDefault()
     view.value = 'flags'
     editor.value = { flag: null }
@@ -807,8 +852,16 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 </script>
 
 <template>
+  <AcceptLink
+    v-if="!api && acceptLink"
+    :server-url="acceptLink.server"
+    :token="acceptLink.token"
+    @signed-in="onLinkAccepted"
+    @cancel="clearAcceptLink"
+  />
+
   <TokenGate
-    v-if="!api"
+    v-else-if="!api"
     :error="gateError"
     :connecting="connecting"
     :theme="resolvedTheme()"
@@ -828,6 +881,8 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
       :environments="environments"
       :current-environment="currentEnvironment"
       :show-account="me?.accounts === true"
+      :show-webhooks="canManageWebhooks"
+      :show-members="canManageMembers"
       :account-label="me?.user?.email ?? ''"
       @navigate="
         (v: string) => {
@@ -862,11 +917,13 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                   ? 'Audit log'
                   : view === 'account'
                     ? 'Account'
-                    : 'Settings'
+                    : view === 'members'
+                      ? 'Members'
+                      : 'Settings'
         }}</span>
         <button
           class="btn btn-primary btn-sm"
-          v-if="view === 'flags'"
+          v-if="view === 'flags' && canWrite"
           @click="editor = { flag: null }"
         >
           New flag
@@ -884,6 +941,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
             view = v as View
           }
         "
+        :read-only="!canWrite"
         @toggle="toggle"
       />
 
@@ -898,7 +956,12 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
               </svg>
               Export
             </button>
-            <button class="btn btn-ghost btn-sm" @click="openImportPicker" title="Import flags">
+            <button
+              v-if="canImport"
+              class="btn btn-ghost btn-sm"
+              title="Import flags"
+              @click="openImportPicker"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
               </svg>
@@ -911,11 +974,15 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
               hidden
               @change="handleImportFile"
             />
-            <button class="btn btn-primary btn-sm" @click="editor = { flag: null }">
+            <button v-if="canWrite" class="btn btn-primary btn-sm" @click="editor = { flag: null }">
               New flag
             </button>
           </div>
         </div>
+
+        <p v-if="!canWrite" class="read-only-note" role="note">
+          You have view-only access. Ask an admin for the editor role to change flags.
+        </p>
 
         <div class="toolbar">
           <div class="search">
@@ -952,7 +1019,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         </div>
 
         <!-- Bulk action bar -->
-        <div v-if="selectedKeys.size > 0" class="bulk-bar">
+        <div v-if="selectedKeys.size > 0 && canWrite" class="bulk-bar">
           <span class="bulk-count">{{ selectedKeys.size }} selected</span>
           <button class="btn btn-ghost btn-sm" :disabled="bulkBusy" @click="bulkEnable">
             Enable
@@ -1020,7 +1087,9 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
           <p>
             Create one here, or from the CLI with <code class="mono">flaghoist flag create</code>.
           </p>
-          <button class="btn btn-primary" @click="editor = { flag: null }">Create a flag</button>
+          <button v-if="canWrite" class="btn btn-primary" @click="editor = { flag: null }">
+            Create a flag
+          </button>
         </div>
 
         <div v-else-if="visible.length === 0" class="empty-state">
@@ -1128,13 +1197,18 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                 <td class="col-actions">
                   <div v-if="flag.archived" class="action-group">
                     <button
+                      v-if="canWrite"
                       class="btn btn-quiet btn-sm"
                       :disabled="busy.has(flag.key)"
                       @click="restoreFlag(flag)"
                     >
                       Restore
                     </button>
-                    <button class="btn btn-quiet btn-sm danger-hover" @click="pendingDelete = flag">
+                    <button
+                      v-if="canDelete"
+                      class="btn btn-quiet btn-sm danger-hover"
+                      @click="pendingDelete = flag"
+                    >
                       Delete
                     </button>
                   </div>
@@ -1142,12 +1216,18 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                     <button
                       class="toggle toggle-sm"
                       :data-on="flag.enabled"
-                      :disabled="busy.has(flag.key)"
+                      :disabled="busy.has(flag.key) || !canWrite"
                       :aria-label="flag.enabled ? `Disable ${flag.key}` : `Enable ${flag.key}`"
                       @click="toggle(flag)"
                     ></button>
-                    <button class="btn btn-quiet btn-sm" @click="editor = { flag }">Edit</button>
-                    <button class="btn btn-quiet btn-sm danger-hover" @click="archiveFlag(flag)">
+                    <button v-if="canWrite" class="btn btn-quiet btn-sm" @click="editor = { flag }">
+                      Edit
+                    </button>
+                    <button
+                      v-if="canWrite"
+                      class="btn btn-quiet btn-sm danger-hover"
+                      @click="archiveFlag(flag)"
+                    >
                       Archive
                     </button>
                   </div>
@@ -1248,6 +1328,16 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         v-else-if="view === 'webhooks' && api"
         :api="api"
         @toast="(text, tone) => toast(text, tone)"
+      />
+
+      <!-- Members -->
+      <MembersPage
+        v-else-if="view === 'members' && api && me && canManageMembers"
+        :api="api"
+        :me="me"
+        :dashboard-url="dashboardUrl"
+        @notify="(text, tone) => toast(text, tone)"
+        @failed="onAccountError"
       />
 
       <!-- Settings -->
@@ -1644,6 +1734,14 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   display: flex;
   align-items: center;
   gap: 0.3rem;
+}
+.read-only-note {
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  background: var(--accent-wash);
+  border-radius: var(--r-sm);
 }
 .danger-hover:hover {
   color: var(--red-text);

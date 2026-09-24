@@ -80,6 +80,42 @@ requires membership in an allowed group. A valid token that lacks an admin group
 For the exact config for each provider -- issuer format, which claim carries groups, and where to
 find the values in their console -- see [OIDC provider setup](/oidc-providers/).
 
+## Roles
+
+An admin verifier can say which role its caller has, and every admin route checks it. Roles are
+cumulative: each one can do everything the roles above it in this table can.
+
+| Role     | Can                                                  |
+| -------- | ---------------------------------------------------- |
+| `viewer` | Read flags, environments, exports and the audit log  |
+| `editor` | Also create, edit, toggle, archive and restore flags |
+| `admin`  | Also delete flags, import, and manage webhooks       |
+| `owner`  | Everything                                           |
+
+A verifier that returns no role grants `owner`, which is the full access every admin verifier had
+before roles existed. `bearerToken` and `oidc` return no role, so they behave exactly as they always
+have. A role that is not one of the four grants nothing.
+
+To add a role, return one from your own verifier. This gives a second, read-only token to someone
+who should see the dashboard but not change anything:
+
+```ts
+const owner = bearerToken(env.ADMIN_TOKEN)
+const readOnly = bearerToken(env.VIEWER_TOKEN)
+
+admin: async (headers) => {
+  const asOwner = await owner(headers)
+  if (asOwner.ok) return asOwner
+  const asViewer = await readOnly(headers)
+  return asViewer.ok ? { ok: true, identity: 'viewer', role: 'viewer' } : asViewer
+}
+```
+
+A request the caller's role does not cover is refused with `403` and
+`{ "error": "This needs the editor role or higher.", "code": "insufficient_role" }`. The `code`
+tells it apart from a `403` that rejects the credential itself, and the dashboard uses it to show
+the message instead of signing you out.
+
 ## Security notes
 
 - A **release flag is not an authorization boundary**: it controls whether a code path is visible,

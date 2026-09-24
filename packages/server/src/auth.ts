@@ -89,7 +89,7 @@ export function apiKey(expected: string): Authenticator {
  * Read-path verifier for multiple environments: each environment gets its own `x-api-key`
  * secret, so a key scoped to staging cannot read production and a leaked staging key has no
  * blast radius beyond it. The matched environment is attached to the `AuthResult` and flows
- * through to `ServerConfig.environments` scoping — see `resolveReadEnvironment` in
+ * through to `ServerConfig.environments` scoping; see `resolveReadEnvironment` in
  * environments.ts.
  *
  * All configured keys are compared in parallel (rather than short-circuiting on first match) so

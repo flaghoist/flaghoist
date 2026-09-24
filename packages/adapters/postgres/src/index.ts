@@ -1,6 +1,8 @@
 import {
+  assertRecordAddress,
   parseFlag,
   type FeatureFlag,
+  type RecordEntry,
   type StorageAdapter,
   type WebhookEndpoint,
 } from '@flaghoist/core'
@@ -19,6 +21,9 @@ export interface PostgresAdapterOptions {
 
   /** Webhook table name. Must be a plain SQL identifier. Default: `"flaghoist_webhooks"`. */
   webhookTable?: string
+
+  /** Record-store table name. Must be a plain SQL identifier. Default: `"flaghoist_records"`. */
+  recordTable?: string
 }
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -46,14 +51,42 @@ export function postgresWebhookSchema(table = 'flaghoist_webhooks'): string {
   return `CREATE TABLE IF NOT EXISTS ${assertIdentifier(table)} (id text PRIMARY KEY, value jsonb NOT NULL)`
 }
 
-/** Create the flags and webhooks tables if they do not already exist. */
+/** SQL that creates the record-store table. */
+export function postgresRecordSchema(table = 'flaghoist_records'): string {
+  return `CREATE TABLE IF NOT EXISTS ${assertIdentifier(table)} (collection text NOT NULL, id text NOT NULL, value jsonb NOT NULL, PRIMARY KEY (collection, id))`
+}
+
+/** Create the flags, webhooks and record-store tables if they do not already exist. */
 export async function initPostgres(
   client: PgQueryable,
   table = 'flaghoist_flags',
   webhookTable = 'flaghoist_webhooks',
+  recordTable = 'flaghoist_records',
 ): Promise<void> {
   await client.query(postgresSchema(table))
   await client.query(postgresWebhookSchema(webhookTable))
+  await client.query(postgresRecordSchema(recordTable))
+}
+
+// Records are stored inside an envelope object. node-postgres returns jsonb already parsed, and a
+// top-level JSON string comes back as a plain JS string, indistinguishable from raw JSON text a
+// driver with type parsing turned off would return. Wrapping every value in an object removes the
+// ambiguity for both.
+const wrapRecord = (value: unknown): string => JSON.stringify({ flaghoistRecord: 1, value })
+
+function unwrapRecord(raw: unknown): unknown | null {
+  let parsed: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (parsed === null || typeof parsed !== 'object') return null
+  const envelope = parsed as { flaghoistRecord?: unknown; value?: unknown }
+  if (envelope.flaghoistRecord !== 1) return null
+  return envelope.value ?? null
 }
 
 function toFlag(value: unknown): FeatureFlag | null {
@@ -79,6 +112,7 @@ export function postgresAdapter(
 ): StorageAdapter {
   const table = assertIdentifier(options.table ?? 'flaghoist_flags')
   const whTable = assertIdentifier(options.webhookTable ?? 'flaghoist_webhooks')
+  const recTable = assertIdentifier(options.recordTable ?? 'flaghoist_records')
 
   return {
     async get(key) {
@@ -128,6 +162,44 @@ export function postgresAdapter(
         const v = (row as { value: unknown }).value
         return (typeof v === 'string' ? JSON.parse(v) : v) as WebhookEndpoint
       })
+    },
+
+    async getRecord(collection, id) {
+      assertRecordAddress(collection, id)
+      const { rows } = await client.query(
+        `SELECT value FROM ${recTable} WHERE collection = $1 AND id = $2`,
+        [collection, id],
+      )
+      const row = rows[0] as { value: unknown } | undefined
+      return row ? unwrapRecord(row.value) : null
+    },
+    async putRecord(collection, id, value) {
+      assertRecordAddress(collection, id)
+      await client.query(
+        `INSERT INTO ${recTable} (collection, id, value) VALUES ($1, $2, $3::jsonb)
+         ON CONFLICT (collection, id) DO UPDATE SET value = EXCLUDED.value`,
+        [collection, id, wrapRecord(value)],
+      )
+    },
+    async deleteRecord(collection, id) {
+      assertRecordAddress(collection, id)
+      await client.query(`DELETE FROM ${recTable} WHERE collection = $1 AND id = $2`, [
+        collection,
+        id,
+      ])
+    },
+    async listRecords(collection) {
+      assertRecordAddress(collection)
+      const { rows } = await client.query(
+        `SELECT id, value FROM ${recTable} WHERE collection = $1`,
+        [collection],
+      )
+      const entries: RecordEntry[] = []
+      for (const row of rows as { id: string; value: unknown }[]) {
+        const value = unwrapRecord(row.value)
+        if (value !== null) entries.push({ id: row.id, value })
+      }
+      return entries
     },
   }
 }

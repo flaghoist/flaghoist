@@ -106,8 +106,8 @@ export function testStorageAdapter(
 
 /**
  * Conformance suite for the optional webhook-persistence methods (`putWebhook`/`getWebhook`/
- * `deleteWebhook`/`listWebhooks`). These are not part of the required StorageAdapter interface —
- * a webhook store falls back to in-memory without them — so this is opt-in, separate from
+ * `deleteWebhook`/`listWebhooks`). These are not part of the required StorageAdapter interface
+ * (a webhook store falls back to in-memory without them), so this is opt-in, separate from
  * `testStorageAdapter`: call it only from an adapter that implements webhook persistence.
  *
  * @example
@@ -181,6 +181,121 @@ export function testWebhookStorage(
       await adapter.putWebhook(hook.id, hook)
       await adapter.deleteWebhook(hook.id)
       expect(await adapter.listWebhooks()).toEqual([])
+    })
+  })
+}
+
+/**
+ * Conformance suite for the optional generic record store (`getRecord`/`putRecord`/
+ * `deleteRecord`/`listRecords`). Opt-in like `testWebhookStorage`: call it only from an adapter
+ * that implements the record store.
+ *
+ * @example
+ *   testRecordStorage('my-db', () => myDbAdapter(freshConnection()))
+ */
+export function testRecordStorage(
+  name: string,
+  factory: () => StorageAdapter | Promise<StorageAdapter>,
+): void {
+  describe(`StorageAdapter record store: ${name}`, () => {
+    type RecordAdapter = StorageAdapter &
+      Required<Pick<StorageAdapter, 'getRecord' | 'putRecord' | 'deleteRecord' | 'listRecords'>>
+    let adapter: RecordAdapter
+
+    beforeEach(async () => {
+      const a = await factory()
+      if (!a.getRecord || !a.putRecord || !a.deleteRecord || !a.listRecords) {
+        throw new Error(`${name} does not implement the record store`)
+      }
+      adapter = a as RecordAdapter
+    })
+
+    const user = {
+      id: 'u1',
+      email: 'ada@example.com',
+      role: 'editor',
+      profile: { name: 'Ada', tags: ['a', 'b'] },
+      active: true,
+      count: 3,
+    }
+
+    it('returns null for a missing record', async () => {
+      expect(await adapter.getRecord('users', 'missing')).toBeNull()
+    })
+
+    it('stores and retrieves a nested JSON value', async () => {
+      await adapter.putRecord('users', 'u1', user)
+      expect(await adapter.getRecord('users', 'u1')).toEqual(user)
+    })
+
+    it('overwrites an existing record', async () => {
+      await adapter.putRecord('users', 'u1', user)
+      await adapter.putRecord('users', 'u1', { ...user, role: 'viewer' })
+      expect(await adapter.getRecord('users', 'u1')).toEqual({ ...user, role: 'viewer' })
+    })
+
+    it('deletes a record, and treats deleting a missing one as a no-op', async () => {
+      await adapter.putRecord('users', 'u1', user)
+      await adapter.deleteRecord('users', 'u1')
+      expect(await adapter.getRecord('users', 'u1')).toBeNull()
+      await expect(adapter.deleteRecord('users', 'nope')).resolves.toBeUndefined()
+    })
+
+    it('lists a collection as id and value pairs', async () => {
+      await adapter.putRecord('users', 'u1', user)
+      await adapter.putRecord('users', 'u2', { ...user, id: 'u2' })
+      const listed = (await adapter.listRecords('users')).sort((a, b) => a.id.localeCompare(b.id))
+      expect(listed).toEqual([
+        { id: 'u1', value: user },
+        { id: 'u2', value: { ...user, id: 'u2' } },
+      ])
+    })
+
+    it('returns an empty list for an empty collection', async () => {
+      expect(await adapter.listRecords('users')).toEqual([])
+    })
+
+    it('keeps collections apart, including ones that share a name prefix', async () => {
+      await adapter.putRecord('users', 'x', { from: 'users' })
+      await adapter.putRecord('users-email', 'x', { from: 'users-email' })
+      expect(await adapter.getRecord('users', 'x')).toEqual({ from: 'users' })
+      expect(await adapter.getRecord('users-email', 'x')).toEqual({ from: 'users-email' })
+      expect((await adapter.listRecords('users')).map((r) => r.id)).toEqual(['x'])
+      expect((await adapter.listRecords('users-email')).map((r) => r.id)).toEqual(['x'])
+    })
+
+    it('accepts ids containing separators and email punctuation', async () => {
+      const ids = ['ada+test@example.com', 'a:b:c', 'path/like/id', 'with space']
+      for (const id of ids) await adapter.putRecord('users-email', id, { id })
+      for (const id of ids) expect(await adapter.getRecord('users-email', id)).toEqual({ id })
+      const listed = (await adapter.listRecords('users-email')).map((r) => r.id).sort()
+      expect(listed).toEqual([...ids].sort())
+    })
+
+    it('returns independent copies', async () => {
+      await adapter.putRecord('users', 'u1', user)
+      const first = (await adapter.getRecord('users', 'u1')) as typeof user
+      first.role = 'owner'
+      first.profile.tags.push('mutated')
+      expect(await adapter.getRecord('users', 'u1')).toEqual(user)
+    })
+
+    it('never mixes records into the flag list, even flag-shaped ones', async () => {
+      await adapter.put('real', createFlag({ key: 'real', enabled: true }))
+      await adapter.putRecord('users', 'sneaky', {
+        key: 'sneaky',
+        enabled: true,
+        rollout: { percentage: 100 },
+      })
+      expect((await adapter.list()).map((f) => f.key)).toEqual(['real'])
+      expect(await adapter.get('sneaky')).toBeNull()
+    })
+
+    it('rejects an invalid collection name or record id', async () => {
+      await expect(adapter.putRecord('Bad Name', 'x', {})).rejects.toThrow(/collection/)
+      await expect(adapter.getRecord('users:evil', 'x')).rejects.toThrow(/collection/)
+      await expect(adapter.putRecord('users', '', {})).rejects.toThrow(/record id/)
+      await expect(adapter.putRecord('users', 'a\nb', {})).rejects.toThrow(/record id/)
     })
   })
 }

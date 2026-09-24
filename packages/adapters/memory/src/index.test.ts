@@ -1,10 +1,15 @@
-import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
+import {
+  testRecordStorage,
+  testStorageAdapter,
+  testWebhookStorage,
+} from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import { describe, expect, it } from 'vitest'
 import { memoryAdapter } from './index'
 
 testStorageAdapter('memory', () => memoryAdapter())
 testWebhookStorage('memory', () => memoryAdapter())
+testRecordStorage('memory', () => memoryAdapter())
 
 describe('memoryAdapter — specifics', () => {
   it('accepts seed flags', async () => {

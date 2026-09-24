@@ -1,8 +1,12 @@
-import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
+import {
+  testRecordStorage,
+  testStorageAdapter,
+  testWebhookStorage,
+} from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
-import { initSqlite, sqliteAdapter } from '../src/index'
+import { initSqlite, sqliteAdapter, sqliteSchema } from '../src/index'
 
 function freshAdapter() {
   const db = new Database(':memory:')
@@ -12,6 +16,7 @@ function freshAdapter() {
 
 testStorageAdapter('sqlite', () => freshAdapter())
 testWebhookStorage('sqlite', () => freshAdapter())
+testRecordStorage('sqlite', () => freshAdapter())
 
 describe('sqliteAdapter -- specifics', () => {
   it('rejects an unsafe table name (SQL injection defense)', () => {
@@ -36,5 +41,29 @@ describe('sqliteAdapter -- specifics', () => {
     })
     await adapter.put('beta', flag)
     expect(await adapter.get('beta')).toEqual(flag)
+  })
+
+  it('starts against a database that only has the flags table', async () => {
+    // Databases set up with sqliteSchema() alone, before webhooks and records existed, must still
+    // boot. Only the optional features fail, and only when used, with a pointer to the fix.
+    const db = new Database(':memory:')
+    db.exec(sqliteSchema())
+    const adapter = sqliteAdapter(db)
+
+    await adapter.put('k', createFlag({ key: 'k', enabled: true }))
+    expect((await adapter.get('k'))?.enabled).toBe(true)
+    await expect(adapter.listWebhooks!()).rejects.toThrow(/initSqlite/)
+    await expect(adapter.listRecords!('users')).rejects.toThrow(/initSqlite/)
+  })
+
+  it('honours a custom record table name', async () => {
+    const db = new Database(':memory:')
+    initSqlite(db, 'flaghoist_flags', 'flaghoist_webhooks', 'app_records')
+    const adapter = sqliteAdapter(db, { recordTable: 'app_records' })
+    await adapter.putRecord!('users', 'u1', { a: 1 })
+    const row = db
+      .prepare('SELECT value FROM app_records WHERE collection = ? AND id = ?')
+      .get('users', 'u1') as { value: string }
+    expect(JSON.parse(row.value)).toEqual({ a: 1 })
   })
 })

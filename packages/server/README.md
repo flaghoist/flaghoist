@@ -29,7 +29,7 @@ export default createFlagServer((env) => ({
 - `/api/v1/flags`, the admin CRUD API, behind admin auth, with an OpenAPI 3.1 document at
   `/api/v1/openapi.json`. Also covers archive/restore, JSON export/import, and the audit log.
 - `/api/v1/webhooks`, HMAC-signed HTTP callbacks fired on flag changes.
-- `/api/v1/environments`, when `environments` is configured — named environments (`production`,
+- `/api/v1/environments`, when `environments` is configured: named environments (`production`,
   `staging`, ...) sharing one storage backend, with per-environment read keys via `apiKeys()`.
 - `/admin`, the dashboard, when you pass one.
 
@@ -66,7 +66,7 @@ for the full picture.
 
 Manage endpoints under `/api/v1/webhooks` (or the dashboard's Webhooks page). Each delivery is a
 signed `POST`: `X-Flaghoist-Signature: sha256=<hmac>` over the raw body, keyed by a secret generated
-per webhook. Fire-and-forget with a 10s timeout and no retries — treat it as a notification, not a
+per webhook. Fire-and-forget with a 10s timeout and no retries, so treat it as a notification, not a
 guaranteed log.
 
 ## Status

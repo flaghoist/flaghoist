@@ -134,6 +134,24 @@ describe('session ends on a rejected token (#31)', () => {
     wrapper.unmount()
   })
 
+  it('keeps the session when a valid credential lacks the role for one action', async () => {
+    const put = vi.fn(async () => {
+      throw new ApiError(403, 'This needs the editor role or higher.', 'insufficient_role')
+    })
+    const wrapper = await mountSignedIn(client({ put }))
+    await navigateToFlags(wrapper)
+
+    await wrapper.find('.flag-row .toggle').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findComponent(TokenGate).exists()).toBe(false)
+    const toast = findToast()
+    expect(toast).not.toBeNull()
+    expect(toast!.textContent).toContain('This needs the editor role or higher.')
+    expect(sessionStorage.getItem('flaghoist.admin')).not.toBeNull()
+    wrapper.unmount()
+  })
+
   it('keeps the session for an ordinary failure, and shows the error as a toast', async () => {
     const put = vi.fn(async () => {
       throw new ApiError(500, 'storage adapter unavailable')

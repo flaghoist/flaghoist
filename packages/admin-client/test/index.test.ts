@@ -41,4 +41,32 @@ describe('one error model (#30)', () => {
     expect(err).toBeInstanceOf(ApiError)
     expect((err as ApiError).status).toBe(502)
   })
+
+  it('carries the server error code, so a role refusal is distinguishable', async () => {
+    stubFetch(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: 'This needs the admin role or higher.',
+            code: 'insufficient_role',
+          }),
+          { status: 403 },
+        ),
+    )
+    const err = (await createAdminClient({ url: 'https://x.dev', token: 't' })
+      .delete('checkout')
+      .catch((e: unknown) => e)) as ApiError
+    expect(err.status).toBe(403)
+    expect(err.message).toBe('This needs the admin role or higher.')
+    expect(err.code).toBe('insufficient_role')
+  })
+
+  it('leaves the code unset when the server sends none', async () => {
+    stubFetch(async () => new Response(JSON.stringify({ error: 'nope' }), { status: 401 }))
+    const err = (await createAdminClient({ url: 'https://x.dev', token: 't' })
+      .list()
+      .catch((e: unknown) => e)) as ApiError
+    expect(err.status).toBe(401)
+    expect(err.code).toBeUndefined()
+  })
 })

@@ -197,9 +197,16 @@ function toggleTheme() {
 
 /* ---- connection ----------------------------------------------------------- */
 
+// A 403 either rejects the credential outright or, with this code, says the credential is fine
+// but its role is too low for this one action. Only the first should end the session.
+function isRoleRefusal(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 403 && e.code === 'insufficient_role'
+}
+
 function describe(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 401) return 'Unauthorized. Check the admin token.'
+    if (isRoleRefusal(e)) return e.message
     if (e.status === 403) return 'Forbidden. This token lacks admin access.'
     if (e.status === 0 || e.status === 408) return e.message
     return e.message || `Server error (${e.status}).`
@@ -307,7 +314,7 @@ async function reloadOnConflict(e: unknown) {
 }
 
 function handle(e: unknown): string {
-  if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+  if (e instanceof ApiError && (e.status === 401 || e.status === 403) && !isRoleRefusal(e)) {
     disconnect('Your session ended: the server rejected the admin token. Sign in again.')
     return ''
   }

@@ -118,6 +118,26 @@ export interface StorageAdapter {
   deleteWebhook?(id: string): Promise<void>
   /** List all webhook endpoints. */
   listWebhooks?(): Promise<WebhookEndpoint[]>
+
+  /**
+   * Generic record store: JSON values grouped into named collections, addressed by id. Optional.
+   * Features that need persistent server-side state beyond flags build on this rather than adding
+   * a new method group to every adapter. Collection names must pass `isValidCollectionName` and
+   * ids `isValidRecordId`; values must be JSON-serializable.
+   */
+  getRecord?(collection: string, id: string): Promise<unknown | null>
+  /** Create or replace a record. */
+  putRecord?(collection: string, id: string, value: unknown): Promise<void>
+  /** Remove a record. Removing a missing record is a no-op. */
+  deleteRecord?(collection: string, id: string): Promise<void>
+  /** List every record in one collection, in no particular order. */
+  listRecords?(collection: string): Promise<RecordEntry[]>
+}
+
+/** One record returned by `StorageAdapter.listRecords`. */
+export interface RecordEntry {
+  id: string
+  value: unknown
 }
 
 /** A point-in-time snapshot of a flag's evaluable state, recorded in audit entries. */

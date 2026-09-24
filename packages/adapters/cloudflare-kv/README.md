@@ -41,6 +41,9 @@ than showing up as broken rows, so nothing breaks, but you pay a read for each o
 Changing the prefix on a running deployment hides the flags written under the old one. They are
 still in KV, the adapter is just no longer looking there.
 
+Webhook endpoints (if you use them) live in the same namespace, under a separate `webhook:` prefix
+by default. Change it with `{ webhookPrefix: '...' }`.
+
 Worth knowing: KV is eventually consistent. A flag you just changed can take a few seconds to reach
 every edge location, which is fine for flags and would not be fine for a bank balance.
 

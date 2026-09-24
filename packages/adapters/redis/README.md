@@ -33,6 +33,9 @@ createFlagServer((env) => ({
 Pick this over Cloudflare KV when you want changes to be visible immediately everywhere, rather than
 a few seconds later. Pick KV when you would rather not run anything.
 
+Webhook endpoints (if you use them) live in their own hash, `flaghoist:webhooks` by default. Change
+it with `{ webhookHashKey: '...' }`.
+
 Validated by the same conformance suite as the other adapters.
 
 ## Status

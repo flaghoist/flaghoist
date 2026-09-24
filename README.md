@@ -39,9 +39,10 @@ per-language SDK.
 
 - **$0 idle.** Scale-to-zero on the Cloudflare free tier. No always-on server, no database bill.
 - **OpenFeature-native.** Standard SDKs everywhere; swap Flaghoist for LaunchDarkly/Datadog with one provider line.
-- **Bring your own DB.** A storage adapter is four methods (`get`/`put`/`delete`/`list`). Cloudflare KV, Redis and Postgres ship today, or write your own.
+- **Bring your own DB.** A storage adapter is four methods (`get`/`put`/`delete`/`list`). Cloudflare KV, Redis, Postgres and SQLite ship today, or write your own.
 - **Targeting from day one.** Boolean flags, sticky percentage rollouts, and ordered targeting rules.
 - **A dashboard in the box.** A single deploy gives you the read API, the admin API, and a management UI.
+- **Team-ready.** An audit trail, archive/restore, JSON export/import, HMAC-signed webhooks, and named environments (`production`/`staging`/...) — all in the same deploy, no add-on service.
 
 ## Why not just use X?
 
@@ -105,7 +106,7 @@ const newCheckout = useFeatureFlag('new-checkout')
 </template>
 ```
 
-Full docs: **[docs.flaghoist.dev](https://docs.flaghoist.dev)** _(coming soon)_.
+Full docs: **[docs.flaghoist.dev](https://docs.flaghoist.dev)**.
 
 ## Monorepo layout
 
@@ -118,6 +119,7 @@ packages/
     cloudflare-kv/      @flaghoist/adapter-cloudflare-kv: default storage
     redis/              @flaghoist/adapter-redis: ioredis (Node) or Upstash (edge)
     postgres/           @flaghoist/adapter-postgres: jsonb table via node-postgres
+    sqlite/             @flaghoist/adapter-sqlite: single file, via better-sqlite3
   adapter-conformance/  @flaghoist/adapter-conformance: the shared test suite every
                         adapter must pass, so BYO storage is verified, not just promised
   providers/
@@ -127,7 +129,7 @@ packages/
   cli/                  flaghoist: scaffold, deploy, and manage flags
   create-flaghoist/     create-flaghoist: the package behind `npm create flaghoist`
 apps/                   dashboard (Vue), web + docs (Astro)
-examples/               vue, node, worker
+examples/               vue, react, node, worker, docker
 ```
 
 ## Development
@@ -168,4 +170,5 @@ excellent first contributions. See [CONTRIBUTING.md](./CONTRIBUTING.md) and our
 
 [Apache-2.0](./LICENSE) © Damilola Oluwafemi and the Flaghoist contributors.
 
-Flaghoist is not affiliated with or endorsed by the OpenFeature project or the CNCF.
+Listed in the [OpenFeature ecosystem](https://openfeature.dev/ecosystem/) as an OFREP
+implementation. Not endorsed by the OpenFeature project or the CNCF.

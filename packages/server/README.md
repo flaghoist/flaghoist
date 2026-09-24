@@ -27,7 +27,10 @@ export default createFlagServer((env) => ({
 
 - `POST /ofrep/v1/evaluate/flags` and `/flags/:key`, the OFREP read path, behind the read API key.
 - `/api/v1/flags`, the admin CRUD API, behind admin auth, with an OpenAPI 3.1 document at
-  `/api/v1/openapi.json`.
+  `/api/v1/openapi.json`. Also covers archive/restore, JSON export/import, and the audit log.
+- `/api/v1/webhooks`, HMAC-signed HTTP callbacks fired on flag changes.
+- `/api/v1/environments`, when `environments` is configured — named environments (`production`,
+  `staging`, ...) sharing one storage backend, with per-environment read keys via `apiKeys()`.
 - `/admin`, the dashboard, when you pass one.
 
 ## The dashboard
@@ -46,8 +49,25 @@ inlined, and it makes no requests to anything outside your server.
 
 ## Auth
 
-`bearerToken`, `apiKey` and `oidc` ship with it. Auth is an interface, so if none of those fit, pass
-your own function.
+`bearerToken`, `apiKey`, `apiKeys` and `oidc` ship with it. `apiKeys` maps one read secret per
+environment (`apiKeys({ production: '...', staging: '...' })`) instead of a single shared one, so a
+leaked staging key can't read production. Auth is an interface, so if none of those fit, pass your
+own function.
+
+## Environments
+
+Pass `environments: ['production', 'staging', ...]` to partition flags without a second deploy or a
+second database: the same key can be on in staging and off in production, each with its own audit
+trail. The default environment uses bare storage keys, so turning this on for an existing deployment
+needs no migration. See [docs.flaghoist.dev](https://docs.flaghoist.dev/api-reference/#environments)
+for the full picture.
+
+## Webhooks
+
+Manage endpoints under `/api/v1/webhooks` (or the dashboard's Webhooks page). Each delivery is a
+signed `POST`: `X-Flaghoist-Signature: sha256=<hmac>` over the raw body, keyed by a secret generated
+per webhook. Fire-and-forget with a 10s timeout and no retries — treat it as a notification, not a
+guaranteed log.
 
 ## Status
 

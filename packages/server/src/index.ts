@@ -6,12 +6,13 @@ import {
   type FlagSnapshot,
   type WebhookEvent,
 } from '@flaghoist/core'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { createAuditLog } from './audit'
 import { createDefinitionCache, type DefinitionCache } from './cache'
 import { resolveAdminEnvironment, resolveReadEnvironment, scopedStorage } from './environments'
 import { buildFlag, flagEtag } from './flags'
 import { openApiDocument } from './openapi'
+import { can, isRole, minimumRole, type Permission, type Role } from './permissions'
 import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
 import {
@@ -40,6 +41,7 @@ export {
   type RateLimitResult,
 } from './ratelimit'
 export { openApiDocument } from './openapi'
+export { can, minimumRole, ROLES, type Permission, type Role } from './permissions'
 export type { AuthResult, Authenticator, ConfigResolver, ServerConfig } from './types'
 export type { WebhookPayload } from './webhooks'
 
@@ -132,6 +134,35 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       environment,
     }
     dispatchWebhooks(webhookStore, event, payload).catch(() => {})
+  }
+
+  type Authorized = { cfg: ServerConfig; identity: string; role: Role }
+
+  /**
+   * Authenticate an admin request and check its role holds `permission`. Returns the resolved
+   * config and caller, or the error response to send. A verifier that reports no role gets
+   * `owner`, the full access every admin verifier had before roles existed; a role that is not
+   * recognised gets nothing. Permission failures carry `code: "insufficient_role"` so a client can
+   * tell them apart from a rejected credential, which is also a 403.
+   */
+  async function authorize(
+    c: Context<{ Bindings: Env }>,
+    permission: Permission,
+  ): Promise<Authorized | Response> {
+    const cfg = resolve(c.env)
+    const auth = await cfg.auth.admin(c.req.raw.headers)
+    if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+    const role = auth.role === undefined ? 'owner' : auth.role
+    if (!isRole(role) || !can(role, permission)) {
+      return c.json(
+        {
+          error: `This needs the ${minimumRole(permission)} role or higher.`,
+          code: 'insufficient_role',
+        },
+        403,
+      )
+    }
+    return { cfg, identity: auth.identity ?? 'unknown', role }
   }
 
   const app = new Hono<{ Bindings: Env }>()
@@ -324,9 +355,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
   const registerAdmin = (prefix: string) => {
     app.get(`${prefix}/flags`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:read')
+      if (authorized instanceof Response) return authorized
+      const { cfg } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -337,9 +368,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.get(`${prefix}/flags/:key`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:read')
+      if (authorized instanceof Response) return authorized
+      const { cfg } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -351,9 +382,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.put(`${prefix}/flags/:key`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:write')
+      if (authorized instanceof Response) return authorized
+      const { cfg, identity } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -388,7 +419,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           ? ((parsed.value as Record<string, unknown>).changeDescription as string).trim() ||
             undefined
           : undefined
-      const built = buildFlag(key, parsed.value, auth.identity ?? 'unknown', existing)
+      const built = buildFlag(key, parsed.value, identity, existing)
       if (!built.ok) return c.json({ error: built.error }, 400)
       await scoped.put(key, built.flag)
       cacheFor(environment).invalidate()
@@ -397,7 +428,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       await audit.record({
         action: flagAction,
         flagKey: key,
-        actor: auth.identity ?? 'unknown',
+        actor: identity,
         previous: existing ? snapshot(existing) : undefined,
         current: snapshot(built.flag),
         changeDescription,
@@ -406,7 +437,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       fireWebhook(
         `flag.${flagAction === 'update' ? 'updated' : 'created'}`,
         key,
-        auth.identity ?? 'unknown',
+        identity,
         auditEnv,
         snapshot(built.flag),
         existing ? snapshot(existing) : undefined,
@@ -416,9 +447,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.post(`${prefix}/flags/:key/archive`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:write')
+      if (authorized instanceof Response) return authorized
+      const { cfg, identity } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -439,25 +470,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       await audit.record({
         action: 'archive',
         flagKey: key,
-        actor: auth.identity ?? 'unknown',
+        actor: identity,
         previous: snapshot(existing),
         environment: auditEnv,
       })
-      fireWebhook(
-        'flag.archived',
-        key,
-        auth.identity ?? 'unknown',
-        auditEnv,
-        undefined,
-        snapshot(existing),
-      )
+      fireWebhook('flag.archived', key, identity, auditEnv, undefined, snapshot(existing))
       return c.json(archived)
     })
 
     app.post(`${prefix}/flags/:key/restore`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:write')
+      if (authorized instanceof Response) return authorized
+      const { cfg, identity } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -475,18 +499,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       await audit.record({
         action: 'restore',
         flagKey: key,
-        actor: auth.identity ?? 'unknown',
+        actor: identity,
         current: snapshot(restored),
         environment: auditEnv,
       })
-      fireWebhook('flag.restored', key, auth.identity ?? 'unknown', auditEnv, snapshot(restored))
+      fireWebhook('flag.restored', key, identity, auditEnv, snapshot(restored))
       return c.json(restored)
     })
 
     app.delete(`${prefix}/flags/:key`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:delete')
+      if (authorized instanceof Response) return authorized
+      const { cfg, identity } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -500,27 +524,20 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       await audit.record({
         action: 'delete',
         flagKey: key,
-        actor: auth.identity ?? 'unknown',
+        actor: identity,
         previous: existing ? snapshot(existing) : undefined,
         environment: auditEnv,
       })
       if (existing) {
-        fireWebhook(
-          'flag.deleted',
-          key,
-          auth.identity ?? 'unknown',
-          auditEnv,
-          undefined,
-          snapshot(existing),
-        )
+        fireWebhook('flag.deleted', key, identity, auditEnv, undefined, snapshot(existing))
       }
       return c.body(null, 204)
     })
 
     app.get(`${prefix}/export`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:read')
+      if (authorized instanceof Response) return authorized
+      const { cfg } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -543,9 +560,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.post(`${prefix}/import`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:import')
+      if (authorized instanceof Response) return authorized
+      const { cfg, identity } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -561,7 +578,6 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       if (incoming.length > 500) {
         return c.json({ error: 'Import limited to 500 flags' }, 400)
       }
-      const identity = auth.identity ?? 'unknown'
       const auditEnv = cfg.environments ? environment : undefined
       let created = 0
       let updated = 0
@@ -596,9 +612,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.get(`${prefix}/audit`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'audit:read')
+      if (authorized instanceof Response) return authorized
+      const { cfg } = authorized
       const defaultEnv = defaultEnvOf(cfg)
       const envResult = resolveAdminEnvironment(cfg.environments, defaultEnv, c.req.raw.headers)
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
@@ -616,9 +632,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.get(`${prefix}/environments`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'flags:read')
+      if (authorized instanceof Response) return authorized
+      const { cfg } = authorized
       const defaultEnvironment = defaultEnvOf(cfg)
       const environments =
         cfg.environments && cfg.environments.length > 0 ? cfg.environments : [defaultEnvironment]
@@ -628,25 +644,22 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     // ---- Webhook CRUD ----
 
     app.get(`${prefix}/webhooks`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'webhooks:manage')
+      if (authorized instanceof Response) return authorized
       return c.json({ webhooks: await webhookStore.list() })
     })
 
     app.get(`${prefix}/webhooks/:id`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'webhooks:manage')
+      if (authorized instanceof Response) return authorized
       const hook = await webhookStore.get(c.req.param('id'))
       if (!hook) return c.json({ error: 'Webhook not found' }, 404)
       return c.json(hook)
     })
 
     app.post(`${prefix}/webhooks`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'webhooks:manage')
+      if (authorized instanceof Response) return authorized
       const parsed = await readJsonBody(await c.req.text())
       if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
       const validated = validateWebhookInput(parsed.value)
@@ -666,9 +679,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.put(`${prefix}/webhooks/:id`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'webhooks:manage')
+      if (authorized instanceof Response) return authorized
       const id = c.req.param('id')
       const existing = await webhookStore.get(id)
       if (!existing) return c.json({ error: 'Webhook not found' }, 404)
@@ -702,9 +714,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.delete(`${prefix}/webhooks/:id`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'webhooks:manage')
+      if (authorized instanceof Response) return authorized
       const id = c.req.param('id')
       const existing = await webhookStore.get(id)
       if (!existing) return c.json({ error: 'Webhook not found' }, 404)
@@ -713,9 +724,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.post(`${prefix}/webhooks/:id/test`, async (c) => {
-      const cfg = resolve(c.env)
-      const auth = await cfg.auth.admin(c.req.raw.headers)
-      if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+      const authorized = await authorize(c, 'webhooks:manage')
+      if (authorized instanceof Response) return authorized
+      const { identity } = authorized
       const hook = await webhookStore.get(c.req.param('id'))
       if (!hook) return c.json({ error: 'Webhook not found' }, 404)
       const payload: WebhookPayload = {
@@ -727,7 +738,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           rollout: { percentage: 100 },
           description: 'Test webhook delivery',
         },
-        actor: auth.identity ?? 'unknown',
+        actor: identity,
       }
       try {
         const body = JSON.stringify(payload)

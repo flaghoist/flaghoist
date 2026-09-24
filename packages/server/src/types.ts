@@ -1,4 +1,5 @@
 import type { AttributeValue, StorageAdapter } from '@flaghoist/core'
+import type { Role } from './permissions'
 import type { RateLimit } from './ratelimit'
 
 /** Result of an authentication attempt. `ok: false` carries the status/message to return. */
@@ -8,10 +9,16 @@ export interface AuthResult {
   identity?: string
   /**
    * The environment this credential is scoped to, when the read verifier is environment-aware
-   * (see `apiKeys()` in auth.ts). Absent means "not environment-specific" — the request maps to
+   * (see `apiKeys()` in auth.ts). Absent means "not environment-specific": the request maps to
    * the server's default environment.
    */
   environment?: string
+  /**
+   * The caller's admin role, on the admin path. Absent means `owner`, which is exactly the access
+   * every admin verifier granted before roles existed, so existing verifiers keep working
+   * unchanged. A value that is not a known role grants nothing.
+   */
+  role?: Role
   /** HTTP status to return when not ok. */
   status?: 401 | 403
   /** Public, non-sensitive error message when not ok. */
@@ -68,7 +75,7 @@ export interface ServerConfig {
    * `X-Flaghoist-Environment` header (defaulting to `defaultEnvironment` when omitted); the read
    * (OFREP) path is scoped by whichever environment the read credential maps to (see `apiKeys()`).
    *
-   * Omit entirely to run with a single, unnamed environment exactly as before — no migration
+   * Omit entirely to run with a single, unnamed environment exactly as before. No migration
    * needed, and existing flags are unaffected.
    */
   environments?: string[]

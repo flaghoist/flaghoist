@@ -41,6 +41,12 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /**
+     * Machine-readable reason from the server's error body, when it sends one. For example
+     * `insufficient_role` marks a 403 where the credential was valid but its role was too low,
+     * as opposed to a 403 that rejects the credential itself.
+     */
+    public readonly code?: string,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -155,19 +161,22 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
-async function errorMessage(res: Response): Promise<string> {
+async function toApiError(res: Response): Promise<ApiError> {
   const text = await res.text().catch(() => '')
   if (text) {
     try {
-      const body = JSON.parse(text) as { error?: unknown; message?: unknown }
+      const body = JSON.parse(text) as { error?: unknown; message?: unknown; code?: unknown }
       const detail = body?.error ?? body?.message
-      if (typeof detail === 'string' && detail.trim()) return detail.trim()
+      const code = typeof body?.code === 'string' ? body.code : undefined
+      if (typeof detail === 'string' && detail.trim()) {
+        return new ApiError(res.status, detail.trim(), code)
+      }
     } catch {
       /* not JSON -- fall through to raw text */
     }
-    return text.slice(0, 300)
+    return new ApiError(res.status, text.slice(0, 300))
   }
-  return res.statusText || 'Request failed.'
+  return new ApiError(res.status, res.statusText || 'Request failed.')
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +216,7 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
         throw new ApiError(0, 'Could not reach the server. Check the URL and its CORS allowlist.')
       }
     }
-    if (!res.ok) throw new ApiError(res.status, await errorMessage(res))
+    if (!res.ok) throw await toApiError(res)
     return res
   }
 

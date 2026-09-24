@@ -2,6 +2,7 @@
 import type { FeatureFlag } from '@flaghoist/core'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { hostname } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
@@ -38,6 +39,15 @@ import {
   needsKvNamespace,
   parseKvNamespaceId,
 } from './generate'
+import {
+  credentialsPath,
+  removeCredential,
+  savedCredential,
+  savedServers,
+  saveCredential,
+} from './credentials'
+import { readPassword } from './prompt'
+import { loginForToken, runTokens, TOKENS_USAGE } from './tokens'
 import { runUsers, USERS_USAGE } from './users'
 import { VERSION } from './version'
 
@@ -53,12 +63,103 @@ function loadConfig(): FlaghoistConfig {
   return parseConfig(readFileSync('flaghoist.toml', 'utf8'))
 }
 
-function clientFrom(values: { url?: string; token?: string }): AdminClient {
+/** The server to talk to: --url, then FLAGS_URL, then the only server `flaghoist login` saved. */
+function serverFrom(values: { url?: string }): string {
   const url = values.url ?? process.env.FLAGS_URL
-  const token = values.token ?? process.env.FLAGS_ADMIN_TOKEN
-  if (!url) throw new Error('Missing server URL. Pass --url or set FLAGS_URL.')
-  if (!token) throw new Error('Missing admin token. Pass --token or set FLAGS_ADMIN_TOKEN.')
+  if (url) return url
+  const saved = savedServers(credentialsPath())
+  if (saved.length === 1) return saved[0]!
+  throw new Error('Missing server URL. Pass --url or set FLAGS_URL.')
+}
+
+/** Credentials, in order: --token, FLAGS_ADMIN_TOKEN, then the token `flaghoist login` saved. */
+function clientFrom(values: { url?: string; token?: string }): AdminClient {
+  const url = serverFrom(values)
+  const token =
+    values.token ?? process.env.FLAGS_ADMIN_TOKEN ?? savedCredential(credentialsPath(), url)?.token
+  if (!token) {
+    throw new Error(
+      'Not signed in. Run `flaghoist login`, or pass --token or set FLAGS_ADMIN_TOKEN.',
+    )
+  }
   return createAdminClient({ url, token })
+}
+
+async function runLogin(args: string[]): Promise<void> {
+  const { values } = parseArgs({
+    args,
+    options: {
+      url: { type: 'string' },
+      email: { type: 'string' },
+      'password-stdin': { type: 'boolean' },
+    },
+  })
+  const url = values.url ?? process.env.FLAGS_URL
+  if (!url) throw new Error('Missing server URL. Pass --url or set FLAGS_URL.')
+  let email = values.email
+  if (!email) {
+    if (!process.stdin.isTTY) throw new Error('Pass your email with --email.')
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    email = (await rl.question('Email: ')).trim()
+    rl.close()
+  }
+  const password = await readPassword({ fromStdin: values['password-stdin'] === true })
+  console.log(`Signing in to ${url} as ${email}...`)
+  const result = await loginForToken({
+    url,
+    email,
+    password,
+    tokenName: `flaghoist CLI on ${hostname()}`,
+  })
+  const path = credentialsPath()
+  saveCredential(path, url, {
+    token: result.token,
+    tokenId: result.tokenId,
+    email: result.email,
+    savedAt: new Date().toISOString(),
+  })
+  console.log(
+    `Signed in to ${url} as ${result.email} (${result.role}). The access token expires ${
+      result.expiresAt?.slice(0, 10) ?? 'never'
+    } and is saved in ${path}.`,
+  )
+}
+
+async function runLogout(args: string[]): Promise<void> {
+  const { values } = parseArgs({ args, options: { url: { type: 'string' } } })
+  const url = serverFrom(values)
+  const path = credentialsPath()
+  const saved = savedCredential(path, url)
+  if (!saved) return console.log(`Not signed in to ${url}.`)
+  // Revoke the token on the server first; forget it locally either way.
+  const revoked = await createAdminClient({ url, token: saved.token })
+    .logout()
+    .then(() => true)
+    .catch(() => false)
+  removeCredential(path, url)
+  console.log(
+    revoked
+      ? `Signed out of ${url}. The access token is revoked.`
+      : `Removed the saved token for ${url}. The server could not be reached to revoke it; revoke it from the dashboard's Account page.`,
+  )
+}
+
+async function runTokensCommand(args: string[]): Promise<void> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: {
+      url: { type: 'string' },
+      token: { type: 'string' },
+      role: { type: 'string' },
+      'expires-days': { type: 'string' },
+    },
+  })
+  const lines = await runTokens(clientFrom(values), positionals, {
+    role: values.role,
+    expiresDays: values['expires-days'],
+  })
+  for (const line of lines) console.log(line)
 }
 
 function flagState(flag: FeatureFlag): string {
@@ -155,7 +256,7 @@ async function runUsersCommand(args: string[]): Promise<void> {
     },
   })
   const client = clientFrom(values)
-  const url = (values.url ?? process.env.FLAGS_URL) as string
+  const url = serverFrom(values)
   for (const line of await runUsers(client, url, positionals, { role: values.role })) {
     console.log(line)
   }
@@ -413,7 +514,13 @@ Scaffolding
   eject                    Generate a code project you own (a Worker, or a container)
   deploy [--target T]      Deploy (prompts for the platform; T is cloudflare or other)
 
-Flag management (needs --url/--token or FLAGS_URL/FLAGS_ADMIN_TOKEN)
+Signing in, on a server with user accounts
+  login [--url U] [--email E] [--password-stdin]
+                               Sign in and save a personal access token for this server
+  logout [--url U]             Revoke that token and forget it
+${TOKENS_USAGE}
+
+Flag management (needs --url/--token or FLAGS_URL/FLAGS_ADMIN_TOKEN, or \`flaghoist login\`)
   flag list
   flag get <key>
   flag create <key> [--on] [--rollout N] [--desc "..."]
@@ -433,6 +540,12 @@ async function main(): Promise<void> {
       return runFlag(rest)
     case 'users':
       return runUsersCommand(rest)
+    case 'login':
+      return runLogin(rest)
+    case 'logout':
+      return runLogout(rest)
+    case 'tokens':
+      return runTokensCommand(rest)
     case 'init':
       return runInit(rest)
     case 'eject':

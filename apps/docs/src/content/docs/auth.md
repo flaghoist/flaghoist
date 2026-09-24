@@ -162,6 +162,16 @@ one can change their own role or remove themselves.
 every session that member had. Admins cannot reset an owner's password; another owner, or the admin
 token, can.
 
+**Access tokens.** For the CLI, the MCP server, CI and scripts, each member creates personal
+access tokens (`fh_pat_...`) on the **Account** page, or runs `flaghoist login`. A token acts as its
+owner, so changes made with it are recorded under their email. Give it a lower role than your own
+to limit what it can do; it can never have a higher one, and the owner's current role caps it on
+every request, so demoting someone narrows their tokens and disabling or removing them stops their
+tokens at once. Tokens expire after 90 days unless you choose another period, up to ten years, or
+choose "never" on purpose. The server keeps only a hash and shows each token once, and lists when
+each was last used. Use one anywhere the admin token went: `Authorization: Bearer fh_pat_...`,
+`FLAGS_ADMIN_TOKEN` for the CLI, `FLAGHOIST_ADMIN_TOKEN` for the MCP server.
+
 **The admin token stays.** `auth.admin` keeps working as a break-glass Owner credential for
 recovery, and the audit log records its changes as `owner (break-glass)` so they stand out. The
 dashboard offers it under **Use an access token**.
@@ -186,7 +196,8 @@ lock that address for 15 minutes. Unknown emails are locked and answered exactly
 neither the response nor the lockout reveals which accounts exist.
 
 **Security log.** Sign-ins, failed sign-ins, sign-outs, password changes and resets, invites,
-member changes and webhook changes go to a separate security log. Admins and owners see it under **Audit log**,
+member changes, access tokens created, revoked or expired, and webhook changes go to a separate
+security log. Admins and owners see it under **Audit log**,
 **Security**; see the [API reference](/api-reference/#audit-log).
 
 ## Security notes

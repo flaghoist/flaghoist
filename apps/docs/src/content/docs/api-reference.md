@@ -227,6 +227,23 @@ from the client when setting a password. The returned session token is used as
 (`code: "invalid_credentials"`). Too many failures return `429` with `code: "login_throttled"` and a
 `Retry-After` header. A session that has ended returns `401` with `code: "session_expired"`.
 
+### Access tokens
+
+Signed in with an account (a session or another access token). The admin token has none.
+
+| Method   | Path                  | Purpose                                                                 |
+| -------- | --------------------- | ----------------------------------------------------------------------- |
+| `GET`    | `/api/v1/tokens`      | Your tokens, without their secrets                                      |
+| `POST`   | `/api/v1/tokens`      | `{ name, role?, expiresInDays? }` returns `{ token, info }`, shown once |
+| `DELETE` | `/api/v1/tokens/{id}` | Revoke one of your tokens                                               |
+
+`role` defaults to the caller's and cannot exceed it, so a narrow token cannot create a wider one.
+`expiresInDays` is 1 to 3650 and defaults to 90; `null` means the token never expires. A token is
+used as `Authorization: Bearer fh_pat_...` on every admin route, with the lower of its role and its
+owner's current role. `POST /api/v1/auth/logout` with a token revokes it. An expired or revoked
+token answers `401` with `code: "token_invalid"`, and `GET /api/v1/auth/me` includes the token in
+use.
+
 ### Members and invites
 
 Admin or owner. Only an owner can grant the owner role or act on an owner.

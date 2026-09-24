@@ -19,7 +19,8 @@ into `wrangler.toml`.
 ## Managing flags
 
 Point the CLI at your server with `--url` and `--token`, or set `FLAGS_URL` and
-`FLAGS_ADMIN_TOKEN`.
+`FLAGS_ADMIN_TOKEN`. On a server with user accounts, `flaghoist login --url <server>` signs you in
+once and saves a personal access token instead.
 
 ```bash
 flaghoist flag list

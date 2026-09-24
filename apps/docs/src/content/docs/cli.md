@@ -68,6 +68,30 @@ export FLAGS_ADMIN_TOKEN=…
 `toggle`, `rollout`, and `rules set` preserve the rest of the flag: they read the current
 definition and re-send everything else unchanged.
 
+## Signing in
+
+On a server with [user accounts](/auth/#user-accounts) turned on, sign in once instead of passing a
+token each time:
+
+```bash
+flaghoist login --url https://flags.example.com
+```
+
+It asks for your email and password (the password is hashed locally and never sent), creates a
+personal access token named after this machine, and saves it in `~/.config/flaghoist/credentials.json`
+(or `%APPDATA%\flaghoist` on Windows; set `FLAGHOIST_CONFIG_DIR` to move it), readable only by
+you. After that, commands for that server need no token, and no `--url` if it is the only one you
+have signed in to. `--token` and `FLAGS_ADMIN_TOKEN` still take priority. In a script, or anywhere without an interactive terminal, pipe the password in with
+`--password-stdin`: `flaghoist login --url ... --email ... --password-stdin < password.txt`.
+
+`flaghoist logout` revokes the token on the server and removes it from the file.
+
+| Command                                                        | Description                           |
+| -------------------------------------------------------------- | ------------------------------------- |
+| `flaghoist tokens list`                                        | Your access tokens and when last used |
+| `flaghoist tokens create <name> [--role R] [--expires-days N]` | Create one; `N` can be `never`        |
+| `flaghoist tokens revoke <id or name>`                         | Revoke one                            |
+
 ## Members
 
 On a server with [user accounts](/auth/#user-accounts) turned on, with the same `FLAGS_URL` and a

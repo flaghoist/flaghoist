@@ -1,5 +1,5 @@
 import type { StorageAdapter } from '@flaghoist/core'
-import { isRole, type Role } from './permissions'
+import { isRole, ROLES, type Role } from './permissions'
 
 /**
  * User accounts, password sign-in and server sessions. Everything here is stored through the
@@ -37,6 +37,9 @@ export const PASSWORD_ITERATIONS = 600_000
 export const SESSION_PREFIX = 'fh_sess_'
 export const INVITE_PREFIX = 'fh_inv_'
 export const RESET_PREFIX = 'fh_rst_'
+export const TOKEN_PREFIX = 'fh_pat_'
+export const DEFAULT_TOKEN_DAYS = 90
+export const MAX_TOKEN_DAYS = 3650
 const RESET_LINK_MS = 24 * 3_600_000
 const SALT_BYTES = 16
 const CLIENT_KEY_BYTES = 32
@@ -50,6 +53,7 @@ const USERS_BY_EMAIL = 'users-email'
 const SESSIONS = 'sessions'
 const LOGIN_ATTEMPTS = 'login-attempts'
 const INVITES = 'invites'
+const TOKENS = 'tokens'
 
 // Read in place of a user record when an email has no account, so a failed sign-in for an unknown
 // email makes the same storage round trips as one for a real account.
@@ -112,6 +116,35 @@ export interface InviteRecord {
 }
 
 export type PublicInvite = Omit<InviteRecord, 'userId'>
+
+/** A personal access token. Stored under the hash of the token itself. */
+export interface TokenRecord {
+  id: string
+  userId: string
+  name: string
+  /** The most this token may do. Its owner's current role caps it further on every request. */
+  role: Role
+  /** The first characters of the token, so people can tell their tokens apart. */
+  prefix: string
+  createdAt: string
+  /** Absent means the token never expires. */
+  expiresAt?: string
+  lastUsedAt?: string
+}
+
+export type PublicToken = Omit<TokenRecord, 'userId'>
+
+export function publicToken(token: TokenRecord): PublicToken {
+  const { userId: _, ...rest } = token
+  return rest
+}
+
+export interface ResolvedToken {
+  user: UserRecord
+  token: TokenRecord
+  /** The lower of the token's role and its owner's current role. */
+  role: Role
+}
 
 export interface PublicSession {
   id: string
@@ -336,6 +369,21 @@ export function publicInvite(invite: InviteRecord): PublicInvite {
   return rest
 }
 
+function isTokenRecord(value: unknown): value is TokenRecord {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.id === 'string' &&
+    typeof v.userId === 'string' &&
+    typeof v.name === 'string' &&
+    isRole(v.role)
+  )
+}
+
+function lowerRole(a: Role, b: Role): Role {
+  return ROLES.indexOf(a) <= ROLES.indexOf(b) ? a : b
+}
+
 function isAttemptRecord(value: unknown): value is AttemptRecord {
   if (!value || typeof value !== 'object') return false
   const v = value as Record<string, unknown>
@@ -362,6 +410,13 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
       else out.push({ key: id, invite: value })
     }
     return out
+  }
+
+  async function tokensOf(userId: string): Promise<{ key: string; token: TokenRecord }[]> {
+    return (await records.listRecords(TOKENS))
+      .filter((r): r is { id: string; value: TokenRecord } => isTokenRecord(r.value))
+      .filter((r) => r.value.userId === userId)
+      .map((r) => ({ key: r.id, token: r.value }))
   }
 
   async function allSessions(): Promise<{ key: string; session: SessionRecord }[]> {
@@ -466,6 +521,7 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
         ...(await liveInvites())
           .filter((i) => i.invite.userId === user.id)
           .map((i) => records.deleteRecord(INVITES, i.key)),
+        ...(await tokensOf(user.id)).map((t) => records.deleteRecord(TOKENS, t.key)),
       ])
       await records.deleteRecord(USERS_BY_EMAIL, user.email)
       await records.deleteRecord(USERS, user.id)
@@ -488,6 +544,79 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
       )
       await Promise.all(ended.map((s) => records.deleteRecord(SESSIONS, s.key)))
       return ended.length
+    },
+
+    // ---- personal access tokens ----
+
+    async createToken(
+      user: UserRecord,
+      input: { name: string; role: Role; expiresInDays: number | null },
+    ): Promise<{ token: string; record: TokenRecord }> {
+      const token = TOKEN_PREFIX + toBase64Url(randomBytes(32))
+      const now = Date.now()
+      const record: TokenRecord = {
+        id: `tok_${hex(randomBytes(12))}`,
+        userId: user.id,
+        name: input.name,
+        role: input.role,
+        prefix: token.slice(0, TOKEN_PREFIX.length + 4),
+        createdAt: new Date(now).toISOString(),
+        ...(input.expiresInDays !== null
+          ? { expiresAt: new Date(now + input.expiresInDays * 86_400_000).toISOString() }
+          : {}),
+      }
+      await records.putRecord(TOKENS, await sha256Hex(token), record)
+      return { token, record }
+    },
+
+    /** A user's tokens, newest first. Expired ones are listed until revoked, marked by expiresAt. */
+    async listTokens(userId: string): Promise<TokenRecord[]> {
+      return (await tokensOf(userId))
+        .map((t) => t.token)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    },
+
+    /**
+     * The owner and effective role behind a token, or null. An expired token is deleted and
+     * reported through `onExpired` so the caller can audit it. lastUsedAt is written back at most
+     * every few minutes, like a session's lastSeenAt.
+     */
+    async resolveToken(
+      token: string,
+      onExpired?: (record: TokenRecord) => Promise<void>,
+    ): Promise<ResolvedToken | null> {
+      const key = await sha256Hex(token)
+      const value = await records.getRecord(TOKENS, key)
+      if (!isTokenRecord(value)) return null
+      const now = Date.now()
+      if (value.expiresAt && now >= Date.parse(value.expiresAt)) {
+        await records.deleteRecord(TOKENS, key)
+        await onExpired?.(value)
+        return null
+      }
+      const user = await getUser(value.userId)
+      if (!user || user.status !== 'active') return null
+      let record = value
+      if (!value.lastUsedAt || now - Date.parse(value.lastUsedAt) >= touchMs) {
+        record = { ...value, lastUsedAt: new Date(now).toISOString() }
+        await records.putRecord(TOKENS, key, record)
+      }
+      return { user, token: record, role: lowerRole(record.role, user.role) }
+    },
+
+    async revokeToken(userId: string, id: string): Promise<TokenRecord | null> {
+      const match = (await tokensOf(userId)).find((t) => t.token.id === id)
+      if (!match) return null
+      await records.deleteRecord(TOKENS, match.key)
+      return match.token
+    },
+
+    /** Revoke the token presented, for signing out a CLI. */
+    async revokePresentedToken(token: string): Promise<TokenRecord | null> {
+      const key = await sha256Hex(token)
+      const value = await records.getRecord(TOKENS, key)
+      await records.deleteRecord(TOKENS, key)
+      return isTokenRecord(value) ? value : null
     },
 
     // ---- invites and reset links ----

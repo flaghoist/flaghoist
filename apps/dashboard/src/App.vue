@@ -261,6 +261,9 @@ function isRoleRefusal(e: unknown): boolean {
 function describe(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.code === 'session_expired') return 'Your session ended. Sign in again.'
+    if (e.code === 'token_invalid') {
+      return 'This access token has expired or was revoked. Sign in again.'
+    }
     if (e.status === 401) return 'Unauthorized. Check the admin token.'
     if (isRoleRefusal(e)) return e.message
     if (e.status === 403) return 'Forbidden. This token lacks admin access.'

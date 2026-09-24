@@ -7,6 +7,7 @@ export {
   flagState,
   inviteLink,
   OPERATORS,
+  type AccessToken,
   type AccountSession,
   type AccountUser,
   type AdminClient,

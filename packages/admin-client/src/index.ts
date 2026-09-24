@@ -149,6 +149,36 @@ export interface Me {
   /** The signed-in account. Null for the admin token or any other non-account credential. */
   user: AccountUser | null
   session: { id: string; createdAt: string; expiresAt: string } | null
+  /** The personal access token in use, when that is the credential. */
+  token?: AccessToken | null
+}
+
+/** A personal access token, as listed. The secret itself is shown only when it is created. */
+export interface AccessToken {
+  id: string
+  name: string
+  /** The most the token may do. Its owner's current role caps it further. */
+  role: string
+  /** The first characters of the token, to tell tokens apart. */
+  prefix: string
+  createdAt: string
+  /** Absent means it never expires. */
+  expiresAt?: string
+  lastUsedAt?: string
+}
+
+export interface NewAccessToken {
+  /** The token (`fh_pat_...`). Shown once: the server keeps only a hash. */
+  token: string
+  info: AccessToken
+}
+
+export interface TokenInput {
+  name: string
+  /** Defaults to the caller's role, and cannot exceed it. */
+  role?: string
+  /** Days until it expires, 1 to 3650. Defaults to 90. `null` means it never expires. */
+  expiresInDays?: number | null
 }
 
 export interface AccountSession {
@@ -258,6 +288,10 @@ export interface AdminClient {
   /** A new link for an open invite. The old one stops working. */
   resendInvite(id: string): Promise<LinkResult>
   revokeInvite(id: string): Promise<void>
+  /** The signed-in user's personal access tokens. */
+  listTokens(): Promise<AccessToken[]>
+  createToken(input: TokenInput): Promise<NewAccessToken>
+  revokeToken(id: string): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -722,6 +756,21 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
 
     async revokeInvite(id) {
       await request(`/api/v1/invites/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+
+    async listTokens() {
+      const body = (await readJson(await request('/api/v1/tokens'))) as { tokens: AccessToken[] }
+      return body.tokens
+    },
+
+    async createToken(input) {
+      return (await readJson(
+        await request('/api/v1/tokens', { method: 'POST', body: JSON.stringify(input) }),
+      )) as NewAccessToken
+    },
+
+    async revokeToken(id) {
+      await request(`/api/v1/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' })
     },
   }
 }

@@ -39,6 +39,7 @@ function client(over: Partial<AdminClient> = {}): AdminClient {
     me: vi.fn(async () => ADA),
     logout: vi.fn(async () => undefined),
     listSessions: vi.fn(async () => []),
+    listTokens: vi.fn(async () => []),
     ...over,
   } as unknown as AdminClient
 }
@@ -322,5 +323,77 @@ describe('Security log', () => {
     })
     await flushPromises()
     expect(wrapper.find('.audit-tabs').exists()).toBe(false)
+  })
+})
+
+describe('Access tokens', () => {
+  const created = {
+    token: 'fh_pat_secretvalue',
+    info: {
+      id: 'tok_1',
+      name: 'CI deploys',
+      role: 'viewer',
+      prefix: 'fh_pat_secr',
+      createdAt: '2026-09-24T00:00:00.000Z',
+      expiresAt: '2026-10-24T00:00:00.000Z',
+    },
+  }
+
+  it('creates a token, shows it once, and lists it without the secret', async () => {
+    const api = client({ createToken: vi.fn(async () => created) })
+    const wrapper = mount(AccountPage, { props: { api, me: ADA, setupRequired: false } })
+    await flushPromises()
+    await wrapper.find('#token-name').setValue('CI deploys')
+    await wrapper.find('#token-role').setValue('viewer')
+    await wrapper.find('#token-expiry').setValue('30')
+    await wrapper.find('.token-form').trigger('submit')
+    await flushPromises()
+    expect(api.createToken).toHaveBeenCalledWith({
+      name: 'CI deploys',
+      role: 'viewer',
+      expiresInDays: 30,
+    })
+    expect((wrapper.find('#new-token').element as HTMLInputElement).value).toBe(
+      'fh_pat_secretvalue',
+    )
+    await wrapper.find('.token-panel .btn-quiet').trigger('click')
+    expect(wrapper.text()).not.toContain('fh_pat_secretvalue')
+    expect(wrapper.text()).toContain('CI deploys')
+  })
+
+  it('offers only roles up to your own, and never-expiring only with a warning', async () => {
+    const editor: Me = { ...ADA, role: 'editor', user: { ...ADA.user!, role: 'editor' } }
+    const wrapper = mount(AccountPage, {
+      props: { api: client(), me: editor, setupRequired: false },
+    })
+    await flushPromises()
+    expect(wrapper.findAll('#token-role option').map((o) => o.text())).toEqual(['viewer', 'editor'])
+    expect(wrapper.find('.warn-note').exists()).toBe(false)
+    await wrapper.find('#token-expiry').setValue('never')
+    expect(wrapper.find('.warn-note').exists()).toBe(true)
+  })
+
+  it('revokes a token', async () => {
+    const api = client({
+      listTokens: vi.fn(async () => [created.info]),
+      revokeToken: vi.fn(async () => undefined),
+    })
+    const wrapper = mount(AccountPage, { props: { api, me: ADA, setupRequired: false } })
+    await flushPromises()
+    await wrapper.find('button[aria-label="Revoke CI deploys"]').trigger('click')
+    await flushPromises()
+    expect(api.revokeToken).toHaveBeenCalledWith('tok_1')
+    expect(wrapper.text()).toContain('No access tokens yet.')
+  })
+
+  it('hides password and sessions when signed in with a token', async () => {
+    const viaToken: Me = { ...ADA, session: null, token: created.info }
+    const api = client()
+    const wrapper = mount(AccountPage, { props: { api, me: viaToken, setupRequired: false } })
+    await flushPromises()
+    expect(wrapper.find('#pw-current').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Sessions')
+    expect(api.listSessions).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Signed in with the access token')
   })
 })

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import {
   ApiError,
   MIN_PASSWORD_LENGTH,
+  type AccessToken,
   type AccountSession,
   type AdminClient,
   type Me,
 } from '../api'
+import { assignableRoles, ROLES } from '../roles'
 
 const props = defineProps<{ api: AdminClient; me: Me; setupRequired: boolean }>()
 const emit = defineEmits<{
@@ -16,6 +18,9 @@ const emit = defineEmits<{
 }>()
 
 const user = computed(() => props.me.user)
+// Password and sessions belong to a dashboard sign-in. Signed in with an access token, the account
+// is known but those actions need the password session.
+const hasSession = computed(() => props.me.session !== null)
 
 /* ---- first owner -------------------------------------------------------- */
 
@@ -85,13 +90,90 @@ async function changePassword() {
   }
 }
 
+/* ---- access tokens ---------------------------------------------------------- */
+
+const tokens = ref<AccessToken[]>([])
+const tokenName = ref('')
+// A token can be as narrow as viewer and never wider than the role signed in.
+const tokenRoles = computed(() => {
+  const mine = ROLES.indexOf(props.me.role as (typeof ROLES)[number])
+  return assignableRoles('owner').filter((r) => ROLES.indexOf(r) <= mine)
+})
+const tokenRole = ref(props.me.role ?? 'viewer')
+const tokenExpiry = ref('90')
+const tokenBusy = ref(false)
+const tokenError = ref('')
+const newToken = ref<{ token: string; info: AccessToken } | null>(null)
+const newTokenEl = ref<HTMLInputElement | null>(null)
+const tokenCopied = ref(false)
+
+async function loadTokens() {
+  if (!user.value) return
+  try {
+    tokens.value = await props.api.listTokens()
+  } catch (e) {
+    emit('failed', e)
+  }
+}
+
+async function createToken() {
+  tokenError.value = ''
+  tokenBusy.value = true
+  try {
+    const created = await props.api.createToken({
+      name: tokenName.value.trim(),
+      role: tokenRole.value,
+      expiresInDays: tokenExpiry.value === 'never' ? null : Number(tokenExpiry.value),
+    })
+    tokens.value = [created.info, ...tokens.value]
+    tokenName.value = ''
+    newToken.value = created
+    tokenCopied.value = false
+    await nextTick()
+    newTokenEl.value?.focus()
+    newTokenEl.value?.select()
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 400 || e.code === 'insufficient_role')) {
+      tokenError.value = e.message
+    } else emit('failed', e)
+  } finally {
+    tokenBusy.value = false
+  }
+}
+
+async function copyToken() {
+  if (!newToken.value) return
+  try {
+    await navigator.clipboard.writeText(newToken.value.token)
+    tokenCopied.value = true
+  } catch {
+    newTokenEl.value?.select()
+    emit('notify', 'Could not copy. The token is selected: press Ctrl+C or Cmd+C.', 'error')
+  }
+}
+
+async function revokeToken(token: AccessToken) {
+  try {
+    await props.api.revokeToken(token.id)
+    tokens.value = tokens.value.filter((t) => t.id !== token.id)
+    if (newToken.value?.info.id === token.id) newToken.value = null
+    emit('notify', `Revoked "${token.name}".`, 'ok')
+  } catch (e) {
+    emit('failed', e)
+  }
+}
+
+function isExpired(token: AccessToken): boolean {
+  return token.expiresAt !== undefined && Date.parse(token.expiresAt) <= Date.now()
+}
+
 /* ---- sessions ------------------------------------------------------------- */
 
 const sessions = ref<AccountSession[]>([])
 const sessionsLoading = ref(false)
 
 async function loadSessions() {
-  if (!user.value) return
+  if (!user.value || !hasSession.value) return
   sessionsLoading.value = true
   try {
     sessions.value = await props.api.listSessions()
@@ -165,7 +247,10 @@ function device(ua?: string): string {
   return os ? `${browser} on ${os}` : browser
 }
 
-onMounted(() => void loadSessions())
+onMounted(() => {
+  void loadSessions()
+  void loadTokens()
+})
 </script>
 
 <template>
@@ -187,6 +272,11 @@ onMounted(() => void loadSessions())
           <span class="setting-label">Role</span>
           <span class="role-badge">{{ user.role }}</span>
         </div>
+        <p v-if="!hasSession" class="hint spaced-hint">
+          Signed in with the access token <strong>{{ me.token?.name }}</strong
+          ><template v-if="me.role !== user.role"> as {{ me.role }}</template
+          >. Sign in with your email and password to change your password or see your sessions.
+        </p>
       </template>
       <p v-else class="hint">
         You are signed in with an access token as <strong>{{ me.identity }}</strong
@@ -245,7 +335,7 @@ onMounted(() => void loadSessions())
       </form>
     </section>
 
-    <section v-if="user" class="section">
+    <section v-if="user && hasSession" class="section">
       <h2>Password</h2>
       <form class="form" @submit.prevent="changePassword">
         <input
@@ -296,7 +386,97 @@ onMounted(() => void loadSessions())
       </form>
     </section>
 
-    <section v-if="user" class="section">
+    <section v-if="user" class="section" aria-labelledby="tokens-heading">
+      <h2 id="tokens-heading">Access tokens</h2>
+      <p class="hint">
+        For the CLI, the MCP server and scripts. A token acts as you, with the role you give it, and
+        never more than your own. <code class="mono">flaghoist login</code> creates one for you.
+      </p>
+      <form class="token-form" @submit.prevent="createToken">
+        <div class="field grow">
+          <label class="label" for="token-name">Name</label>
+          <input
+            id="token-name"
+            v-model="tokenName"
+            class="full"
+            placeholder="CI deploys"
+            autocomplete="off"
+            required
+          />
+        </div>
+        <div class="field">
+          <label class="label" for="token-role">Role</label>
+          <select id="token-role" v-model="tokenRole">
+            <option v-for="r in tokenRoles" :key="r" :value="r">{{ r }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="token-expiry">Expires</label>
+          <select id="token-expiry" v-model="tokenExpiry">
+            <option value="30">In 30 days</option>
+            <option value="90">In 90 days</option>
+            <option value="365">In a year</option>
+            <option value="never">Never</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" :disabled="tokenBusy">
+          {{ tokenBusy ? 'Creating' : 'Create token' }}
+        </button>
+      </form>
+      <p v-if="tokenExpiry === 'never'" class="warn-note" role="status">
+        A token that never expires keeps working until you revoke it. Prefer an expiry where you
+        can.
+      </p>
+      <p v-if="tokenError" class="err" role="alert">{{ tokenError }}</p>
+
+      <div v-if="newToken" class="token-panel" role="status">
+        <p class="token-title">
+          <strong>{{ newToken.info.name }}</strong> is ready. Copy it now: it is not shown again.
+        </p>
+        <div class="token-row">
+          <label class="visually-hidden" for="new-token">New access token</label>
+          <input
+            id="new-token"
+            ref="newTokenEl"
+            class="mono full"
+            :value="newToken.token"
+            readonly
+          />
+          <button class="btn btn-primary btn-sm" @click="copyToken">
+            {{ tokenCopied ? 'Copied' : 'Copy' }}
+          </button>
+        </div>
+        <button class="btn btn-quiet btn-sm" @click="newToken = null">Done</button>
+      </div>
+
+      <ul v-if="tokens.length > 0" class="session-list">
+        <li v-for="t in tokens" :key="t.id" class="session-row">
+          <div class="session-info">
+            <span class="session-device">
+              {{ t.name }}
+              <span class="role-tag">{{ t.role }}</span>
+              <span v-if="me.token?.id === t.id" class="current-badge">In use now</span>
+              <span v-if="isExpired(t)" class="expired-badge">Expired</span>
+            </span>
+            <span class="session-meta">
+              <code class="mono">{{ t.prefix }}...</code> · created {{ formatTime(t.createdAt) }} ·
+              {{ t.expiresAt ? `expires ${formatTime(t.expiresAt)}` : 'never expires' }} ·
+              {{ t.lastUsedAt ? `last used ${formatTime(t.lastUsedAt)}` : 'never used' }}
+            </span>
+          </div>
+          <button
+            class="btn btn-ghost btn-sm"
+            :aria-label="`Revoke ${t.name}`"
+            @click="revokeToken(t)"
+          >
+            Revoke
+          </button>
+        </li>
+      </ul>
+      <p v-else class="hint">No access tokens yet.</p>
+    </section>
+
+    <section v-if="user && hasSession" class="section">
       <div class="section-head">
         <h2>Sessions</h2>
         <button v-if="hasOthers" class="btn btn-ghost btn-sm" @click="revokeOthers">
@@ -421,6 +601,67 @@ onMounted(() => void loadSessions())
   background: var(--red-wash);
   border-radius: var(--r-sm);
   width: 100%;
+}
+.spaced-hint {
+  margin-top: 0.8rem;
+}
+.token-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+}
+.field.grow {
+  flex: 1 1 200px;
+}
+.token-panel {
+  margin: 0.8rem 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--signal);
+  border-radius: var(--r-md);
+  background: var(--accent-wash);
+}
+.token-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+.token-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.warn-note {
+  margin: 0.2rem 0 0.6rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--yellow-text);
+  background: var(--yellow-wash);
+  border-radius: var(--r-sm);
+}
+.role-tag {
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 0.08rem 0.4rem;
+  border-radius: var(--r-pill);
+  color: var(--accent-text);
+  background: var(--accent-wash);
+}
+.expired-badge {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.08rem 0.4rem;
+  border-radius: var(--r-pill);
+  color: var(--red-text);
+  background: var(--red-wash);
 }
 .visually-hidden {
   position: absolute;

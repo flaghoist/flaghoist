@@ -81,8 +81,8 @@ It asks for your email and password (the password is hashed locally and never se
 personal access token named after this machine, and saves it in `~/.config/flaghoist/credentials.json`
 (or `%APPDATA%\flaghoist` on Windows; set `FLAGHOIST_CONFIG_DIR` to move it), readable only by
 you. After that, commands for that server need no token, and no `--url` if it is the only one you
-have signed in to. `--token` and `FLAGS_ADMIN_TOKEN` still take priority. In a script, pipe the
-password in: `flaghoist login --url ... --email ... < password.txt`.
+have signed in to. `--token` and `FLAGS_ADMIN_TOKEN` still take priority. In a script, or anywhere without an interactive terminal, pipe the password in with
+`--password-stdin`: `flaghoist login --url ... --email ... --password-stdin < password.txt`.
 
 `flaghoist logout` revokes the token on the server and removes it from the file.
 

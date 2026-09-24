@@ -46,6 +46,7 @@ import {
   savedServers,
   saveCredential,
 } from './credentials'
+import { readPassword } from './prompt'
 import { loginForToken, runTokens, TOKENS_USAGE } from './tokens'
 import { runUsers, USERS_USAGE } from './users'
 import { VERSION } from './version'
@@ -84,44 +85,26 @@ function clientFrom(values: { url?: string; token?: string }): AdminClient {
   return createAdminClient({ url, token })
 }
 
-/**
- * Ask for a password without echoing it. When stdin is not a terminal (a pipe in a script), read it
- * from there instead, like `docker login --password-stdin`.
- */
-async function promptHidden(question: string): Promise<string> {
-  if (!process.stdin.isTTY) {
-    const chunks: Buffer[] = []
-    for await (const chunk of process.stdin) chunks.push(chunk as Buffer)
-    return Buffer.concat(chunks)
-      .toString('utf8')
-      .replace(/\r?\n$/, '')
-  }
-  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true })
-  process.stdout.write(question)
-  // Swallow readline's echo of each keystroke. The prompt itself was written above.
-  ;(rl as unknown as { _writeToOutput: (text: string) => void })._writeToOutput = () => {}
-  try {
-    return await rl.question('')
-  } finally {
-    rl.close()
-    process.stdout.write('\n')
-  }
-}
-
 async function runLogin(args: string[]): Promise<void> {
   const { values } = parseArgs({
     args,
-    options: { url: { type: 'string' }, email: { type: 'string' } },
+    options: {
+      url: { type: 'string' },
+      email: { type: 'string' },
+      'password-stdin': { type: 'boolean' },
+    },
   })
   const url = values.url ?? process.env.FLAGS_URL
   if (!url) throw new Error('Missing server URL. Pass --url or set FLAGS_URL.')
   let email = values.email
   if (!email) {
+    if (!process.stdin.isTTY) throw new Error('Pass your email with --email.')
     const rl = createInterface({ input: process.stdin, output: process.stdout })
     email = (await rl.question('Email: ')).trim()
     rl.close()
   }
-  const password = await promptHidden('Password: ')
+  const password = await readPassword({ fromStdin: values['password-stdin'] === true })
+  console.log(`Signing in to ${url} as ${email}...`)
   const result = await loginForToken({
     url,
     email,
@@ -532,7 +515,8 @@ Scaffolding
   deploy [--target T]      Deploy (prompts for the platform; T is cloudflare or other)
 
 Signing in, on a server with user accounts
-  login [--url U] [--email E]  Sign in and save a personal access token for this server
+  login [--url U] [--email E] [--password-stdin]
+                               Sign in and save a personal access token for this server
   logout [--url U]             Revoke that token and forget it
 ${TOKENS_USAGE}
 

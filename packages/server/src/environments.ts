@@ -5,8 +5,8 @@ import type { FeatureFlag, StorageAdapter } from '@flaghoist/core'
  * environment. The default environment uses bare keys and never stamps `environment` on the
  * flag, so a deployment that turns environments on for the first time needs no migration:
  * existing flags are already the default environment. A named environment prefixes the storage
- * key and stamps `environment` on write, so `list()` — which sees every key in the shared
- * backend — can tell environments apart.
+ * key and stamps `environment` on write, so `list()`, which sees every key in the shared
+ * backend, can tell environments apart.
  *
  * Non-flag concerns (audit, webhooks) are deliberately not scoped here; they stay on the
  * unscoped adapter passed to `createAuditLog`/`createWebhookStore` in index.ts.

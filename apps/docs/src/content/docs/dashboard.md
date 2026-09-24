@@ -82,7 +82,7 @@ it. See [the API reference](/api-reference/#webhooks) for the delivery format an
 
 When the server has more than one [environment](/api-reference/#environments) configured, an
 **Environment** dropdown appears at the top of the sidebar. Switching it reloads the flag list, the
-audit log, and everything else in the dashboard scoped to that environment — the same flag key can be
+audit log, and everything else in the dashboard scoped to that environment. The same flag key can be
 on in staging and off in production, and each keeps its own history. With one environment (or none
 configured), the dropdown is hidden and the dashboard behaves exactly as it always has.
 

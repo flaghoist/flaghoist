@@ -42,7 +42,7 @@ per-language SDK.
 - **Bring your own DB.** A storage adapter is four methods (`get`/`put`/`delete`/`list`). Cloudflare KV, Redis, Postgres and SQLite ship today, or write your own.
 - **Targeting from day one.** Boolean flags, sticky percentage rollouts, and ordered targeting rules.
 - **A dashboard in the box.** A single deploy gives you the read API, the admin API, and a management UI.
-- **Team-ready.** An audit trail, archive/restore, JSON export/import, HMAC-signed webhooks, and named environments (`production`/`staging`/...) — all in the same deploy, no add-on service.
+- **Team-ready.** An audit trail, archive/restore, JSON export/import, HMAC-signed webhooks, and named environments (`production`/`staging`/...), all in the same deploy, no add-on service.
 
 ## Why not just use X?
 

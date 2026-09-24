@@ -26,7 +26,7 @@ curl -X POST https://team-flags.you.workers.dev/ofrep/v1/evaluate/flags \
 Evaluate a single flag. Returns `404` with `errorCode: FLAG_NOT_FOUND` for an unknown key.
 
 When [environments](#environments) are configured, which environment a request reads from is
-decided by the read credential, not by anything in the request body — see below.
+decided by the read credential, not by anything in the request body. See below.
 
 ## Admin path
 
@@ -113,7 +113,7 @@ Archiving an already-archived flag (or restoring one that isn't archived) return
 
 Move flag definitions between servers, or keep a copy outside Flaghoist, as plain JSON. Only active
 (non-archived) flags are exported, and only `key`, `enabled`, `rollout`, `description`, and `rules`
-travel — no metadata, no audit history.
+travel: no metadata, no audit history.
 
 ```bash
 curl https://team-flags.you.workers.dev/api/v1/export -H "authorization: Bearer $ADMIN_TOKEN" \
@@ -185,7 +185,7 @@ curl "https://team-flags.you.workers.dev/api/v1/audit?limit=20&flagKey=new-check
 ```
 
 `actor` is the identity your auth verifier returned (an email for OIDC, `admin` for a bare bearer
-token, `api-key` — never seen here, since the audit log only covers admin writes). By default
+token; never `api-key`, since the audit log only covers admin writes). By default
 entries live in an in-memory ring buffer (last 500, lost on restart); implement
 `appendAudit`/`listAudit` on your storage adapter to persist them (the memory adapter already does,
 for local development).
@@ -251,7 +251,7 @@ Verify the signature by recomputing the HMAC over the exact raw request body wit
 comparing in constant time. `previous` is omitted for `flag.created`; `environment` is omitted
 unless you have [environments](#environments) configured. Delivery is fire-and-forget with a 10s
 timeout and no retries: a failing endpoint is skipped silently rather than blocking the write that
-triggered it, so treat webhooks as a notification, not a guaranteed log — use the audit log for that.
+triggered it, so treat webhooks as a notification, not a guaranteed log. Use the audit log for that.
 
 ## Environments
 
@@ -274,7 +274,7 @@ createFlagServer({
 })
 ```
 
-Omit `environments` entirely to run with a single, unnamed environment exactly as before — this is
+Omit `environments` entirely to run with a single, unnamed environment exactly as before. This is
 opt-in, and existing deployments need no migration.
 
 ### Admin path
@@ -296,7 +296,7 @@ configured:
 
 ### Read path (OFREP)
 
-The read side has no environment header — which environment a request reads from is decided by the
+The read side has no environment header. Which environment a request reads from is decided by the
 API key itself, via `apiKeys()` (one secret per environment) instead of the single-secret `apiKey()`.
 A key that doesn't map to a configured environment, or a plain `apiKey()` verifier, always reads the
 default environment. This means a leaked staging key cannot read production flags.

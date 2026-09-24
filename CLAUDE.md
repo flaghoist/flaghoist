@@ -22,7 +22,6 @@ What it requires, in full, is this. The shipped feature set is deliberately narr
 
 - Boolean flags only. No multivariate, no experiments.
 - No named segments, no scheduled rules, no regex operators.
-- No optimistic concurrency, no pagination.
 
 Do not describe any of the above as existing, planned or coming soon in docs, the landing page or
 the dashboard. Never fabricate social proof: no invented user counts, testimonials or logos. Keep

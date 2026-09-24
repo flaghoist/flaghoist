@@ -2,6 +2,7 @@ import { memoryAdapter } from '@flaghoist/adapter-memory'
 import { ApiError, createAdminClient, createAuthClient } from '@flaghoist/admin-client'
 import { apiKey, bearerToken, createFlagServer } from '@flaghoist/server'
 import { describe, expect, it } from 'vitest'
+import { loginForToken, runTokens } from '../src/tokens'
 import { runUsers } from '../src/users'
 
 const ADMIN_TOKEN = 'break-glass-token-for-tests-0123456789'
@@ -16,7 +17,7 @@ function setup(withUsers = true) {
   })
   const fetch = async (input: string, init?: RequestInit) => app.request(input, init)
   const admin = (token: string) => createAdminClient({ url: URL, token, fetch })
-  return { auth: createAuthClient({ url: URL, fetch }), admin }
+  return { auth: createAuthClient({ url: URL, fetch }), admin, fetch }
 }
 
 describe('accounts through the admin client', () => {
@@ -119,5 +120,59 @@ describe('flaghoist users', () => {
     await expect(
       runUsers(admin(ADMIN_TOKEN), URL, ['invite', 'x@example.com'], { role: 'superuser' }),
     ).rejects.toThrow(/Role must be one of/)
+  })
+})
+
+describe('flaghoist login and tokens', () => {
+  it('swaps a password for a saved access token and ends the session', async () => {
+    const { auth, admin, fetch } = setup()
+    await admin(ADMIN_TOKEN).createOwner({
+      email: 'ada@example.com',
+      password: 'correct horse battery',
+    })
+    const result = await loginForToken({
+      url: URL,
+      email: 'ada@example.com',
+      password: 'correct horse battery',
+      tokenName: 'flaghoist CLI on test',
+      fetch,
+    })
+    expect(result.token.startsWith('fh_pat_')).toBe(true)
+    expect(result.role).toBe('owner')
+    const client = admin(result.token)
+    expect((await client.me()).token?.name).toBe('flaghoist CLI on test')
+    // Only the token remains: the session used to create it is already gone.
+    const signedIn = await auth.signIn('ada@example.com', 'correct horse battery')
+    const sessions = await admin(signedIn.token).listSessions()
+    expect(sessions).toHaveLength(1)
+  })
+
+  it('refuses a server without accounts', async () => {
+    const { fetch } = setup(false)
+    await expect(
+      loginForToken({ url: URL, email: 'a@example.com', password: 'x', tokenName: 't', fetch }),
+    ).rejects.toThrow(/no user accounts/)
+  })
+
+  it('creates, lists and revokes tokens', async () => {
+    const { auth, admin } = setup()
+    await admin(ADMIN_TOKEN).createOwner({
+      email: 'ada@example.com',
+      password: 'correct horse battery',
+    })
+    const session = admin((await auth.signIn('ada@example.com', 'correct horse battery')).token)
+    const [message, token] = await runTokens(session, ['create', 'deploys'], {
+      role: 'viewer',
+      expiresDays: '30',
+    })
+    expect(message).toMatch(/^Created "deploys" \(viewer, expires \d{4}-\d{2}-\d{2}\)/)
+    expect(token).toMatch(/^fh_pat_/)
+    const list = await runTokens(session, ['list'], {})
+    expect(list[0]).toMatch(/deploys\s+viewer/)
+    expect(await runTokens(session, ['revoke', 'deploys'], {})).toEqual(['Revoked "deploys".'])
+    expect(await runTokens(session, ['list'], {})).toEqual(['No access tokens.'])
+    await expect(runTokens(session, ['create', 'x'], { expiresDays: 'soon' })).rejects.toThrow(
+      /--expires-days/,
+    )
   })
 })

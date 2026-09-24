@@ -89,6 +89,12 @@ With user accounts on, the **Account** page shows your name, email and role, cha
 and lists the sessions signed in as you, with the browser and when each was last active. Sign out
 any one of them, or all but the one you are using. Changing your password signs out the others.
 
+**Access tokens** on the same page creates personal access tokens for the CLI, the MCP server and
+scripts: a name, a role up to your own, and an expiry (30 days, 90 days, a year, or never). The
+token is shown once, with a **Copy** button; afterwards the list shows its first characters, when
+it expires and when it was last used, with **Revoke**. You can also sign in to the dashboard with a
+token under **Use an access token**; password and session settings then need a normal sign-in.
+
 Signed in with the admin token before any account exists, the same page creates the owner account.
 
 ## Members

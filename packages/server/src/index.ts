@@ -20,11 +20,16 @@ import {
   PASSWORD_KDF,
   publicInvite,
   publicSession,
+  publicToken,
   publicUser,
+  DEFAULT_TOKEN_DAYS,
+  MAX_TOKEN_DAYS,
   SESSION_PREFIX,
+  TOKEN_PREFIX,
   type AccountStore,
   type InviteRecord,
   type SessionRecord,
+  type TokenRecord,
   type UserRecord,
 } from './accounts'
 import { createAuditLog } from './audit'
@@ -46,7 +51,7 @@ import {
   type WebhookPayload,
 } from './webhooks'
 
-export type { PublicInvite, PublicSession, PublicUser, UsersConfig } from './accounts'
+export type { PublicInvite, PublicSession, PublicToken, PublicUser, UsersConfig } from './accounts'
 export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
 export { apiKey, apiKeys, bearerToken, oidc, type OidcOptions } from './auth'
 export {
@@ -174,17 +179,19 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     identity: string
     /** Null when the verifier reported a role this server does not recognise. */
     role: Role | null
-    /** The signed-in account, when the credential is a session token. */
+    /** The signed-in account, when the credential is a session or a personal access token. */
     user: UserRecord | null
     session: SessionRecord | null
+    /** The personal access token presented, when that is the credential. */
+    pat: TokenRecord | null
     token: string | null
   }
   type Authorized = Caller & { role: Role }
 
   /**
-   * Identify the caller of an admin request. With accounts on, a session token is resolved against
-   * the session store; anything else goes to the configured `auth.admin` verifier, which becomes
-   * the break-glass credential. A verifier that reports no role gets `owner`, the full access every
+   * Identify the caller of an admin request. With accounts on, a session token or a personal access
+   * token is resolved against the record store; anything else goes to the configured `auth.admin`
+   * verifier, which becomes the break-glass credential. A verifier that reports no role gets `owner`, the full access every
    * admin verifier had before roles existed.
    */
   async function authenticate(c: Context<{ Bindings: Env }>): Promise<Caller | Response> {
@@ -200,7 +207,28 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         )
       }
       const { user, session } = resolved
-      return { cfg, identity: user.email, role: user.role, user, session, token }
+      return { cfg, identity: user.email, role: user.role, user, session, pat: null, token }
+    }
+    if (accounts && token?.startsWith(TOKEN_PREFIX)) {
+      const resolved = await accounts.resolveToken(token, async (expired) => {
+        await audit.record({
+          action: 'token.expired',
+          actor: expired.name,
+          target: { type: 'token', id: expired.id },
+          changeDescription: `${expired.prefix}... expired`,
+        })
+      })
+      if (!resolved) {
+        return c.json(
+          {
+            error: 'This access token is not valid. It may have expired or been revoked.',
+            code: 'token_invalid',
+          },
+          401,
+        )
+      }
+      const { user, token: pat, role } = resolved
+      return { cfg, identity: user.email, role, user, session: null, pat, token }
     }
     const auth = await cfg.auth.admin(c.req.raw.headers)
     if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
@@ -209,7 +237,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     // log, so a change made with it stands out from one made by a named person.
     const breakGlass = accounts !== null && auth.role === undefined && auth.identity === 'admin'
     const identity = breakGlass ? 'owner (break-glass)' : (auth.identity ?? 'unknown')
-    return { cfg, identity, role, user: null, session: null, token }
+    return { cfg, identity, role, user: null, session: null, pat: null, token }
   }
 
   /**
@@ -970,6 +998,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         target: { type: 'session', id: caller.session.id },
       })
     }
+    // Signing out with an access token, as `flaghoist logout` does, revokes that token.
+    if (accounts && caller.pat && caller.token) {
+      await accounts.revokePresentedToken(caller.token)
+      await audit.record({
+        action: 'token.revoked',
+        actor: caller.identity,
+        target: { type: 'token', id: caller.pat.id },
+        changeDescription: `${caller.pat.name} (signed out)`,
+      })
+    }
     return c.body(null, 204)
   })
 
@@ -988,6 +1026,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
             expiresAt: caller.session.expiresAt,
           }
         : null,
+      token: caller.pat ? publicToken(caller.pat) : null,
     })
   })
 
@@ -1128,6 +1167,91 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       action: 'session.revoked',
       actor: caller.user.email,
       target: { type: 'session', id },
+    })
+    return c.body(null, 204)
+  })
+
+  // ---- Personal access tokens: the signed-in user's own ----
+
+  /** The account behind a session or an access token. The break-glass token has none. */
+  async function tokenOwner(
+    c: Context<{ Bindings: Env }>,
+  ): Promise<(Authorized & { user: UserRecord; accounts: AccountStore }) | Response> {
+    const caller = await authenticate(c)
+    if (caller instanceof Response) return caller
+    const accounts = accountsOf(caller.cfg)
+    if (!accounts) return accountsOff(c)
+    if (!caller.user || caller.role === null) {
+      return c.json(
+        { error: 'Sign in with an account to manage its access tokens.', code: 'account_required' },
+        400,
+      )
+    }
+    return { ...(caller as Authorized), user: caller.user, accounts }
+  }
+
+  app.get('/api/v1/tokens', async (c) => {
+    const caller = await tokenOwner(c)
+    if (caller instanceof Response) return caller
+    const tokens = await caller.accounts.listTokens(caller.user.id)
+    return c.json({ tokens: tokens.map(publicToken) })
+  })
+
+  app.post('/api/v1/tokens', async (c) => {
+    const caller = await tokenOwner(c)
+    if (caller instanceof Response) return caller
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const name = normalizeName(body.name)
+    if (!name) return c.json({ error: 'Give the token a name.' }, 400)
+    const role = body.role ?? caller.role
+    if (!isRole(role)) return c.json({ error: `role must be one of ${ROLES.join(', ')}` }, 400)
+    // Never above the credential making the request, so a narrow token cannot mint a wider one.
+    if (ROLES.indexOf(role) > ROLES.indexOf(caller.role)) {
+      return c.json(
+        {
+          error: `A token cannot have a higher role than yours (${caller.role}).`,
+          code: 'insufficient_role',
+        },
+        403,
+      )
+    }
+    const days = body.expiresInDays === undefined ? DEFAULT_TOKEN_DAYS : body.expiresInDays
+    const validDays =
+      days === null ||
+      (typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= MAX_TOKEN_DAYS)
+    if (!validDays) {
+      return c.json(
+        { error: `expiresInDays must be a whole number from 1 to ${MAX_TOKEN_DAYS}, or null.` },
+        400,
+      )
+    }
+    const { token, record } = await caller.accounts.createToken(caller.user, {
+      name,
+      role,
+      expiresInDays: days as number | null,
+    })
+    await audit.record({
+      action: 'token.created',
+      actor: caller.identity,
+      target: { type: 'token', id: record.id },
+      changeDescription: `${record.name} as ${record.role}, ${
+        record.expiresAt ? `expires ${record.expiresAt.slice(0, 10)}` : 'never expires'
+      }`,
+    })
+    return c.json({ token, info: publicToken(record) }, 201)
+  })
+
+  app.delete('/api/v1/tokens/:id', async (c) => {
+    const caller = await tokenOwner(c)
+    if (caller instanceof Response) return caller
+    const revoked = await caller.accounts.revokeToken(caller.user.id, c.req.param('id'))
+    if (!revoked) return c.json({ error: 'Token not found' }, 404)
+    await audit.record({
+      action: 'token.revoked',
+      actor: caller.identity,
+      target: { type: 'token', id: revoked.id },
+      changeDescription: revoked.name,
     })
     return c.body(null, 204)
   })

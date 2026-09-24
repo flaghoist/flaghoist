@@ -26,6 +26,7 @@ const ROUTES: Route[] = [
   { method: 'POST', path: '/api/v1/flags/seed/archive', min: 'editor' },
   { method: 'POST', path: '/api/v1/flags/seed/restore', min: 'editor' },
   { method: 'DELETE', path: '/api/v1/flags/seed', min: 'admin' },
+  { method: 'GET', path: '/api/v1/audit?category=security', min: 'admin' },
   { method: 'POST', path: '/api/v1/import', body: { flags: [] }, min: 'admin' },
   { method: 'GET', path: '/api/v1/webhooks', min: 'admin' },
   {
@@ -80,6 +81,8 @@ describe('role table', () => {
     expect(can('admin', 'flags:import')).toBe(true)
     expect(can('admin', 'webhooks:manage')).toBe(true)
     expect(can('owner', 'webhooks:manage')).toBe(true)
+    expect(can('editor', 'audit:security')).toBe(false)
+    expect(can('admin', 'audit:security')).toBe(true)
   })
 
   it('grants nothing to an unknown role', () => {

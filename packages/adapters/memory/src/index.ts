@@ -1,5 +1,6 @@
 import {
   assertRecordAddress,
+  auditCategory,
   type AuditEntry,
   type AuditListOptions,
   type AuditPage,
@@ -54,6 +55,9 @@ export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
     },
     async listAudit(options?: AuditListOptions): Promise<AuditPage> {
       let entries = auditBuf.slice().reverse()
+      if (options?.category) {
+        entries = entries.filter((e) => auditCategory(e.action) === options.category)
+      }
       if (options?.flagKey) entries = entries.filter((e) => e.flagKey === options.flagKey)
       if (options?.action) entries = entries.filter((e) => e.action === options.action)
       if (options?.environment !== undefined) {

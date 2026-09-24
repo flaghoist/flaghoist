@@ -7,5 +7,6 @@ export default defineConfig({
     // The App tests mount real components and touch localStorage and matchMedia, so they need a DOM.
     environment: 'happy-dom',
     include: ['test/**/*.test.ts'],
+    setupFiles: ['test/setup.ts'],
   },
 })

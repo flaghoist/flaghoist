@@ -159,12 +159,13 @@ curl "https://team-flags.you.workers.dev/api/v1/audit?limit=20&flagKey=new-check
   -H "authorization: Bearer $ADMIN_TOKEN"
 ```
 
-| Query param | Purpose                                                    |
-| ----------- | ---------------------------------------------------------- |
-| `limit`     | Page size, 1-200. Default 50.                              |
-| `offset`    | Pagination offset. Default 0.                              |
-| `flagKey`   | Restrict to one flag.                                      |
-| `action`    | One of `create`, `update`, `delete`, `archive`, `restore`. |
+| Query param | Purpose                                                                  |
+| ----------- | ------------------------------------------------------------------------ |
+| `limit`     | Page size, 1-200. Default 50.                                            |
+| `offset`    | Pagination offset. Default 0.                                            |
+| `flagKey`   | Restrict to one flag.                                                    |
+| `action`    | One of `create`, `update`, `delete`, `archive`, `restore`.               |
+| `category`  | `security` for the security log (admin or owner). Default: flag changes. |
 
 ```json
 {
@@ -184,11 +185,47 @@ curl "https://team-flags.you.workers.dev/api/v1/audit?limit=20&flagKey=new-check
 }
 ```
 
-`actor` is the identity your auth verifier returned (an email for OIDC, `admin` for a bare bearer
-token; never `api-key`, since the audit log only covers admin writes). By default
+`actor` is the identity your auth verifier returned (an email for OIDC or a signed-in account,
+`admin` for a bare bearer token, `owner (break-glass)` for that token once accounts are on; never `api-key`, since the audit log only covers admin writes). By default
 entries live in an in-memory ring buffer (last 500, lost on restart); implement
 `appendAudit`/`listAudit` on your storage adapter to persist them (the memory adapter already does,
 for local development).
+
+`?category=security` returns the security log instead: `login`, `login.failed`, `logout`,
+`password.changed`, `session.revoked`, `user.created`, `webhook.created`, `webhook.updated` and
+`webhook.deleted`. Security entries carry `target` (`{ "type": "user", "id": "usr_..." }`) in place
+of `flagKey`, and `changeDescription` holds context such as the IP address of a sign-in. It needs
+the `admin` role or higher, since it lists every email that tried to sign in. Security entries have
+no environment. An adapter that persists audit entries should honour `category` in `listAudit`.
+
+## Accounts
+
+Available when the server has [user accounts](/auth/#user-accounts) turned on. The dashboard and
+`@flaghoist/admin-client` (`createAuthClient`, and `me`, `changePassword`, `listSessions` on the
+admin client) handle the password hashing for you; these are the endpoints underneath.
+
+| Method   | Path                       | Auth        | Purpose                                                          |
+| -------- | -------------------------- | ----------- | ---------------------------------------------------------------- |
+| `GET`    | `/api/v1/auth/config`      | none        | Whether accounts are on, and the password hashing parameters     |
+| `POST`   | `/api/v1/auth/prelogin`    | none        | `{ email }` returns `{ kdf, iterations, salt }` for that account |
+| `POST`   | `/api/v1/auth/login`       | none        | `{ email, clientKey }` returns `{ token, expiresAt, user }`      |
+| `POST`   | `/api/v1/auth/logout`      | session     | End this session                                                 |
+| `GET`    | `/api/v1/auth/me`          | any admin   | The caller's identity, role, and account if it has one           |
+| `POST`   | `/api/v1/auth/setup`       | admin token | Create the first owner account, while none exists                |
+| `PUT`    | `/api/v1/me/password`      | session     | `{ currentClientKey, salt, clientKey }`                          |
+| `GET`    | `/api/v1/me/sessions`      | session     | Your live sessions                                               |
+| `DELETE` | `/api/v1/me/sessions`      | session     | Sign out every session but this one                              |
+| `DELETE` | `/api/v1/me/sessions/{id}` | session     | Sign out one session                                             |
+
+`clientKey` is `PBKDF2-SHA256(password, salt, iterations, 32 bytes)`, base64url encoded, over the
+NFKC-normalised password. The salt comes from `prelogin` when signing in, and is 16 random bytes
+from the client when setting a password. The returned session token is used as
+`Authorization: Bearer fh_sess_...` on every admin route.
+
+`prelogin` answers an unknown email with a made-up salt that stays the same across requests, and
+`login` answers a wrong password and an unknown email with the same `401`
+(`code: "invalid_credentials"`). Too many failures return `429` with `code: "login_throttled"` and a
+`Retry-After` header. A session that has ended returns `401` with `code: "session_expired"`.
 
 ## Webhooks
 

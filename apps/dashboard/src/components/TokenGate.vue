@@ -1,16 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { createAuthClient, type AuthConfig } from '../api'
 
 defineProps<{ error?: string; connecting?: boolean; theme?: 'light' | 'dark' }>()
-const emit = defineEmits<{ connect: [url: string, token: string]; toggleTheme: [] }>()
+const emit = defineEmits<{
+  connect: [url: string, token: string]
+  signIn: [url: string, email: string, password: string]
+  toggleTheme: []
+}>()
 
-// Prefill the origin this console is served from, which is the server in every real deployment.
-// Falls back to the dev-server default when opened from a file or a bundler.
+// Served by the server itself, the server URL is almost always this origin, so it moves out of
+// the way under Advanced. Opened from a file or a bundler, it stays up front.
+const servedByServer =
+  window.location.protocol.startsWith('http') && window.location.pathname.startsWith('/admin')
 const url = ref(
   window.location.protocol.startsWith('http') ? window.location.origin : 'http://localhost:8787',
 )
 const token = ref('')
-const tokenEl = ref<HTMLInputElement | null>(null)
+const email = ref('')
+const password = ref('')
+const config = ref<AuthConfig | null>(null)
+// 'password' only once the server has said it has accounts; every other server keeps the token form.
+const mode = ref<'password' | 'token'>('token')
+const firstField = ref<HTMLInputElement | null>(null)
 
 const insecureUrl = computed(() => {
   try {
@@ -28,10 +40,47 @@ watch(token, (v) => {
   weakToken.value = v.length > 0 && v.length < 16
 })
 
-onMounted(() => tokenEl.value?.focus())
+let probe = 0
+async function discover() {
+  const current = ++probe
+  const target = url.value.trim()
+  if (!target) return
+  let result: AuthConfig
+  try {
+    result = await createAuthClient({ url: target, timeoutMs: 5000 }).config()
+  } catch {
+    result = { accounts: false }
+  }
+  if (current !== probe) return
+  config.value = result
+  mode.value = result.accounts && !result.setupRequired ? 'password' : 'token'
+  setTimeout(() => firstField.value?.focus(), 0)
+}
+
+let urlTimer: ReturnType<typeof setTimeout> | null = null
+watch(url, () => {
+  if (urlTimer) clearTimeout(urlTimer)
+  urlTimer = setTimeout(() => void discover(), 400)
+})
+
+onMounted(() => {
+  firstField.value?.focus()
+  void discover()
+})
+
+function useToken(on: boolean) {
+  mode.value = on ? 'token' : 'password'
+  setTimeout(() => firstField.value?.focus(), 0)
+}
 
 function submit() {
-  if (url.value && token.value) emit('connect', url.value.trim(), token.value.trim())
+  const target = url.value.trim()
+  if (!target) return
+  if (mode.value === 'password') {
+    if (email.value && password.value) emit('signIn', target, email.value.trim(), password.value)
+  } else if (token.value) {
+    emit('connect', target, token.value.trim())
+  }
 }
 </script>
 
@@ -65,43 +114,108 @@ function submit() {
       <p class="sub">Sign in to manage this server's flags.</p>
 
       <form @submit.prevent="submit">
-        <label class="label" for="gate-url">Server URL</label>
-        <input
-          id="gate-url"
-          v-model="url"
-          class="mono full"
-          placeholder="https://flags.example.com"
-        />
+        <template v-if="!servedByServer">
+          <label class="label" for="gate-url">Server URL</label>
+          <input
+            id="gate-url"
+            v-model="url"
+            class="mono full"
+            placeholder="https://flags.example.com"
+          />
+        </template>
 
         <p v-if="insecureUrl" class="warn" role="status">
-          Plain HTTP sends the token in the clear. Use HTTPS in production.
+          Plain HTTP sends your credentials in the clear. Use HTTPS in production.
         </p>
 
-        <label class="label spaced" for="gate-token">Admin token</label>
-        <input
-          id="gate-token"
-          ref="tokenEl"
-          v-model="token"
-          type="password"
-          class="full"
-          placeholder="Bearer token"
-          autocomplete="off"
-        />
+        <template v-if="mode === 'password'">
+          <label class="label" :class="{ spaced: !servedByServer }" for="gate-email">Email</label>
+          <input
+            id="gate-email"
+            ref="firstField"
+            v-model="email"
+            type="email"
+            class="full"
+            autocomplete="username"
+            required
+          />
+          <label class="label spaced" for="gate-password">Password</label>
+          <input
+            id="gate-password"
+            v-model="password"
+            type="password"
+            class="full"
+            autocomplete="current-password"
+            required
+          />
+        </template>
 
-        <p v-if="weakToken" class="warn" role="status">
-          Short tokens are guessable. Use at least 16 characters (e.g.
-          <code class="mono">openssl rand -hex 32</code>).
-        </p>
+        <template v-else>
+          <p v-if="config?.setupRequired" class="note" role="status">
+            No accounts exist yet. Sign in with the admin token, then create the owner account from
+            the Account page.
+          </p>
+          <label class="label" :class="{ spaced: !servedByServer }" for="gate-token">{{
+            config?.accounts ? 'Access token' : 'Admin token'
+          }}</label>
+          <input
+            id="gate-token"
+            ref="firstField"
+            v-model="token"
+            type="password"
+            class="full"
+            placeholder="Bearer token"
+            autocomplete="off"
+          />
+          <p v-if="weakToken" class="warn" role="status">
+            Short tokens are guessable. Use at least 16 characters (e.g.
+            <code class="mono">openssl rand -hex 32</code>).
+          </p>
+        </template>
 
         <p v-if="error" class="err" role="alert">{{ error }}</p>
 
-        <button type="submit" class="btn btn-primary full connect" :disabled="connecting || !token">
-          {{ connecting ? 'Connecting' : 'Connect' }}
+        <button
+          type="submit"
+          class="btn btn-primary full connect"
+          :disabled="connecting || (mode === 'password' ? !email || !password : !token)"
+        >
+          <template v-if="mode === 'password'">{{
+            connecting ? 'Signing in' : 'Sign in'
+          }}</template>
+          <template v-else>{{ connecting ? 'Connecting' : 'Connect' }}</template>
         </button>
+
+        <button
+          v-if="config?.accounts && !config.setupRequired"
+          type="button"
+          class="btn btn-quiet full switch"
+          @click="useToken(mode === 'password')"
+        >
+          {{ mode === 'password' ? 'Use an access token' : 'Sign in with email' }}
+        </button>
+
+        <details v-if="servedByServer" class="advanced">
+          <summary>Advanced</summary>
+          <label class="label" for="gate-url">Server URL</label>
+          <input
+            id="gate-url"
+            v-model="url"
+            class="mono full"
+            placeholder="https://flags.example.com"
+          />
+        </details>
       </form>
     </div>
 
-    <p class="fine">The token stays in this browser. It is never sent anywhere but your server.</p>
+    <p class="fine">
+      <template v-if="mode === 'password'"
+        >Your password is hashed in this browser and never sent to the server.</template
+      >
+      <template v-else
+        >The token stays in this browser. It is never sent anywhere but your server.</template
+      >
+    </p>
   </div>
 </template>
 
@@ -174,6 +288,26 @@ function submit() {
 }
 .connect {
   margin-top: 1.2rem;
+}
+.switch {
+  margin-top: 0.5rem;
+}
+.note {
+  margin: 0 0 0.85rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--text-2);
+  background: var(--accent-wash);
+  border-radius: var(--r-sm);
+}
+.advanced {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+.advanced summary {
+  cursor: pointer;
+  margin-bottom: 0.6rem;
 }
 .warn {
   margin: 0.6rem 0 0;

@@ -1,4 +1,5 @@
 import type { AttributeValue, StorageAdapter } from '@flaghoist/core'
+import type { UsersConfig } from './accounts'
 import type { Role } from './permissions'
 import type { RateLimit } from './ratelimit'
 
@@ -85,6 +86,15 @@ export interface ServerConfig {
    * zero migration. Default: `'production'`.
    */
   defaultEnvironment?: string
+  /**
+   * Turn on user accounts: people sign in to the dashboard with an email and password, get a role,
+   * and every change is recorded against their email. Needs a storage adapter with the record
+   * store (every bundled adapter has one) and a `pepper` secret. The `auth.admin` verifier keeps
+   * working as a break-glass Owner credential, for creating the first account and for recovery.
+   *
+   * Omit to keep the single shared admin token, exactly as before.
+   */
+  users?: UsersConfig
 }
 
 /** Config, or a function that derives it from the runtime environment (e.g. Workers bindings). */

@@ -63,6 +63,21 @@ function client(over: Partial<AdminClient> = {}): AdminClient {
     deleteWebhook: vi.fn(async () => undefined),
     testWebhook: vi.fn(async () => ({ status: 200, ok: true })),
     listEnvironments: vi.fn(async () => ({ environments: ['production'], default: 'production' })),
+    me: vi.fn(async () => ({
+      identity: 'admin',
+      role: 'owner',
+      accounts: false,
+      user: null,
+      session: null,
+    })),
+    logout: vi.fn(async () => undefined),
+    createOwner: vi.fn(async () => {
+      throw new Error('not used')
+    }),
+    changePassword: vi.fn(async () => ({ revokedSessions: 0 })),
+    listSessions: vi.fn(async () => []),
+    revokeSession: vi.fn(async () => undefined),
+    revokeOtherSessions: vi.fn(async () => ({ revoked: 0 })),
     ...over,
   }
 }

@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose'
 import type { Authenticator } from './types'
 
-function extractBearer(headers: Headers): string | null {
+export function extractBearer(headers: Headers): string | null {
   const header = headers.get('authorization')
   if (!header) return null
   const [scheme, token] = header.split(' ')

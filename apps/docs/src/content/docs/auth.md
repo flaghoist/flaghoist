@@ -85,12 +85,12 @@ find the values in their console -- see [OIDC provider setup](/oidc-providers/).
 An admin verifier can say which role its caller has, and every admin route checks it. Roles are
 cumulative: each one can do everything the roles above it in this table can.
 
-| Role     | Can                                                  |
-| -------- | ---------------------------------------------------- |
-| `viewer` | Read flags, environments, exports and the audit log  |
-| `editor` | Also create, edit, toggle, archive and restore flags |
-| `admin`  | Also delete flags, import, and manage webhooks       |
-| `owner`  | Everything                                           |
+| Role     | Can                                                                   |
+| -------- | --------------------------------------------------------------------- |
+| `viewer` | Read flags, environments, exports and the audit log                   |
+| `editor` | Also create, edit, toggle, archive and restore flags                  |
+| `admin`  | Also delete flags, import, manage webhooks, and read the security log |
+| `owner`  | Everything                                                            |
 
 A verifier that returns no role grants `owner`, which is the full access every admin verifier had
 before roles existed. `bearerToken` and `oidc` return no role, so they behave exactly as they always
@@ -115,6 +115,62 @@ A request the caller's role does not cover is refused with `403` and
 `{ "error": "This needs the editor role or higher.", "code": "insufficient_role" }`. The `code`
 tells it apart from a `403` that rejects the credential itself, and the dashboard uses it to show
 the message instead of signing you out.
+
+## User accounts
+
+Turn on accounts and people sign in to the dashboard with their own email and password. Every
+change is then recorded against their email instead of a shared `admin`.
+
+```ts
+createFlagServer((env) => ({
+  storage: cloudflareKV(env.FLAGS),
+  auth: {
+    admin: bearerToken(env.ADMIN_TOKEN),
+    read: apiKey(env.READ_API_KEY),
+  },
+  users: { pepper: env.AUTH_PEPPER },
+}))
+```
+
+`AUTH_PEPPER` is a server secret of at least 32 characters (`openssl rand -hex 32`). Keep it in a
+secret store, not in code, and back it up: without it a copy of your database reveals nothing
+useful, but losing it means every password has to be set again.
+
+Accounts are stored through your storage adapter's record store, so they live wherever your flags
+do. Every bundled adapter has one. A custom adapter without `getRecord`, `putRecord`,
+`deleteRecord` and `listRecords` makes the server refuse to start with `users` set, rather than
+keep accounts in memory and lose them on the next restart.
+
+**The first account.** With accounts on and none created yet, the sign-in screen asks for the admin
+token. Sign in with it, open **Account**, and create the owner account. After that, sign in with
+your email.
+
+**The admin token stays.** `auth.admin` keeps working as a break-glass Owner credential for
+recovery, and the audit log records its changes as `owner (break-glass)` so they stand out. The
+dashboard offers it under **Use an access token**.
+
+**How passwords are handled.** The password never leaves the browser. The dashboard stretches it
+with PBKDF2-SHA256 (600,000 iterations, a random salt per account) and sends the result; the server
+stores only an HMAC of that, keyed with the pepper. The slow part runs once per sign-in in the
+browser, which keeps the server's work to well under a millisecond, inside the CPU limit of the
+Cloudflare Workers free plan. Passwords need at least 12 characters and have no other rules.
+Password sign-in needs HTTPS (or `localhost`), because browsers only offer the hashing there.
+
+**Sessions.** Signing in issues a session token (`fh_sess_...`), stored on the server only as a
+hash. A session ends after 30 minutes without a request or 12 hours after sign-in, whichever comes
+first; change either with `users.session.idleMinutes` and `users.session.maxHours`. The **Account**
+page lists your sessions and signs out any of them. Changing your password signs out all the others.
+On Cloudflare KV a sign-out can take up to about a minute to reach every location, because KV
+itself is eventually consistent.
+
+**Failed sign-ins.** After five failures for one email within 15 minutes, that email is locked for
+30 seconds, doubling with each further failure up to 15 minutes. Thirty failures from one IP address
+lock that address for 15 minutes. Unknown emails are locked and answered exactly like real ones, so
+neither the response nor the lockout reveals which accounts exist.
+
+**Security log.** Sign-ins, failed sign-ins, sign-outs, password changes, account creation and
+webhook changes go to a separate security log. Admins and owners see it under **Audit log**,
+**Security**; see the [API reference](/api-reference/#audit-log).
 
 ## Security notes
 

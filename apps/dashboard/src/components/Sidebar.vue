@@ -1,5 +1,7 @@
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
   view: string
   collapsed: boolean
   serverUrl: string
@@ -8,6 +10,10 @@ defineProps<{
   counts: { all: number; live: number; paused: number }
   environments: string[]
   currentEnvironment: string
+  /** Show the Account page: only on a server with accounts turned on. */
+  showAccount?: boolean
+  /** The signed-in email, shown above the server URL. */
+  accountLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -18,14 +24,15 @@ const emit = defineEmits<{
   switchEnvironment: [environment: string]
 }>()
 
-const nav = [
+const nav = computed(() => [
   { id: 'overview', label: 'Overview', icon: 'grid' },
   { id: 'flags', label: 'Flags', icon: 'flag' },
   { id: 'webhooks', label: 'Webhooks', icon: 'webhook' },
   { id: 'audit', label: 'Audit log', icon: 'clock' },
+  ...(props.showAccount ? [{ id: 'account', label: 'Account', icon: 'user' }] : []),
   { id: 'settings', label: 'Settings', icon: 'gear' },
   { id: 'logout', label: 'Log out', icon: 'logout' },
-]
+])
 </script>
 
 <template>
@@ -98,6 +105,10 @@ const nav = [
               d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
             />
           </template>
+          <template v-if="item.icon === 'user'">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21a8 8 0 0 1 16 0" />
+          </template>
           <template v-if="item.icon === 'logout'">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
             <polyline points="16 17 21 12 16 7" />
@@ -113,6 +124,7 @@ const nav = [
 
     <div class="sidebar-bottom">
       <div v-if="!collapsed" class="server-info">
+        <span v-if="accountLabel" class="server-url" :title="accountLabel">{{ accountLabel }}</span>
         <span class="server-url mono" :title="serverUrl">{{ serverUrl }}</span>
         <span v-if="sessionAge" class="session-age">{{ sessionAge }}</span>
       </div>

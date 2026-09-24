@@ -1,13 +1,32 @@
 import {
+  auditCategory,
   evaluate,
   WEBHOOK_EVENTS,
+  type AuditAction,
   type EvaluationContext,
   type FeatureFlag,
   type FlagSnapshot,
   type WebhookEvent,
 } from '@flaghoist/core'
 import { Hono, type Context } from 'hono'
+import {
+  assertUsersConfig,
+  createAccountStore,
+  decodeClientKey,
+  decodeSalt,
+  normalizeEmail,
+  normalizeName,
+  PASSWORD_ITERATIONS,
+  PASSWORD_KDF,
+  publicSession,
+  publicUser,
+  SESSION_PREFIX,
+  type AccountStore,
+  type SessionRecord,
+  type UserRecord,
+} from './accounts'
 import { createAuditLog } from './audit'
+import { extractBearer } from './auth'
 import { createDefinitionCache, type DefinitionCache } from './cache'
 import { resolveAdminEnvironment, resolveReadEnvironment, scopedStorage } from './environments'
 import { buildFlag, flagEtag } from './flags'
@@ -25,6 +44,7 @@ import {
   type WebhookPayload,
 } from './webhooks'
 
+export type { PublicSession, PublicUser, UsersConfig } from './accounts'
 export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
 export { apiKey, apiKeys, bearerToken, oidc, type OidcOptions } from './auth'
 export {
@@ -98,9 +118,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     return c
   }
 
-  const resolve = (env: unknown): ServerConfig =>
-    typeof config === 'function' ? (config as (env: Env) => ServerConfig)(env as Env) : config
+  const resolve = (env: unknown): ServerConfig => {
+    const cfg =
+      typeof config === 'function' ? (config as (env: Env) => ServerConfig)(env as Env) : config
+    if (cfg.users) assertUsersConfig(cfg.users, cfg.storage)
+    return cfg
+  }
   const directConfig = typeof config === 'function' ? null : config
+  // A static config is checked now, so a server that cannot keep accounts refuses to start rather
+  // than failing on its first request. A config function is checked on every request instead.
+  if (directConfig?.users) assertUsersConfig(directConfig.users, directConfig.storage)
   const audit = createAuditLog(directConfig?.storage)
   const webhookStore = createWebhookStore(directConfig?.storage)
 
@@ -136,24 +163,66 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     dispatchWebhooks(webhookStore, event, payload).catch(() => {})
   }
 
-  type Authorized = { cfg: ServerConfig; identity: string; role: Role }
+  function accountsOf(cfg: ServerConfig): AccountStore | null {
+    return cfg.users ? createAccountStore(cfg.storage, cfg.users) : null
+  }
+
+  type Caller = {
+    cfg: ServerConfig
+    identity: string
+    /** Null when the verifier reported a role this server does not recognise. */
+    role: Role | null
+    /** The signed-in account, when the credential is a session token. */
+    user: UserRecord | null
+    session: SessionRecord | null
+    token: string | null
+  }
+  type Authorized = Caller & { role: Role }
 
   /**
-   * Authenticate an admin request and check its role holds `permission`. Returns the resolved
-   * config and caller, or the error response to send. A verifier that reports no role gets
-   * `owner`, the full access every admin verifier had before roles existed; a role that is not
-   * recognised gets nothing. Permission failures carry `code: "insufficient_role"` so a client can
-   * tell them apart from a rejected credential, which is also a 403.
+   * Identify the caller of an admin request. With accounts on, a session token is resolved against
+   * the session store; anything else goes to the configured `auth.admin` verifier, which becomes
+   * the break-glass credential. A verifier that reports no role gets `owner`, the full access every
+   * admin verifier had before roles existed.
+   */
+  async function authenticate(c: Context<{ Bindings: Env }>): Promise<Caller | Response> {
+    const cfg = resolve(c.env)
+    const token = extractBearer(c.req.raw.headers)
+    const accounts = accountsOf(cfg)
+    if (accounts && token?.startsWith(SESSION_PREFIX)) {
+      const resolved = await accounts.resolveSession(token)
+      if (!resolved) {
+        return c.json(
+          { error: 'Your session has ended. Sign in again.', code: 'session_expired' },
+          401,
+        )
+      }
+      const { user, session } = resolved
+      return { cfg, identity: user.email, role: user.role, user, session, token }
+    }
+    const auth = await cfg.auth.admin(c.req.raw.headers)
+    if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
+    const role = auth.role === undefined ? 'owner' : isRole(auth.role) ? auth.role : null
+    // With accounts on, the shared bearer token is the break-glass credential. Say so in the audit
+    // log, so a change made with it stands out from one made by a named person.
+    const breakGlass = accounts !== null && auth.role === undefined && auth.identity === 'admin'
+    const identity = breakGlass ? 'owner (break-glass)' : (auth.identity ?? 'unknown')
+    return { cfg, identity, role, user: null, session: null, token }
+  }
+
+  /**
+   * Authenticate an admin request and check its role holds `permission`. Returns the caller, or the
+   * error response to send. A role that is not recognised gets nothing. Permission failures carry
+   * `code: "insufficient_role"` so a client can tell them apart from a rejected credential, which
+   * is also a 403.
    */
   async function authorize(
     c: Context<{ Bindings: Env }>,
     permission: Permission,
   ): Promise<Authorized | Response> {
-    const cfg = resolve(c.env)
-    const auth = await cfg.auth.admin(c.req.raw.headers)
-    if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
-    const role = auth.role === undefined ? 'owner' : auth.role
-    if (!isRole(role) || !can(role, permission)) {
+    const caller = await authenticate(c)
+    if (caller instanceof Response) return caller
+    if (caller.role === null || !can(caller.role, permission)) {
       return c.json(
         {
           error: `This needs the ${minimumRole(permission)} role or higher.`,
@@ -162,7 +231,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         403,
       )
     }
-    return { cfg, identity: auth.identity ?? 'unknown', role }
+    return caller as Authorized
   }
 
   const app = new Hono<{ Bindings: Env }>()
@@ -612,7 +681,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
 
     app.get(`${prefix}/audit`, async (c) => {
-      const authorized = await authorize(c, 'audit:read')
+      const security = c.req.query('category') === 'security'
+      const authorized = await authorize(c, security ? 'audit:security' : 'audit:read')
       if (authorized instanceof Response) return authorized
       const { cfg } = authorized
       const defaultEnv = defaultEnvOf(cfg)
@@ -620,15 +690,26 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       if (!envResult.ok) return c.json({ error: envResult.message }, envResult.status)
       const limit = Math.min(Math.max(parseInt(c.req.query('limit') ?? '50', 10) || 50, 1), 200)
       const offset = Math.max(parseInt(c.req.query('offset') ?? '0', 10) || 0, 0)
+      const category = security ? 'security' : 'flags'
+      const action = c.req.query('action') as AuditAction | undefined
+      const validAction = action && auditCategory(action) === category ? action : undefined
+      if (security) {
+        // Security events belong to the deployment, not to an environment.
+        const page = await audit.list({ limit, offset, category, action: validAction })
+        return c.json({ ...page, entries: page.entries.filter((e) => !e.flagKey) })
+      }
       const flagKey = c.req.query('flagKey') || undefined
-      const action = c.req.query('action') as
-        'create' | 'update' | 'delete' | 'archive' | 'restore' | undefined
-      const validAction =
-        action && ['create', 'update', 'delete', 'archive', 'restore'].includes(action)
-          ? action
-          : undefined
       const environment = cfg.environments ? envResult.environment : undefined
-      return c.json(await audit.list({ limit, offset, flagKey, action: validAction, environment }))
+      const page = await audit.list({
+        limit,
+        offset,
+        category,
+        flagKey,
+        action: validAction,
+        environment,
+      })
+      // An adapter written before categories existed returns both kinds; keep this list to flags.
+      return c.json({ ...page, entries: page.entries.filter((e) => e.flagKey !== undefined) })
     })
 
     app.get(`${prefix}/environments`, async (c) => {
@@ -675,6 +756,12 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         updatedAt: now,
       }
       await webhookStore.put(hook.id, hook)
+      await audit.record({
+        action: 'webhook.created',
+        target: { type: 'webhook', id: hook.id },
+        actor: authorized.identity,
+        changeDescription: hook.url,
+      })
       return c.json(hook, 201)
     })
 
@@ -710,6 +797,12 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       }
       existing.updatedAt = new Date().toISOString()
       await webhookStore.put(id, existing)
+      await audit.record({
+        action: 'webhook.updated',
+        target: { type: 'webhook', id },
+        actor: authorized.identity,
+        changeDescription: existing.url,
+      })
       return c.json(existing)
     })
 
@@ -720,6 +813,12 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const existing = await webhookStore.get(id)
       if (!existing) return c.json({ error: 'Webhook not found' }, 404)
       await webhookStore.delete(id)
+      await audit.record({
+        action: 'webhook.deleted',
+        target: { type: 'webhook', id },
+        actor: authorized.identity,
+        changeDescription: existing.url,
+      })
       return c.body(null, 204)
     })
 
@@ -761,6 +860,275 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       }
     })
   }
+
+  // ---- Accounts: sign-in, sessions and the signed-in user's own account (/api/v1 only) ----
+
+  const accountsOff = (c: Context<{ Bindings: Env }>) =>
+    c.json({ error: 'Accounts are not enabled on this server.', code: 'accounts_disabled' }, 404)
+
+  async function readBody(
+    c: Context<{ Bindings: Env }>,
+  ): Promise<Record<string, unknown> | Response> {
+    const parsed = await readJsonBody(await c.req.text())
+    if (!parsed.ok) return c.json({ error: parsed.message }, parsed.status)
+    const value = parsed.value
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return c.json({ error: 'Expected a JSON object' }, 400)
+    }
+    return value as Record<string, unknown>
+  }
+
+  function clientIp(c: Context<{ Bindings: Env }>): string {
+    return defaultRateLimitKey(c.req.raw.headers)
+  }
+
+  function fromIp(ip: string): string | undefined {
+    return ip === 'anonymous' ? undefined : `From ${ip}`
+  }
+
+  function throttledResponse(c: Context<{ Bindings: Env }>, retryAfterSeconds: number) {
+    const minutes = Math.ceil(retryAfterSeconds / 60)
+    c.header('Retry-After', String(retryAfterSeconds))
+    return c.json(
+      {
+        error: `Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+        code: 'login_throttled',
+      },
+      429,
+    )
+  }
+
+  app.get('/api/v1/auth/config', async (c) => {
+    const cfg = resolve(c.env)
+    const accounts = accountsOf(cfg)
+    if (!accounts) return c.json({ accounts: false })
+    return c.json({
+      accounts: true,
+      password: { kdf: PASSWORD_KDF, iterations: PASSWORD_ITERATIONS },
+      setupRequired: (await accounts.count()) === 0,
+    })
+  })
+
+  app.post('/api/v1/auth/prelogin', async (c) => {
+    const accounts = accountsOf(resolve(c.env))
+    if (!accounts) return accountsOff(c)
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const email = normalizeEmail(body.email)
+    if (!email) return c.json({ error: 'Enter a valid email address.' }, 400)
+    return c.json(await accounts.passwordParams(email))
+  })
+
+  app.post('/api/v1/auth/login', async (c) => {
+    const accounts = accountsOf(resolve(c.env))
+    if (!accounts) return accountsOff(c)
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const email = normalizeEmail(body.email)
+    const clientKey = decodeClientKey(body.clientKey)
+    if (!email || !clientKey) return c.json({ error: 'Enter your email and password.' }, 400)
+
+    const ip = clientIp(c)
+    const throttle = await accounts.throttled(email, ip)
+    if (!throttle.ok) return throttledResponse(c, throttle.retryAfterSeconds)
+
+    const user = await accounts.findByEmail(email)
+    if (!(await accounts.checkPassword(user, clientKey))) {
+      await accounts.recordFailure(email, ip)
+      await audit.record({
+        action: 'login.failed',
+        actor: email,
+        ...(user ? { target: { type: 'user' as const, id: user.id } } : {}),
+        changeDescription: user?.status === 'disabled' ? 'Account is disabled' : fromIp(ip),
+      })
+      return c.json({ error: 'Invalid email or password.', code: 'invalid_credentials' }, 401)
+    }
+    const signedIn = user as UserRecord
+    await accounts.clearFailures(email)
+    await accounts.recordLogin(signedIn)
+    const { token, session } = await accounts.createSession(signedIn, c.req.header('user-agent'))
+    await audit.record({
+      action: 'login',
+      actor: signedIn.email,
+      target: { type: 'user', id: signedIn.id },
+      changeDescription: fromIp(ip),
+    })
+    return c.json({ token, expiresAt: session.expiresAt, user: publicUser(signedIn) })
+  })
+
+  app.post('/api/v1/auth/logout', async (c) => {
+    const caller = await authenticate(c)
+    if (caller instanceof Response) return caller
+    const accounts = accountsOf(caller.cfg)
+    if (accounts && caller.session && caller.token) {
+      await accounts.endSession(caller.token)
+      await audit.record({
+        action: 'logout',
+        actor: caller.identity,
+        target: { type: 'session', id: caller.session.id },
+      })
+    }
+    return c.body(null, 204)
+  })
+
+  app.get('/api/v1/auth/me', async (c) => {
+    const caller = await authenticate(c)
+    if (caller instanceof Response) return caller
+    return c.json({
+      identity: caller.identity,
+      role: caller.role,
+      accounts: caller.cfg.users !== undefined,
+      user: caller.user ? publicUser(caller.user) : null,
+      session: caller.session
+        ? {
+            id: caller.session.id,
+            createdAt: caller.session.createdAt,
+            expiresAt: caller.session.expiresAt,
+          }
+        : null,
+    })
+  })
+
+  // First run: with accounts on and none created yet, the break-glass credential creates the first
+  // Owner. Everyone after that is invited.
+  app.post('/api/v1/auth/setup', async (c) => {
+    const caller = await authenticate(c)
+    if (caller instanceof Response) return caller
+    const accounts = accountsOf(caller.cfg)
+    if (!accounts) return accountsOff(c)
+    if (caller.role !== 'owner' || caller.user) {
+      return c.json(
+        { error: 'Only the admin token can create the first account.', code: 'insufficient_role' },
+        403,
+      )
+    }
+    if ((await accounts.count()) > 0) {
+      return c.json(
+        { error: 'An account already exists. Sign in with it instead.', code: 'setup_complete' },
+        409,
+      )
+    }
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const email = normalizeEmail(body.email)
+    const salt = decodeSalt(body.salt)
+    const clientKey = decodeClientKey(body.clientKey)
+    if (!email) return c.json({ error: 'Enter a valid email address.' }, 400)
+    if (!salt || !clientKey) return c.json({ error: 'Missing or malformed password key.' }, 400)
+    const user = await accounts.createUser({
+      email,
+      name: normalizeName(body.name),
+      role: 'owner',
+      salt,
+      clientKey,
+    })
+    if (!user) return c.json({ error: 'That email already has an account.' }, 409)
+    await audit.record({
+      action: 'user.created',
+      actor: caller.identity,
+      target: { type: 'user', id: user.id },
+      changeDescription: `${user.email} as owner`,
+    })
+    return c.json({ user: publicUser(user) }, 201)
+  })
+
+  /** The signed-in account, for routes that act on it. The break-glass token has none. */
+  async function signedInUser(
+    c: Context<{ Bindings: Env }>,
+  ): Promise<
+    (Caller & { user: UserRecord; session: SessionRecord; accounts: AccountStore }) | Response
+  > {
+    const caller = await authenticate(c)
+    if (caller instanceof Response) return caller
+    const accounts = accountsOf(caller.cfg)
+    if (!accounts) return accountsOff(c)
+    if (!caller.user || !caller.session) {
+      return c.json(
+        { error: 'Sign in with an account to manage it.', code: 'account_required' },
+        400,
+      )
+    }
+    return { ...caller, user: caller.user, session: caller.session, accounts }
+  }
+
+  app.put('/api/v1/me/password', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const { accounts, user, session } = caller
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const currentKey = decodeClientKey(body.currentClientKey)
+    const salt = decodeSalt(body.salt)
+    const clientKey = decodeClientKey(body.clientKey)
+    if (!currentKey || !salt || !clientKey) {
+      return c.json({ error: 'Missing or malformed password key.' }, 400)
+    }
+    const ip = clientIp(c)
+    const throttle = await accounts.throttled(user.email, ip)
+    if (!throttle.ok) return throttledResponse(c, throttle.retryAfterSeconds)
+    if (!(await accounts.checkPassword(user, currentKey))) {
+      await accounts.recordFailure(user.email, ip)
+      return c.json({ error: 'Your current password is incorrect.', code: 'invalid_password' }, 400)
+    }
+    await accounts.setPassword(user, salt, clientKey)
+    // A new password signs out every other session, in case the old one leaked.
+    const others = (await accounts.sessionsFor(user.id)).filter((s) => s.session.id !== session.id)
+    await Promise.all(others.map((s) => accounts.deleteSessionKey(s.key)))
+    await audit.record({
+      action: 'password.changed',
+      actor: user.email,
+      target: { type: 'user', id: user.id },
+      changeDescription:
+        others.length > 0
+          ? `Signed out ${others.length} other session${others.length === 1 ? '' : 's'}`
+          : undefined,
+    })
+    return c.json({ revokedSessions: others.length })
+  })
+
+  app.get('/api/v1/me/sessions', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const sessions = (await caller.accounts.sessionsFor(caller.user.id))
+      .map((s) => publicSession(s.session, caller.session.id))
+      .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+    return c.json({ sessions })
+  })
+
+  app.delete('/api/v1/me/sessions', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const others = (await caller.accounts.sessionsFor(caller.user.id)).filter(
+      (s) => s.session.id !== caller.session.id,
+    )
+    await Promise.all(others.map((s) => caller.accounts.deleteSessionKey(s.key)))
+    if (others.length > 0) {
+      await audit.record({
+        action: 'session.revoked',
+        actor: caller.user.email,
+        target: { type: 'user', id: caller.user.id },
+        changeDescription: `Signed out ${others.length} other session${others.length === 1 ? '' : 's'}`,
+      })
+    }
+    return c.json({ revoked: others.length })
+  })
+
+  app.delete('/api/v1/me/sessions/:id', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const id = c.req.param('id')
+    const match = (await caller.accounts.sessionsFor(caller.user.id)).find(
+      (s) => s.session.id === id,
+    )
+    if (!match) return c.json({ error: 'Session not found' }, 404)
+    await caller.accounts.deleteSessionKey(match.key)
+    await audit.record({
+      action: 'session.revoked',
+      actor: caller.user.email,
+      target: { type: 'session', id },
+    })
+    return c.body(null, 204)
+  })
 
   registerAdmin('/api/v1')
   registerAdmin('') // legacy unversioned alias — /flags maps to /api/v1/flags

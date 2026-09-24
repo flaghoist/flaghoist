@@ -1,9 +1,11 @@
-import type {
-  AuditEntry,
-  AuditListOptions,
-  AuditPage,
-  FlagSnapshot,
-  StorageAdapter,
+import {
+  auditCategory,
+  type AuditCategory,
+  type AuditEntry,
+  type AuditListOptions,
+  type AuditPage,
+  type FlagSnapshot,
+  type StorageAdapter,
 } from '@flaghoist/core'
 
 export type { AuditEntry, AuditPage, FlagSnapshot }
@@ -39,16 +41,23 @@ export function createAuditLog(storage?: StorageAdapter | null): AuditLog {
     }
   }
 
-  const buf: AuditEntry[] = []
+  // One buffer per category, so a burst of failed sign-ins cannot push flag history out.
+  const buffers: Record<AuditCategory, AuditEntry[]> = { flags: [], security: [] }
   const CAPACITY = 500
 
   return {
     async record(entry) {
+      const buf = buffers[auditCategory(entry.action)]
       buf.push({ ...entry, id: generateId(), timestamp: new Date().toISOString() })
       if (buf.length > CAPACITY) buf.splice(0, buf.length - CAPACITY)
     },
     async list(options) {
-      let entries = buf.slice().reverse()
+      const source = options?.category
+        ? buffers[options.category]
+        : [...buffers.flags, ...buffers.security].sort((a, b) =>
+            a.timestamp.localeCompare(b.timestamp),
+          )
+      let entries = source.slice().reverse()
       if (options?.flagKey) entries = entries.filter((e) => e.flagKey === options.flagKey)
       if (options?.action) entries = entries.filter((e) => e.action === options.action)
       if (options?.environment !== undefined) {

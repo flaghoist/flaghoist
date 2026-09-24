@@ -7,12 +7,19 @@ export type Role = (typeof ROLES)[number]
 
 /** Something an admin request can do. Each admin route requires exactly one. */
 export type Permission =
-  'flags:read' | 'flags:write' | 'flags:delete' | 'flags:import' | 'audit:read' | 'webhooks:manage'
+  | 'flags:read'
+  | 'flags:write'
+  | 'flags:delete'
+  | 'flags:import'
+  | 'audit:read'
+  | 'audit:security'
+  | 'webhooks:manage'
 
 /**
  * The lowest role that holds each permission. Webhooks sit at admin, not editor: an endpoint
  * receives every flag change and its signing secret is readable through the API, so managing one
- * is closer to granting access than to editing a flag.
+ * is closer to granting access than to editing a flag. The security log sits at admin too, since
+ * it lists every email that tried to sign in and where from.
  */
 const MINIMUM_ROLE: Record<Permission, Role> = {
   'flags:read': 'viewer',
@@ -20,6 +27,7 @@ const MINIMUM_ROLE: Record<Permission, Role> = {
   'flags:write': 'editor',
   'flags:delete': 'admin',
   'flags:import': 'admin',
+  'audit:security': 'admin',
   'webhooks:manage': 'admin',
 }
 

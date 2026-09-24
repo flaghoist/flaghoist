@@ -12,10 +12,14 @@ without it, and see [Self-hosting](/self-hosting/#serving-the-dashboard) for wir
 
 ## Signing in
 
-Open `https://<your-server>/admin` and enter your server URL and admin token. The token is kept
-only for that browser tab's session (it is cleared when the tab closes, and after 30 minutes of
-inactivity) and sent only to that server. It is never sent anywhere else, and nothing here can read
-it back out.
+Open `https://<your-server>/admin` and enter your admin token. The token is kept only for that
+browser tab's session (it is cleared when the tab closes, and after 30 minutes of inactivity) and
+sent only to that server. It is never sent anywhere else, and nothing here can read it back out.
+To manage a different server, open **Advanced** and change the server URL.
+
+When the server has [user accounts](/auth/#user-accounts) turned on, the sign-in screen asks for
+your email and password instead, and **Use an access token** switches back to the token. Your
+password is hashed in the browser and never sent to the server.
 
 ![The Flaghoist dashboard listing five flags, each with a toggle, a rollout slider, and a percentage.](/shot-flags.png)
 
@@ -68,7 +72,8 @@ deletes anything.
 
 Every create, update, delete, archive, and restore is recorded with who made it and when, whether it
 came from the dashboard, the CLI, or a script against the admin API. Open it from the sidebar, `g`
-`a`, or **View audit log** on Overview, and filter by action.
+`a`, or **View audit log** on Overview, and filter by action. Admins and owners also get a
+**Security** tab: sign-ins, failed sign-ins, password changes and webhook changes.
 
 ## Webhooks
 
@@ -77,6 +82,14 @@ URL and which events to send (or all of them); the signing secret used to verify
 once on creation and can be revealed again later from the card. **Test** sends a synthetic delivery
 to your URL without touching a real flag, so you can verify your endpoint's handler before relying on
 it. See [the API reference](/api-reference/#webhooks) for the delivery format and signature scheme.
+
+## Account
+
+With user accounts on, the **Account** page shows your name, email and role, changes your password,
+and lists the sessions signed in as you, with the browser and when each was last active. Sign out
+any one of them, or all but the one you are using. Changing your password signs out the others.
+
+Signed in with the admin token before any account exists, the same page creates the owner account.
 
 ## Environments
 
@@ -88,8 +101,8 @@ configured), the dropdown is hidden and the dashboard behaves exactly as it alwa
 
 ## Session and errors
 
-A mid-session `401` or `403` (an admin token that expired or was revoked) signs you out and returns
-you to the sign-in screen with an explanation, rather than leaving every action failing silently.
+A mid-session `401` or `403` (a session that ended, or an admin token that was revoked) signs you
+out and returns you to the sign-in screen with an explanation, rather than leaving every action failing silently.
 Any other failure is shown inline without ending the session. See [Authentication](/auth/) for how
 tokens are validated server-side.
 

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 
-const props = defineProps<{ serverUrl: string; token: string; environment?: string }>()
+const props = defineProps<{
+  serverUrl: string
+  token: string
+  environment?: string
+  /** Show the Security tab: sign-ins and webhook changes. Admin and Owner only. */
+  canSeeSecurity?: boolean
+}>()
 const emit = defineEmits<{ back: [] }>()
 
 interface FlagSnapshot {
@@ -11,12 +17,14 @@ interface FlagSnapshot {
 }
 
 type Action = 'create' | 'update' | 'delete' | 'archive' | 'restore'
+type Category = 'flags' | 'security'
 
 interface AuditEntry {
   id: string
   timestamp: string
-  action: Action
-  flagKey: string
+  action: string
+  flagKey?: string
+  target?: { type: string; id: string }
   actor: string
   previous?: FlagSnapshot
   current?: FlagSnapshot
@@ -30,6 +38,7 @@ const page = ref(1)
 const loading = ref(true)
 const error = ref('')
 const actionFilter = ref<Action | ''>('')
+const category = ref<Category>('flags')
 
 const actions: { value: Action | ''; label: string }[] = [
   { value: '', label: 'All' },
@@ -49,7 +58,8 @@ async function load() {
     const params = new URLSearchParams()
     params.set('limit', String(PAGE_SIZE))
     params.set('offset', String((page.value - 1) * PAGE_SIZE))
-    if (actionFilter.value) params.set('action', actionFilter.value)
+    if (category.value === 'security') params.set('category', 'security')
+    else if (actionFilter.value) params.set('action', actionFilter.value)
     const headers: Record<string, string> = { authorization: `Bearer ${props.token}` }
     if (props.environment) headers['x-flaghoist-environment'] = props.environment
     const res = await fetch(`${props.serverUrl}/api/v1/audit?${params}`, { headers })
@@ -87,6 +97,40 @@ const actionLabel: Record<string, string> = {
   delete: 'Deleted',
   archive: 'Archived',
   restore: 'Restored',
+  login: 'Sign-in',
+  'login.failed': 'Failed',
+  logout: 'Sign-out',
+  'password.changed': 'Password',
+  'session.revoked': 'Revoked',
+  'user.created': 'Account',
+  'webhook.created': 'Webhook',
+  'webhook.updated': 'Webhook',
+  'webhook.deleted': 'Webhook',
+}
+
+// Classes reuse the flag action colours: green for additions, red for failures and removals.
+const actionTone: Record<string, string> = {
+  login: 'create',
+  'login.failed': 'delete',
+  logout: 'archive',
+  'password.changed': 'update',
+  'session.revoked': 'archive',
+  'user.created': 'create',
+  'webhook.created': 'create',
+  'webhook.updated': 'update',
+  'webhook.deleted': 'delete',
+}
+
+const securityText: Record<string, string> = {
+  login: 'Signed in',
+  'login.failed': 'Sign-in failed',
+  logout: 'Signed out',
+  'password.changed': 'Changed password',
+  'session.revoked': 'Signed out a session',
+  'user.created': 'Created account',
+  'webhook.created': 'Added webhook',
+  'webhook.updated': 'Edited webhook',
+  'webhook.deleted': 'Removed webhook',
 }
 
 function describeChange(entry: AuditEntry): string {
@@ -118,8 +162,18 @@ function describeChange(entry: AuditEntry): string {
   }
   if (entry.action === 'archive') return 'Flag archived'
   if (entry.action === 'restore') return 'Flag restored'
-  return ''
+  return securityText[entry.action] ?? entry.action
 }
+
+function subject(entry: AuditEntry): string {
+  return entry.flagKey ?? entry.target?.type ?? ''
+}
+
+watch(category, () => {
+  actionFilter.value = ''
+  page.value = 1
+  void load()
+})
 
 watch(actionFilter, () => {
   page.value = 1
@@ -153,7 +207,31 @@ onMounted(() => void load())
         <span v-if="!loading" class="entry-count mono">{{ total }} entries</span>
       </div>
 
-      <div class="audit-filters" role="group" aria-label="Filter audit entries">
+      <div v-if="canSeeSecurity" class="audit-tabs" role="group" aria-label="Which log">
+        <button
+          class="chip"
+          :class="{ on: category === 'flags' }"
+          :aria-pressed="category === 'flags'"
+          @click="category = 'flags'"
+        >
+          Flag changes
+        </button>
+        <button
+          class="chip"
+          :class="{ on: category === 'security' }"
+          :aria-pressed="category === 'security'"
+          @click="category = 'security'"
+        >
+          Security
+        </button>
+      </div>
+
+      <div
+        v-if="category === 'flags'"
+        class="audit-filters"
+        role="group"
+        aria-label="Filter audit entries"
+      >
         <button
           v-for="a in actions"
           :key="a.value"
@@ -174,8 +252,10 @@ onMounted(() => void load())
     <div v-else class="log-list">
       <div v-for="entry in entries" :key="entry.id" class="log-entry">
         <span class="log-time" :title="entry.timestamp">{{ formatTime(entry.timestamp) }}</span>
-        <span class="log-action" :class="entry.action">{{ actionLabel[entry.action] }}</span>
-        <code class="mono log-key">{{ entry.flagKey }}</code>
+        <span class="log-action" :class="actionTone[entry.action] ?? entry.action">{{
+          actionLabel[entry.action] ?? entry.action
+        }}</span>
+        <code class="mono log-key">{{ subject(entry) }}</code>
         <span class="log-delta">
           {{ describeChange(entry) }}
           <span v-if="entry.changeDescription" class="log-reason"
@@ -238,6 +318,11 @@ onMounted(() => void load())
   margin-left: auto;
   font-size: 0.74rem;
   color: var(--text-mute);
+}
+.audit-tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
 }
 .audit-filters {
   display: flex;

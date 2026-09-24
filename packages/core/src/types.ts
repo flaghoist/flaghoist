@@ -147,14 +147,59 @@ export interface FlagSnapshot {
   description: string
 }
 
+/** Actions recorded against a flag. */
+export type FlagAuditAction = 'create' | 'update' | 'delete' | 'archive' | 'restore'
+
+/**
+ * Actions recorded against accounts, sessions and webhooks. These never carry a `flagKey`; they
+ * name what they touched in `target` instead.
+ */
+export type SecurityAuditAction =
+  | 'login'
+  | 'login.failed'
+  | 'logout'
+  | 'password.changed'
+  | 'session.revoked'
+  | 'user.created'
+  | 'webhook.created'
+  | 'webhook.updated'
+  | 'webhook.deleted'
+
+export type AuditAction = FlagAuditAction | SecurityAuditAction
+
+export const FLAG_AUDIT_ACTIONS: readonly FlagAuditAction[] = [
+  'create',
+  'update',
+  'delete',
+  'archive',
+  'restore',
+]
+
+/** Which log an entry belongs to: flag changes, or sign-ins and configuration changes. */
+export type AuditCategory = 'flags' | 'security'
+
+export function auditCategory(action: AuditAction): AuditCategory {
+  return (FLAG_AUDIT_ACTIONS as readonly string[]).includes(action) ? 'flags' : 'security'
+}
+
+/** What a security event touched. */
+export interface AuditTarget {
+  type: 'user' | 'session' | 'webhook'
+  id: string
+}
+
 export interface AuditEntry {
   id: string
   timestamp: string
-  action: 'create' | 'update' | 'delete' | 'archive' | 'restore'
-  flagKey: string
+  action: AuditAction
+  /** The flag that changed. Always set on flag events; absent on security events. */
+  flagKey?: string
+  /** What a security event touched. Absent on flag events. */
+  target?: AuditTarget
   actor: string
   previous?: FlagSnapshot
   current?: FlagSnapshot
+  /** A note on the change: the author's description on flag events, context on security events. */
   changeDescription?: string
   /** The environment the change happened in. Absent means the default environment. */
   environment?: string
@@ -163,8 +208,13 @@ export interface AuditEntry {
 export interface AuditListOptions {
   limit?: number
   offset?: number
+  /**
+   * Which log to read. Adapters that persist audit entries should honour this; `auditCategory()`
+   * maps an action onto its category. Absent means both.
+   */
+  category?: AuditCategory
   flagKey?: string
-  action?: 'create' | 'update' | 'delete' | 'archive' | 'restore'
+  action?: AuditAction
   /** Restrict to entries recorded in this environment. Absent means the default environment. */
   environment?: string
 }

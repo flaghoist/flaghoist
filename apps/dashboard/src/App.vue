@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   ApiError,
   createAdminClient,
+  createAuthClient,
   flagEtag,
   type AdminClient,
   type ExportedFlag,
@@ -10,7 +11,9 @@ import {
   type FeatureFlag,
   type FlagInput,
   type ImportResult,
+  type Me,
 } from './api'
+import AccountPage from './components/AccountPage.vue'
 import AuditLog from './components/AuditLog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FlagEditor from './components/FlagEditor.vue'
@@ -25,7 +28,7 @@ const STORAGE = 'flaghoist.admin'
 const THEME = 'flaghoist.theme'
 const SIDEBAR = 'flaghoist.sidebar'
 
-type View = 'overview' | 'flags' | 'webhooks' | 'audit' | 'settings'
+type View = 'overview' | 'flags' | 'webhooks' | 'audit' | 'settings' | 'account'
 type SortKey = 'key' | 'enabled' | 'rollout' | 'updated'
 type SortDir = 'asc' | 'desc'
 type Filter = 'all' | 'live' | 'paused' | 'targeted'
@@ -33,6 +36,13 @@ type Filter = 'all' | 'live' | 'paused' | 'targeted'
 const api = ref<AdminClient | null>(null)
 const serverUrl = ref('')
 const serverToken = ref('')
+// Who is signed in. Null on a server from before accounts, which has no way to say.
+const me = ref<Me | null>(null)
+const setupRequired = ref(false)
+const isSession = computed(() => serverToken.value.startsWith('fh_sess_'))
+const canSeeSecurity = computed(
+  () => me.value !== null && (me.value.role === 'admin' || me.value.role === 'owner'),
+)
 const environments = ref<string[]>(['production'])
 const defaultEnvironment = ref('production')
 const currentEnvironment = ref('production')
@@ -205,6 +215,7 @@ function isRoleRefusal(e: unknown): boolean {
 
 function describe(e: unknown): string {
   if (e instanceof ApiError) {
+    if (e.code === 'session_expired') return 'Your session ended. Sign in again.'
     if (e.status === 401) return 'Unauthorized. Check the admin token.'
     if (isRoleRefusal(e)) return e.message
     if (e.status === 403) return 'Forbidden. This token lacks admin access.'
@@ -240,6 +251,7 @@ async function connect(url: string, token: string, persist = true, environment?:
       currentEnvironment.value = 'production'
     }
 
+    await loadIdentity(client, url)
     startSessionClock()
     resetIdleTimer()
     if (persist) {
@@ -255,6 +267,48 @@ async function connect(url: string, token: string, persist = true, environment?:
     connecting.value = false
     loading.value = false
   }
+}
+
+async function loadIdentity(client: AdminClient, url: string) {
+  me.value = null
+  setupRequired.value = false
+  try {
+    me.value = await client.me()
+  } catch {
+    return // A server from before accounts: carry on exactly as before.
+  }
+  if (me.value.accounts && !me.value.user) {
+    try {
+      setupRequired.value = (await createAuthClient({ url }).config()).setupRequired === true
+    } catch {
+      /* the Account page just will not offer setup */
+    }
+  }
+}
+
+async function signIn(url: string, email: string, password: string) {
+  connecting.value = true
+  gateError.value = ''
+  try {
+    const result = await createAuthClient({ url }).signIn(email, password)
+    await connect(url, result.token)
+  } catch (e) {
+    gateError.value =
+      e instanceof ApiError && e.status === 401 ? 'Invalid email or password.' : describe(e)
+    connecting.value = false
+  }
+}
+
+function onAccountError(e: unknown) {
+  const msg = handle(e)
+  if (msg) toast(msg, 'error')
+}
+
+async function onOwnerCreated(email: string, password: string) {
+  const url = serverUrl.value
+  disconnect()
+  await signIn(url, email, password)
+  if (api.value) toast('Owner account created. You are now signed in with it.', 'ok')
 }
 
 async function switchEnvironment(environment: string) {
@@ -280,6 +334,11 @@ async function switchEnvironment(environment: string) {
 }
 
 function disconnect(message = '') {
+  // Signing out on purpose ends the session on the server too. When the server already rejected
+  // the credential (a message is set) there is nothing left to end.
+  if (!message && isSession.value && api.value) void api.value.logout().catch(() => {})
+  me.value = null
+  setupRequired.value = false
   stopIdleTimer()
   stopSessionClock()
   sessionStorage.removeItem(STORAGE)
@@ -315,7 +374,11 @@ async function reloadOnConflict(e: unknown) {
 
 function handle(e: unknown): string {
   if (e instanceof ApiError && (e.status === 401 || e.status === 403) && !isRoleRefusal(e)) {
-    disconnect('Your session ended: the server rejected the admin token. Sign in again.')
+    disconnect(
+      isSession.value
+        ? 'Your session ended. Sign in again.'
+        : 'Your session ended: the server rejected the admin token. Sign in again.',
+    )
     return ''
   }
   return describe(e)
@@ -750,6 +813,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
     :connecting="connecting"
     :theme="resolvedTheme()"
     @connect="(u, t) => connect(u, t)"
+    @sign-in="(u, e, p) => signIn(u, e, p)"
     @toggle-theme="toggleTheme"
   />
 
@@ -763,6 +827,8 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
       :counts="{ all: counts.all, live: counts.live, paused: counts.paused }"
       :environments="environments"
       :current-environment="currentEnvironment"
+      :show-account="me?.accounts === true"
+      :account-label="me?.user?.email ?? ''"
       @navigate="
         (v: string) => {
           view = v as View
@@ -794,7 +860,9 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                 ? 'Webhooks'
                 : view === 'audit'
                   ? 'Audit log'
-                  : 'Settings'
+                  : view === 'account'
+                    ? 'Account'
+                    : 'Settings'
         }}</span>
         <button
           class="btn btn-primary btn-sm"
@@ -1160,7 +1228,19 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         :server-url="serverUrl"
         :token="serverToken"
         :environment="currentEnvironment"
+        :can-see-security="canSeeSecurity"
         @back="view = 'flags'"
+      />
+
+      <!-- Account -->
+      <AccountPage
+        v-else-if="view === 'account' && api && me"
+        :api="api"
+        :me="me"
+        :setup-required="setupRequired"
+        @notify="(text, tone) => toast(text, tone)"
+        @failed="onAccountError"
+        @owner-created="onOwnerCreated"
       />
 
       <!-- Webhooks -->

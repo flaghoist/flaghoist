@@ -1,5 +1,6 @@
 import type { StorageAdapter } from '@flaghoist/core'
 import { isRole, ROLES, type Role } from './permissions'
+import { assertSsoConfig, type SsoConfig } from './sso'
 
 /**
  * User accounts, password sign-in and server sessions. Everything here is stored through the
@@ -30,6 +31,8 @@ export interface UsersConfig {
     /** How long an invite link stays valid. Default 7 days. Password reset links last 24 hours. */
     expiresInDays?: number
   }
+  /** Sign in with an OpenID Connect provider as well as, or instead of, a password. */
+  sso?: SsoConfig
 }
 
 export const PASSWORD_KDF = 'pbkdf2-sha256'
@@ -54,6 +57,7 @@ const SESSIONS = 'sessions'
 const LOGIN_ATTEMPTS = 'login-attempts'
 const INVITES = 'invites'
 const TOKENS = 'tokens'
+const USERS_BY_SSO = 'users-sso'
 
 // Read in place of a user record when an email has no account, so a failed sign-in for an unknown
 // email makes the same storage round trips as one for a real account.
@@ -76,6 +80,10 @@ export interface UserRecord {
   role: Role
   status: UserStatus
   password?: PasswordVerifier
+  /** The provider identity this account signs in with, once it has used SSO. */
+  sso?: { issuer: string; subject: string }
+  /** Set when the SSO provider's groups decide this account's role. */
+  roleManagedBy?: 'sso'
   createdAt: string
   updatedAt: string
   lastLoginAt?: string
@@ -88,6 +96,12 @@ export interface PublicUser {
   name: string
   role: Role
   status: UserStatus
+  /** Whether the account has a password. SSO-only accounts do not. */
+  hasPassword: boolean
+  /** Whether the account has signed in with SSO. */
+  sso?: boolean
+  /** Set when the SSO provider decides the role, so it cannot be changed here. */
+  roleManagedBy?: 'sso'
   createdAt: string
   lastLoginAt?: string
 }
@@ -196,6 +210,7 @@ export function assertUsersConfig(users: UsersConfig, storage: StorageAdapter): 
         'Generate one with `openssl rand -hex 32` and keep it in a secret, not in code.',
     )
   }
+  if (users.sso) assertSsoConfig(users.sso)
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +341,9 @@ export function publicUser(user: UserRecord): PublicUser {
     role: user.role,
     status: user.status,
     createdAt: user.createdAt,
+    hasPassword: user.password !== undefined,
+    ...(user.sso ? { sso: true } : {}),
+    ...(user.roleManagedBy ? { roleManagedBy: user.roleManagedBy } : {}),
     ...(user.lastLoginAt ? { lastLoginAt: user.lastLoginAt } : {}),
   }
 }
@@ -411,6 +429,9 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
     }
     return out
   }
+
+  // Keyed by a hash: an issuer URL and subject together can outgrow a record id.
+  const ssoKey = (issuer: string, subject: string) => sha256Hex(`${issuer}\n${subject}`)
 
   async function tokensOf(userId: string): Promise<{ key: string; token: TokenRecord }[]> {
     return (await records.listRecords(TOKENS))
@@ -522,6 +543,13 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
           .filter((i) => i.invite.userId === user.id)
           .map((i) => records.deleteRecord(INVITES, i.key)),
         ...(await tokensOf(user.id)).map((t) => records.deleteRecord(TOKENS, t.key)),
+        ...(user.sso
+          ? [
+              ssoKey(user.sso.issuer, user.sso.subject).then((k) =>
+                records.deleteRecord(USERS_BY_SSO, k),
+              ),
+            ]
+          : []),
       ])
       await records.deleteRecord(USERS_BY_EMAIL, user.email)
       await records.deleteRecord(USERS, user.id)
@@ -723,6 +751,57 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
     },
 
     checkPassword,
+
+    // ---- SSO ----
+
+    async findBySso(issuer: string, subject: string): Promise<UserRecord | null> {
+      const value = (await records.getRecord(USERS_BY_SSO, await ssoKey(issuer, subject))) as {
+        userId?: unknown
+      } | null
+      return typeof value?.userId === 'string' ? getUser(value.userId) : null
+    },
+
+    /** Tie an account to a provider identity, so later sign-ins find it even if the email changes. */
+    async linkSso(user: UserRecord, issuer: string, subject: string): Promise<UserRecord> {
+      const updated: UserRecord = {
+        ...user,
+        sso: { issuer, subject },
+        updatedAt: new Date().toISOString(),
+      }
+      await records.putRecord(USERS, user.id, updated)
+      await records.putRecord(USERS_BY_SSO, await ssoKey(issuer, subject), { userId: user.id })
+      return updated
+    },
+
+    /** Create an account that signs in with SSO only. Returns null when the email is taken. */
+    async createSsoUser(input: {
+      email: string
+      name: string
+      role: Role
+      issuer: string
+      subject: string
+      managed: boolean
+    }): Promise<UserRecord | null> {
+      if (await userIdForEmail(input.email)) return null
+      const now = new Date().toISOString()
+      const user: UserRecord = {
+        id: `usr_${hex(randomBytes(12))}`,
+        email: input.email,
+        name: input.name.slice(0, MAX_NAME_LENGTH),
+        role: input.role,
+        status: 'active',
+        sso: { issuer: input.issuer, subject: input.subject },
+        ...(input.managed ? { roleManagedBy: 'sso' as const } : {}),
+        createdAt: now,
+        updatedAt: now,
+      }
+      await records.putRecord(USERS, user.id, user)
+      await records.putRecord(USERS_BY_EMAIL, user.email, { userId: user.id })
+      await records.putRecord(USERS_BY_SSO, await ssoKey(input.issuer, input.subject), {
+        userId: user.id,
+      })
+      return user
+    },
 
     async setPassword(
       user: UserRecord,

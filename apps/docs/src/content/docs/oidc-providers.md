@@ -1,7 +1,64 @@
 ---
 title: OIDC provider setup
-description: Concrete oidc() configs for Cognito, Auth0, Okta, Keycloak, Entra, and Cloudflare Access.
+description: Dashboard SSO and oidc() configs for Okta, Entra, Google, Auth0, Keycloak, Cognito and Cloudflare Access.
 ---
+
+This page covers two different things:
+
+- **Dashboard sign-in (SSO)**: people click **Continue with ...** on the dashboard and sign in with
+  your identity provider. Configured under `users.sso`. See
+  [the next section](#dashboard-sign-in-sso).
+- **The `oidc()` verifier**: API clients that already hold a JWT from your provider send it as a
+  bearer token. The recipes after that section cover it.
+
+## Dashboard sign-in (SSO)
+
+Needs [user accounts](/auth/#user-accounts) turned on. In every provider:
+
+1. Create an **OpenID Connect web application** (a confidential client with a client secret is
+   the usual choice; a public client with PKCE also works).
+2. Add the redirect URI `https://<your server>/api/v1/auth/sso/callback`. It must match exactly.
+3. Make sure ID tokens carry `email` and, for role mapping, the person's groups.
+4. Put the issuer, client ID and client secret in `users.sso`, keeping the secret in a secret store.
+
+```ts
+users: {
+  pepper: env.AUTH_PEPPER,
+  sso: {
+    issuer: 'https://acme.okta.com',
+    clientId: env.OIDC_CLIENT_ID,
+    clientSecret: env.OIDC_CLIENT_SECRET,
+    label: 'Okta',
+    allowedDomains: ['acme.com'],
+    roleMapping: { 'flag-admins': 'admin', engineering: 'editor' },
+  },
+},
+```
+
+Notes per provider:
+
+- **Okta**: create an app integration of type OIDC, Web Application. The issuer is your org URL
+  (`https://acme.okta.com`) or a custom authorization server's issuer URI. To send groups, add a
+  groups claim to the ID token (for the org server, the app's **Sign On** tab has a groups claim
+  filter); some setups also need `scopes: ['openid', 'email', 'profile', 'groups']`.
+- **Microsoft Entra**: register an app with a **Web** redirect URI and a client secret. The issuer
+  is `https://login.microsoftonline.com/<tenant-id>/v2.0`. Use App Roles with
+  `groupsClaim: 'roles'`, since the groups claim holds object IDs rather than names. Entra's ID
+  tokens do not include `email_verified`, so set `requireVerifiedEmail: false` together with
+  `allowedDomains`, and keep the app single-tenant.
+- **Google Workspace**: create an OAuth client of type Web application. The issuer is
+  `https://accounts.google.com`. Google does not send groups, so use `defaultRole` with
+  `allowedDomains` set to your Workspace domain, and set individual roles by invite.
+- **Auth0**: create a Regular Web Application. The issuer is `https://<tenant>.auth0.com/`,
+  **with** the trailing slash. Add groups or roles to the ID token with an Action under a
+  namespaced claim, and point `groupsClaim` at it (for example `'https://acme.com/roles'`).
+- **Keycloak**: create an OpenID Connect client with client authentication on. The issuer is
+  `https://<host>/realms/<realm>`. Add a **Group Membership** mapper to the client with "Add to ID
+  token" on and "Full group path" off.
+
+Test it with one account in a mapped group before switching `passwordSignIn` off.
+
+## The oidc() verifier
 
 Each recipe below gives the exact `oidc({ ... })` call for that provider, plus where to find
 each value in their console. The options are documented in full on the [Authentication](/auth/) page.

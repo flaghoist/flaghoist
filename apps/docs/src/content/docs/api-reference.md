@@ -227,6 +227,24 @@ from the client when setting a password. The returned session token is used as
 (`code: "invalid_credentials"`). Too many failures return `429` with `code: "login_throttled"` and a
 `Retry-After` header. A session that has ended returns `401` with `code: "session_expired"`.
 
+### Single sign-on
+
+Available when `users.sso` is set. These are browser redirects, not API calls.
+
+| Method | Path                        | Purpose                                                             |
+| ------ | --------------------------- | ------------------------------------------------------------------- |
+| `GET`  | `/api/v1/auth/sso/start`    | `?return=<dashboard URL>&browser=<hash>`. Redirects to the provider |
+| `GET`  | `/api/v1/auth/sso/callback` | The redirect URI to register. Redirects back to the dashboard       |
+| `POST` | `/api/v1/auth/sso/exchange` | `{ code, browserSecret }` returns `{ token, expiresAt, user }`      |
+
+`return` must be on the server's own origin or one in `allowedOrigins`. `browser` is the SHA-256
+(base64url) of a random secret the dashboard tab keeps. The callback sends the browser back to
+`return` with `#sso=<code>` on success or `#sso_error=<message>` on failure; the code is valid for
+a minute and only with the tab's secret. `GET /api/v1/auth/config` reports
+`sso: { label }` and `passwordSignIn`. With `passwordSignIn: false`, password routes answer `409`
+with `code: "password_disabled"`. Changing the role of someone whose role comes from SSO groups
+answers `409` with `code: "managed_by_sso"`.
+
 ### Access tokens
 
 Signed in with an account (a session or another access token). The admin token has none.

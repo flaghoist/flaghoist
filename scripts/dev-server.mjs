@@ -6,7 +6,9 @@
 //
 // Everything is overridable by env: PORT, READ_API_KEY, ADMIN_TOKEN, FLAGS_CORS (comma-separated).
 // Set AUTH_PEPPER (32 characters or more) to turn on user accounts; sign in with ADMIN_TOKEN first
-// to create the owner account.
+// to create the owner account. With accounts on, set SSO_ISSUER, SSO_CLIENT_ID and optionally
+// SSO_CLIENT_SECRET to add single sign-on; everyone who signs in that way gets SSO_DEFAULT_ROLE
+// (viewer unless set). Register http://localhost:<PORT>/api/v1/auth/sso/callback with the provider.
 import { memoryAdapter } from '@flaghoist/adapter-memory'
 import { createFlag } from '@flaghoist/core'
 import { apiKey, bearerToken, createFlagServer } from '@flaghoist/server'
@@ -18,6 +20,15 @@ const PORT = Number(process.env.PORT ?? 8787)
 const READ_KEY = process.env.READ_API_KEY ?? 'read-key'
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? 'admin'
 const AUTH_PEPPER = process.env.AUTH_PEPPER
+const SSO =
+  AUTH_PEPPER && process.env.SSO_ISSUER && process.env.SSO_CLIENT_ID
+    ? {
+        issuer: process.env.SSO_ISSUER,
+        clientId: process.env.SSO_CLIENT_ID,
+        clientSecret: process.env.SSO_CLIENT_SECRET,
+        defaultRole: process.env.SSO_DEFAULT_ROLE ?? 'viewer',
+      }
+    : undefined
 const CORS = (
   process.env.FLAGS_CORS ??
   'http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:4173'
@@ -56,7 +67,7 @@ const app = createFlagServer({
   auth: { admin: bearerToken(ADMIN_TOKEN), read: apiKey(READ_KEY) },
   allowedOrigins: CORS,
   dashboard,
-  ...(AUTH_PEPPER ? { users: { pepper: AUTH_PEPPER } } : {}),
+  ...(AUTH_PEPPER ? { users: { pepper: AUTH_PEPPER, ...(SSO ? { sso: SSO } : {}) } } : {}),
 })
 
 createServer((req, res) => {
@@ -80,6 +91,7 @@ createServer((req, res) => {
     read API key   ${READ_KEY}
     admin token    ${ADMIN_TOKEN}
     accounts       ${AUTH_PEPPER ? 'on (create the owner from the Account page)' : 'off (set AUTH_PEPPER to turn on)'}
+    sso            ${SSO ? `${SSO.issuer} (new people get ${SSO.defaultRole})` : 'off'}
     CORS allowed   ${CORS.join(', ')}
     dashboard      ${dashboard ? `http://localhost:${PORT}/admin` : '(run `pnpm build` to enable /admin)'}
     seeded flags   new-checkout, beta

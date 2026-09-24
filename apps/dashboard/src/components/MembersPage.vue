@@ -267,6 +267,7 @@ onMounted(() => void load())
               {{ m.name || m.email }}
               <span v-if="isSelf(m)" class="tag tag-self">You</span>
               <span v-if="m.status !== 'active'" class="tag tag-off">Disabled</span>
+              <span v-if="m.sso" class="tag tag-sso">SSO</span>
             </span>
             <span class="meta">
               <template v-if="m.name">{{ m.email }} · </template>last active
@@ -275,8 +276,14 @@ onMounted(() => void load())
           </div>
           <div class="controls">
             <template v-if="manageable(m)">
-              <label class="visually-hidden" :for="`role-${m.id}`">Role for {{ m.email }}</label>
+              <span v-if="m.roleManagedBy === 'sso'" class="role-badge" title="Set by SSO groups"
+                >{{ m.role }} · SSO</span
+              >
+              <label v-if="m.roleManagedBy !== 'sso'" class="visually-hidden" :for="`role-${m.id}`"
+                >Role for {{ m.email }}</label
+              >
               <select
+                v-if="m.roleManagedBy !== 'sso'"
                 :id="`role-${m.id}`"
                 :value="m.role"
                 :disabled="busy.has(m.id)"
@@ -488,6 +495,10 @@ onMounted(() => void load())
 .tag-self {
   color: var(--accent-text);
   background: var(--accent-wash);
+}
+.tag-sso {
+  color: var(--text-2);
+  background: var(--surface-2);
 }
 .tag-off {
   color: var(--red-text);

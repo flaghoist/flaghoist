@@ -33,6 +33,17 @@ import {
   type UserRecord,
 } from './accounts'
 import { createAuditLog } from './audit'
+import {
+  buildAuthorizationUrl,
+  completeSignIn,
+  domainAllowed,
+  exchangeCode,
+  readState,
+  redeemExchangeCode,
+  roleFor,
+  SSO_CALLBACK_PATH,
+  SsoError,
+} from './sso'
 import { extractBearer } from './auth'
 import { createDefinitionCache, type DefinitionCache } from './cache'
 import { resolveAdminEnvironment, resolveReadEnvironment, scopedStorage } from './environments'
@@ -53,6 +64,7 @@ import {
 
 export type { PublicInvite, PublicSession, PublicToken, PublicUser, UsersConfig } from './accounts'
 export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
+export type { SsoConfig } from './sso'
 export { apiKey, apiKeys, bearerToken, oidc, type OidcOptions } from './auth'
 export {
   resolveAdminEnvironment,
@@ -928,6 +940,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     )
   }
 
+  /** Whether password sign-in is turned off in favour of SSO. */
+  const passwordOff = (cfg: ServerConfig) => cfg.users?.sso?.passwordSignIn === false
+
+  const passwordDisabled = (c: Context<{ Bindings: Env }>, cfg: ServerConfig, extra = '') =>
+    c.json(
+      {
+        error: `Password sign-in is turned off. Continue with ${cfg.users?.sso?.label ?? 'SSO'}${extra}.`,
+        code: 'password_disabled',
+      },
+      409,
+    )
+
   app.get('/api/v1/auth/config', async (c) => {
     const cfg = resolve(c.env)
     const accounts = accountsOf(cfg)
@@ -935,13 +959,17 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     return c.json({
       accounts: true,
       password: { kdf: PASSWORD_KDF, iterations: PASSWORD_ITERATIONS },
+      passwordSignIn: !passwordOff(cfg),
+      sso: cfg.users?.sso ? { label: cfg.users.sso.label ?? 'SSO' } : null,
       setupRequired: (await accounts.count()) === 0,
     })
   })
 
   app.post('/api/v1/auth/prelogin', async (c) => {
-    const accounts = accountsOf(resolve(c.env))
+    const cfg = resolve(c.env)
+    const accounts = accountsOf(cfg)
     if (!accounts) return accountsOff(c)
+    if (passwordOff(cfg)) return passwordDisabled(c, cfg)
     const body = await readBody(c)
     if (body instanceof Response) return body
     const email = normalizeEmail(body.email)
@@ -950,8 +978,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   })
 
   app.post('/api/v1/auth/login', async (c) => {
-    const accounts = accountsOf(resolve(c.env))
+    const cfg = resolve(c.env)
+    const accounts = accountsOf(cfg)
     if (!accounts) return accountsOff(c)
+    if (passwordOff(cfg)) return passwordDisabled(c, cfg)
     const body = await readBody(c)
     if (body instanceof Response) return body
     const email = normalizeEmail(body.email)
@@ -1018,6 +1048,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       identity: caller.identity,
       role: caller.role,
       accounts: caller.cfg.users !== undefined,
+      passwordSignIn: caller.cfg.users !== undefined && !passwordOff(caller.cfg),
       user: caller.user ? publicUser(caller.user) : null,
       session: caller.session
         ? {
@@ -1096,6 +1127,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     const caller = await signedInUser(c)
     if (caller instanceof Response) return caller
     const { accounts, user, session } = caller
+    if (passwordOff(caller.cfg)) return passwordDisabled(c, caller.cfg)
+    if (!user.password) {
+      return c.json(
+        { error: 'This account signs in with SSO and has no password.', code: 'no_password' },
+        409,
+      )
+    }
     const body = await readBody(c)
     if (body instanceof Response) return body
     const currentKey = decodeClientKey(body.currentClientKey)
@@ -1169,6 +1207,206 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       target: { type: 'session', id },
     })
     return c.body(null, 204)
+  })
+
+  // ---- Single sign-on (OpenID Connect) ----
+
+  const ssoOff = (c: Context<{ Bindings: Env }>) =>
+    c.json({ error: 'SSO is not set up on this server.', code: 'sso_disabled' }, 404)
+
+  /**
+   * Where a sign-in may send someone back to: this server's own pages, or a dashboard on an origin
+   * in `allowedOrigins`. Anything else would make the server an open redirect.
+   */
+  function allowedReturn(cfg: ServerConfig, requestUrl: string, value: string | undefined) {
+    if (!value) return null
+    try {
+      const url = new URL(value)
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+      const own = new URL(requestUrl).origin
+      if (url.origin !== own && !cfg.allowedOrigins?.includes(url.origin)) return null
+      url.hash = ''
+      return url.toString()
+    } catch {
+      return null
+    }
+  }
+
+  app.get('/api/v1/auth/sso/start', async (c) => {
+    const cfg = resolve(c.env)
+    const sso = cfg.users?.sso
+    if (!cfg.users || !sso) return ssoOff(c)
+    const returnTo = allowedReturn(cfg, c.req.url, c.req.query('return'))
+    if (!returnTo) {
+      return c.text('The return address is not allowed. Add its origin to allowedOrigins.', 400)
+    }
+    const browserHash = c.req.query('browser') ?? ''
+    if (!/^[A-Za-z0-9_-]{43}$/.test(browserHash)) return c.text('Missing browser check.', 400)
+    const redirectUri = sso.redirectUri ?? `${new URL(c.req.url).origin}${SSO_CALLBACK_PATH}`
+    try {
+      const url = await buildAuthorizationUrl({
+        sso,
+        pepper: cfg.users.pepper,
+        redirectUri,
+        returnTo,
+        browserHash,
+      })
+      return c.redirect(url, 302)
+    } catch (err) {
+      const message = err instanceof SsoError ? err.message : 'Could not reach the SSO provider.'
+      if (!(err instanceof SsoError)) console.error('[flaghoist] SSO start failed', err)
+      return c.redirect(`${returnTo}#sso_error=${encodeURIComponent(message)}`, 302)
+    }
+  })
+
+  app.get(SSO_CALLBACK_PATH, async (c) => {
+    const cfg = resolve(c.env)
+    const sso = cfg.users?.sso
+    const accounts = accountsOf(cfg)
+    if (!cfg.users || !sso || !accounts) return ssoOff(c)
+    const state = await readState(cfg.users.pepper, c.req.query('state') ?? '')
+    if (!state) {
+      return c.text(
+        'This sign-in has expired or did not start here. Go back to the dashboard and try again.',
+        400,
+      )
+    }
+    const back = (message: string) =>
+      c.redirect(`${state.returnTo}#sso_error=${encodeURIComponent(message)}`, 302)
+    const ip = clientIp(c)
+    const refuse = async (email: string, reason: string, message: string) => {
+      await audit.record({
+        action: 'login.failed',
+        actor: email,
+        changeDescription: [`SSO: ${reason}`, fromIp(ip)].filter(Boolean).join('. '),
+      })
+      return back(message)
+    }
+
+    const providerError = c.req.query('error')
+    if (providerError) {
+      return back(
+        c.req.query('error_description') ?? `The provider refused the sign-in (${providerError}).`,
+      )
+    }
+    const code = c.req.query('code')
+    if (!code) return back('The provider did not send a sign-in code.')
+
+    let identity
+    try {
+      identity = await completeSignIn({ sso, state, code })
+    } catch (err) {
+      if (!(err instanceof SsoError)) console.error('[flaghoist] SSO callback failed', err)
+      return back(err instanceof SsoError ? err.message : 'The sign-in could not be completed.')
+    }
+
+    const { email } = identity
+    if (!domainAllowed(sso, email)) {
+      return refuse(email, 'domain not allowed', `${email} is not allowed to sign in here.`)
+    }
+    const mapped = sso.roleMapping !== undefined && Object.keys(sso.roleMapping).length > 0
+    const groupRole = roleFor(sso, identity.groups)
+    const noAccess = 'You are not in a group that has access to Flaghoist. Ask an admin.'
+
+    let user = await accounts.findBySso(sso.issuer, identity.subject)
+    if (!user) {
+      if (!identity.emailVerified && sso.requireVerifiedEmail !== false) {
+        return refuse(
+          email,
+          'email not verified',
+          'Your provider has not verified your email address.',
+        )
+      }
+      const existing = await accounts.findByEmail(email)
+      if (existing) {
+        user = await accounts.linkSso(existing, sso.issuer, identity.subject)
+        await audit.record({
+          action: 'user.updated',
+          actor: email,
+          target: { type: 'user', id: user.id },
+          changeDescription: `${email}: linked to SSO`,
+        })
+      } else {
+        const invite = (await accounts.listInvites()).find(
+          (i) => i.kind === 'invite' && i.email === email,
+        )
+        const role = mapped ? groupRole : (invite?.role ?? sso.defaultRole ?? null)
+        if (!role) return refuse(email, 'no mapped group', noAccess)
+        const created = await accounts.createSsoUser({
+          email,
+          name: identity.name,
+          role,
+          issuer: sso.issuer,
+          subject: identity.subject,
+          managed: mapped,
+        })
+        if (!created) return back('That email already has an account.')
+        user = created
+        if (invite) {
+          await accounts.revokeInvite(invite.id)
+          await audit.record({
+            action: 'invite.accepted',
+            actor: email,
+            target: { type: 'user', id: user.id },
+            changeDescription: `Joined as ${user.role} with SSO`,
+          })
+        } else {
+          await audit.record({
+            action: 'user.created',
+            actor: email,
+            target: { type: 'user', id: user.id },
+            changeDescription: `${email} as ${user.role}, with SSO`,
+          })
+        }
+      }
+    }
+
+    if (user.status !== 'active') {
+      return refuse(email, 'account disabled', 'This account is disabled. Ask an admin.')
+    }
+    if (mapped) {
+      // The provider decides: apply its groups at every sign-in.
+      if (!groupRole) return refuse(email, 'no mapped group', noAccess)
+      if (user.role !== groupRole || user.roleManagedBy !== 'sso') {
+        const before = user.role
+        user = await accounts.saveUser({ ...user, role: groupRole, roleManagedBy: 'sso' })
+        if (before !== groupRole) {
+          await audit.record({
+            action: 'user.updated',
+            actor: 'SSO groups',
+            target: { type: 'user', id: user.id },
+            changeDescription: `${email}: role ${before} to ${groupRole}`,
+          })
+        }
+      }
+    }
+
+    await accounts.recordLogin(user)
+    await audit.record({
+      action: 'login',
+      actor: email,
+      target: { type: 'user', id: user.id },
+      changeDescription: ['With SSO', fromIp(ip)].filter(Boolean).join('. '),
+    })
+    const handBack = await exchangeCode(cfg.users.pepper, user.id, state.browser)
+    return c.redirect(`${state.returnTo}#sso=${encodeURIComponent(handBack)}`, 302)
+  })
+
+  app.post('/api/v1/auth/sso/exchange', async (c) => {
+    const cfg = resolve(c.env)
+    const accounts = accountsOf(cfg)
+    if (!cfg.users?.sso || !accounts) return ssoOff(c)
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const code = typeof body.code === 'string' ? body.code : ''
+    const secret = typeof body.browserSecret === 'string' ? body.browserSecret : ''
+    const userId = code && secret ? await redeemExchangeCode(cfg.users.pepper, code, secret) : null
+    const user = userId ? await accounts.getUser(userId) : null
+    if (!user || user.status !== 'active') {
+      return c.json({ error: 'This sign-in has expired. Try again.', code: 'sso_expired' }, 410)
+    }
+    const { token, session } = await accounts.createSession(user, c.req.header('user-agent'))
+    return c.json({ token, expiresAt: session.expiresAt, user: publicUser(user) })
   })
 
   // ---- Personal access tokens: the signed-in user's own ----
@@ -1331,6 +1569,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     const name = body.name !== undefined ? normalizeName(body.name) : user.name
     const roleChanged = role !== user.role
     const statusChanged = status !== user.status
+
+    if (roleChanged && user.roleManagedBy === 'sso' && caller.cfg.users?.sso?.roleMapping) {
+      return c.json(
+        {
+          error: `${user.email} gets their role from SSO groups. Change it in your identity provider.`,
+          code: 'managed_by_sso',
+        },
+        409,
+      )
+    }
 
     if ((user.role === 'owner' || role === 'owner') && caller.role !== 'owner') {
       if (roleChanged || statusChanged) return ownersOnly(c)
@@ -1519,13 +1767,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   })
 
   app.post('/api/v1/invites/accept', async (c) => {
-    const accounts = accountsOf(resolve(c.env))
+    const cfg = resolve(c.env)
+    const accounts = accountsOf(cfg)
     if (!accounts) return accountsOff(c)
     const body = await readBody(c)
     if (body instanceof Response) return body
     const token = typeof body.token === 'string' ? body.token : ''
     const invite = token ? await accounts.findInvite(token) : null
     if (!invite) return linkGone(c)
+    // With passwords off, an invite is accepted by signing in with SSO as the invited email.
+    if (passwordOff(cfg)) return passwordDisabled(c, cfg, ` as ${invite.email}`)
     const salt = decodeSalt(body.salt)
     const clientKey = decodeClientKey(body.clientKey)
     if (!salt || !clientKey) return c.json({ error: 'Missing or malformed password key.' }, 400)

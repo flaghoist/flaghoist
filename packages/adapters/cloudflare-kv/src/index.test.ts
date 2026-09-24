@@ -1,43 +1,58 @@
-import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
+import {
+  testRecordStorage,
+  testStorageAdapter,
+  testWebhookStorage,
+} from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import { describe, expect, it } from 'vitest'
 import { cloudflareKV, type KVNamespaceLike } from './index'
 
-/** An in-memory stand-in for a Cloudflare KV namespace, with helpers to inspect raw storage. */
+/**
+ * An in-memory stand-in for a Cloudflare KV namespace, with helpers to inspect raw storage. Like
+ * real KV, `list()` returns each key's metadata alongside its name.
+ */
 class FakeKV implements KVNamespaceLike {
-  private store = new Map<string, string>()
+  private store = new Map<string, { value: string; metadata?: unknown }>()
+  readonly reads: string[] = []
 
   constructor(private readonly pageSize = 1000) {}
 
   async get(key: string): Promise<string | null> {
-    return this.store.get(key) ?? null
+    this.reads.push(key)
+    return this.store.get(key)?.value ?? null
   }
-  async put(key: string, value: string): Promise<void> {
-    this.store.set(key, value)
+  async put(key: string, value: string, options?: { metadata?: unknown }): Promise<void> {
+    this.store.set(key, { value, metadata: options?.metadata })
   }
   async delete(key: string): Promise<void> {
     this.store.delete(key)
   }
   async list(options?: { prefix?: string; cursor?: string; limit?: number }) {
     const prefix = options?.prefix ?? ''
-    const all = [...this.store.keys()].filter((k) => k.startsWith(prefix))
+    const all = [...this.store.entries()].filter(([k]) => k.startsWith(prefix))
     const start = options?.cursor ? Number(options.cursor) : 0
     const end = start + this.pageSize
-    const keys = all.slice(start, end).map((name) => ({ name }))
+    const keys = all
+      .slice(start, end)
+      .map(([name, entry]) =>
+        entry.metadata === undefined ? { name } : { name, metadata: entry.metadata },
+      )
     if (end >= all.length) return { keys, list_complete: true }
     return { keys, list_complete: false, cursor: String(end) }
   }
 
   raw(key: string): string | undefined {
-    return this.store.get(key)
+    return this.store.get(key)?.value
   }
   seedRaw(key: string, value: string): void {
-    this.store.set(key, value)
+    this.store.set(key, { value })
   }
 }
 
 testStorageAdapter('cloudflare-kv', () => cloudflareKV(new FakeKV()))
 testWebhookStorage('cloudflare-kv', () => cloudflareKV(new FakeKV()))
+testRecordStorage('cloudflare-kv', () => cloudflareKV(new FakeKV()))
+testRecordStorage('cloudflare-kv (paged listing)', () => cloudflareKV(new FakeKV(2)))
 
 describe('cloudflareKV — specifics', () => {
   it('writes the flag key as given, with no prefix by default', async () => {
@@ -107,5 +122,42 @@ describe('cloudflareKV — specifics', () => {
     }
     const keys = (await adapter.list()).map((f) => f.key).sort()
     expect(keys).toEqual(['a', 'b', 'c', 'd', 'e'])
+  })
+
+  it('stores records as <recordPrefix><collection>:<id>, configurable', async () => {
+    const kv = new FakeKV()
+    await cloudflareKV(kv).putRecord!('users', 'u1', { a: 1 })
+    expect(kv.raw('record:users:u1')).toBeDefined()
+
+    await cloudflareKV(kv, { recordPrefix: 'rec/' }).putRecord!('users', 'u2', { a: 2 })
+    expect(kv.raw('rec/users:u2')).toBeDefined()
+  })
+
+  it('does not spend a read on record or webhook keys when listing unprefixed flags', async () => {
+    const kv = new FakeKV()
+    const adapter = cloudflareKV(kv)
+    await adapter.put('checkout', createFlag({ key: 'checkout' }))
+    for (let i = 0; i < 5; i++) await adapter.putRecord!('sessions', `s${i}`, { i })
+    await adapter.putWebhook!('wh1', {
+      id: 'wh1',
+      url: 'https://example.com/hook',
+      secret: 's',
+      events: ['flag.created'],
+      enabled: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    kv.reads.length = 0
+    expect((await adapter.list()).map((f) => f.key)).toEqual(['checkout'])
+    expect(kv.reads).toEqual(['checkout'])
+  })
+
+  it('ignores a raw value under a record key that is not a record envelope', async () => {
+    const kv = new FakeKV()
+    kv.seedRaw('record:users:u1', JSON.stringify({ tampered: true }))
+    const adapter = cloudflareKV(kv)
+    expect(await adapter.getRecord!('users', 'u1')).toBeNull()
+    expect(await adapter.listRecords!('users')).toEqual([])
   })
 })

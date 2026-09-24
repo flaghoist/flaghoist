@@ -1,11 +1,17 @@
-import type {
-  AuditEntry,
-  AuditListOptions,
-  AuditPage,
-  FeatureFlag,
-  StorageAdapter,
-  WebhookEndpoint,
+import {
+  assertRecordAddress,
+  type AuditEntry,
+  type AuditListOptions,
+  type AuditPage,
+  type FeatureFlag,
+  type StorageAdapter,
+  type WebhookEndpoint,
 } from '@flaghoist/core'
+
+// Records go through a JSON round trip rather than structuredClone, so the memory adapter drops
+// undefined fields and rejects non-JSON values exactly the way a serializing backend would.
+const toJson = (value: unknown): string => JSON.stringify(value)
+const fromJson = (raw: string): unknown => JSON.parse(raw) as unknown
 
 /**
  * An in-memory StorageAdapter backed by a Map — for local development, tests, and as a
@@ -18,6 +24,15 @@ export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
 
   const auditBuf: AuditEntry[] = []
   const webhooks = new Map<string, WebhookEndpoint>()
+  const records = new Map<string, Map<string, string>>()
+  const collection = (name: string): Map<string, string> => {
+    let c = records.get(name)
+    if (!c) {
+      c = new Map()
+      records.set(name, c)
+    }
+    return c
+  }
 
   return {
     async get(key) {
@@ -62,6 +77,27 @@ export function memoryAdapter(seed: FeatureFlag[] = []): StorageAdapter {
     },
     async listWebhooks() {
       return [...webhooks.values()].map((w) => structuredClone(w))
+    },
+
+    async getRecord(name, id) {
+      assertRecordAddress(name, id)
+      const raw = records.get(name)?.get(id)
+      return raw === undefined ? null : fromJson(raw)
+    },
+    async putRecord(name, id, value) {
+      assertRecordAddress(name, id)
+      collection(name).set(id, toJson(value))
+    },
+    async deleteRecord(name, id) {
+      assertRecordAddress(name, id)
+      records.get(name)?.delete(id)
+    },
+    async listRecords(name) {
+      assertRecordAddress(name)
+      return [...(records.get(name) ?? new Map<string, string>())].map(([id, raw]) => ({
+        id,
+        value: fromJson(raw),
+      }))
     },
   }
 }

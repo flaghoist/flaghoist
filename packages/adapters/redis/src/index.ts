@@ -1,6 +1,8 @@
 import {
+  assertRecordAddress,
   parseFlag,
   type FeatureFlag,
+  type RecordEntry,
   type StorageAdapter,
   type WebhookEndpoint,
 } from '@flaghoist/core'
@@ -24,6 +26,12 @@ export interface RedisAdapterOptions {
 
   /** Redis hash key for webhook endpoints. Default: `"flaghoist:webhooks"`. */
   webhookHashKey?: string
+
+  /**
+   * Prefix for record-store hashes. Each collection gets its own hash, `<prefix><collection>`.
+   * Default: `"flaghoist:records:"`.
+   */
+  recordHashPrefix?: string
 }
 
 /**
@@ -44,11 +52,6 @@ function toFlag(raw: unknown): FeatureFlag | null {
   return null
 }
 
-/**
- * A StorageAdapter backed by Redis. All flags live in a single hash, so reads and writes are
- * simple hash commands and `list()` is one `hgetall` — no key scanning. Works from Node
- * (ioredis) and from edge runtimes (Upstash's HTTP client).
- */
 function toWebhook(raw: unknown): WebhookEndpoint | null {
   if (raw == null) return null
   if (typeof raw === 'string') {
@@ -62,12 +65,37 @@ function toWebhook(raw: unknown): WebhookEndpoint | null {
   return null
 }
 
+// Records are wrapped in an envelope so the read path is the same whether the client hands back
+// the raw JSON string (ioredis) or an already-parsed object (Upstash), whatever the value's type.
+const wrapRecord = (value: unknown): string => JSON.stringify({ flaghoistRecord: 1, value })
+
+function unwrapRecord(raw: unknown): unknown | null {
+  let parsed: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (parsed === null || typeof parsed !== 'object') return null
+  const envelope = parsed as { flaghoistRecord?: unknown; value?: unknown }
+  if (envelope.flaghoistRecord !== 1) return null
+  return envelope.value ?? null
+}
+
+/**
+ * A StorageAdapter backed by Redis. All flags live in a single hash, so reads and writes are
+ * simple hash commands and `list()` is one `hgetall` — no key scanning. Works from Node
+ * (ioredis) and from edge runtimes (Upstash's HTTP client).
+ */
 export function redisAdapter(
   client: RedisClientLike,
   options: RedisAdapterOptions = {},
 ): StorageAdapter {
   const hashKey = options.hashKey ?? 'flaghoist:flags'
   const whKey = options.webhookHashKey ?? 'flaghoist:webhooks'
+  const recPrefix = options.recordHashPrefix ?? 'flaghoist:records:'
 
   return {
     async get(key) {
@@ -108,6 +136,30 @@ export function redisAdapter(
         if (hook) hooks.push(hook)
       }
       return hooks
+    },
+
+    async getRecord(collection, id) {
+      assertRecordAddress(collection, id)
+      return unwrapRecord(await client.hget(recPrefix + collection, id))
+    },
+    async putRecord(collection, id, value) {
+      assertRecordAddress(collection, id)
+      await client.hset(recPrefix + collection, id, wrapRecord(value))
+    },
+    async deleteRecord(collection, id) {
+      assertRecordAddress(collection, id)
+      await client.hdel(recPrefix + collection, id)
+    },
+    async listRecords(collection) {
+      assertRecordAddress(collection)
+      const all = await client.hgetall(recPrefix + collection)
+      if (!all) return []
+      const entries: RecordEntry[] = []
+      for (const [id, raw] of Object.entries(all)) {
+        const value = unwrapRecord(raw)
+        if (value !== null) entries.push({ id, value })
+      }
+      return entries
     },
   }
 }

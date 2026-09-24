@@ -137,7 +137,7 @@ isolation you want.
 
 ### Built-in environments (one server, one backend)
 
-Pass `environments` to `createFlagServer` and every adapter above already knows what to do — no
+Pass `environments` to `createFlagServer` and every adapter above already knows what to do: no
 separate config, no second table to think about. The same key can be on in staging and off in
 production, sharing one storage instance:
 
@@ -161,8 +161,8 @@ environments are just a header away.
 
 ### Separate deployments (one server + backend per environment)
 
-For harder isolation — different databases, independent scaling, a compromised staging credential
-that can't even see production's storage — run one server per environment instead, each pointed at
+For harder isolation (different databases, independent scaling, a compromised staging credential
+that can't even see production's storage), run one server per environment instead, each pointed at
 its own adapter instance. Each adapter takes one code option that decides where its flags live:
 
 | Adapter       | Option    | Default           |
@@ -245,16 +245,35 @@ testStorageAdapter('my-db', () => myAdapter(freshClient()))
 For SQL adapters, use parameterized queries everywhere, and validate any table/identifier names:
 they cannot be parameterized and are the one place injection could enter.
 
-### Optional: persisting audit history and webhooks
+### Optional: audit history, webhooks and records
 
-Two more groups of methods are optional on `StorageAdapter`: `appendAudit`/`listAudit`, and
-`putWebhook`/`getWebhook`/`deleteWebhook`/`listWebhooks`. Implement neither, one, or both — whatever
-you skip falls back to an in-memory store instead (lost on restart, fine for local development, not
-for production). All five shipped adapters implement both groups; see their source for the shape.
+Three more groups of methods are optional on `StorageAdapter`:
 
-If you do implement the webhook methods, prove them with the matching, separately opt-in suite:
+- `appendAudit`/`listAudit`, for audit history
+- `putWebhook`/`getWebhook`/`deleteWebhook`/`listWebhooks`, for webhook endpoints
+- `getRecord`/`putRecord`/`deleteRecord`/`listRecords`, a generic record store: JSON values in
+  named collections, addressed by id
+
+Skip audit or webhooks and that data falls back to an in-memory store instead: lost on restart,
+fine for local development, not for production. All five shipped adapters implement all three
+groups; see their source for the shape. Collection names must pass `isValidCollectionName` and ids
+`isValidRecordId`, both exported from `@flaghoist/core`.
+
+Where each shipped adapter keeps records:
+
+| Adapter       | Location                                                  | Option             |
+| ------------- | --------------------------------------------------------- | ------------------ |
+| Cloudflare KV | keys `record:<collection>:<id>`                           | `recordPrefix`     |
+| Redis         | one hash per collection, `flaghoist:records:<collection>` | `recordHashPrefix` |
+| Postgres      | table `flaghoist_records`, made by `initPostgres`         | `recordTable`      |
+| SQLite        | table `flaghoist_records`, made by `initSqlite`           | `recordTable`      |
+| Memory        | in process, lost on restart                               |                    |
+
+Each optional group has its own opt-in conformance suite. Run the ones for the groups you
+implement:
 
 ```ts
-import { testWebhookStorage } from '@flaghoist/adapter-conformance'
+import { testRecordStorage, testWebhookStorage } from '@flaghoist/adapter-conformance'
 testWebhookStorage('my-db', () => myAdapter(freshClient()))
+testRecordStorage('my-db', () => myAdapter(freshClient()))
 ```

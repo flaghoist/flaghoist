@@ -12,7 +12,7 @@ import { sqliteAdapter, initSqlite } from '@flaghoist/adapter-sqlite'
 import Database from 'better-sqlite3'
 
 const db = new Database('flags.db')
-initSqlite(db) // creates the table if it does not exist
+initSqlite(db) // creates the tables if they do not exist
 
 createFlagServer({
   storage: sqliteAdapter(db),

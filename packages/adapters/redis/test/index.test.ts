@@ -1,4 +1,8 @@
-import { testStorageAdapter, testWebhookStorage } from '@flaghoist/adapter-conformance'
+import {
+  testRecordStorage,
+  testStorageAdapter,
+  testWebhookStorage,
+} from '@flaghoist/adapter-conformance'
 import { createFlag } from '@flaghoist/core'
 import { describe, expect, it } from 'vitest'
 import { redisAdapter, type RedisClientLike } from '../src/index'
@@ -31,8 +35,22 @@ class FakeRedis implements RedisClientLike {
   }
 }
 
+/** Like FakeRedis, but hands values back already JSON-parsed, the way Upstash's client does. */
+class FakeUpstash extends FakeRedis {
+  override async hget(key: string, field: string): Promise<string | null> {
+    const raw = await super.hget(key, field)
+    return raw === null ? null : (JSON.parse(raw) as string)
+  }
+  override async hgetall(key: string): Promise<Record<string, string>> {
+    const all = await super.hgetall(key)
+    return Object.fromEntries(Object.entries(all).map(([k, v]) => [k, JSON.parse(v) as string]))
+  }
+}
+
 testStorageAdapter('redis', () => redisAdapter(new FakeRedis()))
 testWebhookStorage('redis', () => redisAdapter(new FakeRedis()))
+testRecordStorage('redis', () => redisAdapter(new FakeRedis()))
+testRecordStorage('redis (Upstash-style client)', () => redisAdapter(new FakeUpstash()))
 
 describe('redisAdapter — specifics', () => {
   it('stores all flags under a single configurable hash key', async () => {
@@ -75,5 +93,14 @@ describe('redisAdapter — specifics', () => {
     await adapter.put('good', createFlag({ key: 'good', enabled: true }))
     expect(await adapter.get('broken')).toBeNull()
     expect((await adapter.list()).map((f) => f.key)).toEqual(['good'])
+  })
+
+  it('gives each record collection its own hash under a configurable prefix', async () => {
+    const client = new FakeRedis()
+    await redisAdapter(client).putRecord!('users', 'u1', { a: 1 })
+    expect(await client.hget('flaghoist:records:users', 'u1')).toBeTypeOf('string')
+
+    await redisAdapter(client, { recordHashPrefix: 'app:rec:' }).putRecord!('users', 'u2', {})
+    expect(await client.hget('app:rec:users', 'u2')).toBeTypeOf('string')
   })
 })

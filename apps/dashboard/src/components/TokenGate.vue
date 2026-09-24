@@ -6,6 +6,7 @@ defineProps<{ error?: string; connecting?: boolean; theme?: 'light' | 'dark' }>(
 const emit = defineEmits<{
   connect: [url: string, token: string]
   signIn: [url: string, email: string, password: string]
+  sso: [url: string]
   toggleTheme: []
 }>()
 
@@ -23,6 +24,9 @@ const config = ref<AuthConfig | null>(null)
 // 'password' only once the server has said it has accounts; every other server keeps the token form.
 const mode = ref<'password' | 'token'>('token')
 const firstField = ref<HTMLInputElement | null>(null)
+
+const sso = computed(() => (config.value?.accounts ? (config.value.sso ?? null) : null))
+const showPassword = computed(() => config.value?.passwordSignIn !== false)
 
 const insecureUrl = computed(() => {
   try {
@@ -128,8 +132,23 @@ function submit() {
           Plain HTTP sends your credentials in the clear. Use HTTPS in production.
         </p>
 
-        <template v-if="mode === 'password'">
-          <label class="label" :class="{ spaced: !servedByServer }" for="gate-email">Email</label>
+        <template v-if="mode === 'password' && sso">
+          <button
+            type="button"
+            class="btn btn-primary full sso-btn"
+            :class="{ spaced: !servedByServer }"
+            :disabled="connecting"
+            @click="emit('sso', url.trim())"
+          >
+            {{ connecting ? 'Signing in' : `Continue with ${sso.label}` }}
+          </button>
+          <p v-if="showPassword" class="divider"><span>or</span></p>
+        </template>
+
+        <template v-if="mode === 'password' && showPassword">
+          <label class="label" :class="{ spaced: !servedByServer && !sso }" for="gate-email"
+            >Email</label
+          >
           <input
             id="gate-email"
             ref="firstField"
@@ -176,8 +195,10 @@ function submit() {
         <p v-if="error" class="err" role="alert">{{ error }}</p>
 
         <button
+          v-if="mode === 'token' || showPassword"
           type="submit"
-          class="btn btn-primary full connect"
+          class="btn full connect"
+          :class="mode === 'password' && sso ? 'btn-ghost' : 'btn-primary'"
           :disabled="connecting || (mode === 'password' ? !email || !password : !token)"
         >
           <template v-if="mode === 'password'">{{
@@ -192,7 +213,13 @@ function submit() {
           class="btn btn-quiet full switch"
           @click="useToken(mode === 'password')"
         >
-          {{ mode === 'password' ? 'Use an access token' : 'Sign in with email' }}
+          {{
+            mode === 'password'
+              ? 'Use an access token'
+              : showPassword
+                ? 'Sign in with email'
+                : 'Back to sign in'
+          }}
         </button>
 
         <details v-if="servedByServer" class="advanced">
@@ -209,8 +236,11 @@ function submit() {
     </div>
 
     <p class="fine">
-      <template v-if="mode === 'password'"
+      <template v-if="mode === 'password' && showPassword"
         >Your password is hashed in this browser and never sent to the server.</template
+      >
+      <template v-else-if="mode === 'password'"
+        >You sign in with your company account, then come back here.</template
       >
       <template v-else
         >The token stays in this browser. It is never sent anywhere but your server.</template
@@ -291,6 +321,21 @@ function submit() {
 }
 .switch {
   margin-top: 0.5rem;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1rem 0 0.2rem;
+  font-size: 0.75rem;
+  color: var(--text-mute);
+}
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
 }
 .note {
   margin: 0 0 0.85rem;

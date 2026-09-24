@@ -6,6 +6,8 @@ export {
   flagEtag,
   flagState,
   inviteLink,
+  newBrowserSecret,
+  sha256Base64Url,
   OPERATORS,
   type AccessToken,
   type AccountSession,

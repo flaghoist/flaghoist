@@ -21,6 +21,10 @@ const user = computed(() => props.me.user)
 // Password and sessions belong to a dashboard sign-in. Signed in with an access token, the account
 // is known but those actions need the password session.
 const hasSession = computed(() => props.me.session !== null)
+// SSO-only accounts have no password to change, and with password sign-in off nobody does.
+const canChangePassword = computed(
+  () => props.me.passwordSignIn !== false && props.me.user?.hasPassword !== false,
+)
 
 /* ---- first owner -------------------------------------------------------- */
 
@@ -272,6 +276,14 @@ onMounted(() => {
           <span class="setting-label">Role</span>
           <span class="role-badge">{{ user.role }}</span>
         </div>
+        <div v-if="user.sso" class="setting-row">
+          <span class="setting-label">Sign-in</span>
+          <span class="setting-value"
+            >SSO<template v-if="user.roleManagedBy === 'sso'">
+              · role set by your identity provider's groups</template
+            ></span
+          >
+        </div>
         <p v-if="!hasSession" class="hint spaced-hint">
           Signed in with the access token <strong>{{ me.token?.name }}</strong
           ><template v-if="me.role !== user.role"> as {{ me.role }}</template
@@ -335,7 +347,7 @@ onMounted(() => {
       </form>
     </section>
 
-    <section v-if="user && hasSession" class="section">
+    <section v-if="user && hasSession && canChangePassword" class="section">
       <h2>Password</h2>
       <form class="form" @submit.prevent="changePassword">
         <input

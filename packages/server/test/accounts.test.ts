@@ -98,6 +98,8 @@ describe('first account', () => {
     expect(before).toEqual({
       accounts: true,
       password: { kdf: 'pbkdf2-sha256', iterations: 600000 },
+      passwordSignIn: true,
+      sso: null,
       setupRequired: true,
     })
     await setupOwner(app)

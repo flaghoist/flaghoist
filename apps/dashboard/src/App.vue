@@ -5,6 +5,8 @@ import {
   createAdminClient,
   createAuthClient,
   flagEtag,
+  newBrowserSecret,
+  sha256Base64Url,
   type AdminClient,
   type ExportedFlag,
   type ExportPayload,
@@ -75,6 +77,69 @@ function readAcceptLink(): { token: string; server: string } | null {
 }
 
 const acceptLink = ref(readAcceptLink())
+
+/* ---- SSO (#sso=<code> or #sso_error=<message> on the way back) --------------- */
+
+const SSO_ATTEMPT = 'flaghoist.sso'
+
+/**
+ * Send the browser to the server's SSO start. The tab keeps a random secret; only its hash goes
+ * out, and the code that comes back is useless without the secret, so a sign-in someone else
+ * started cannot be completed in this tab.
+ */
+async function startSso(url: string) {
+  connecting.value = true
+  gateError.value = ''
+  const secret = newBrowserSecret()
+  try {
+    sessionStorage.setItem(SSO_ATTEMPT, JSON.stringify({ secret, url }))
+  } catch {
+    gateError.value = 'This browser blocked session storage, which SSO sign-in needs.'
+    connecting.value = false
+    return
+  }
+  const returnTo = `${window.location.origin}${window.location.pathname}${window.location.search}`
+  window.location.assign(
+    createAuthClient({ url }).ssoStartUrl(returnTo, await sha256Base64Url(secret)),
+  )
+}
+
+/** Finish an SSO sign-in the provider just sent back. Returns true when there was one to finish. */
+function finishSso(): boolean {
+  const params = new URLSearchParams(window.location.hash.slice(1))
+  const code = params.get('sso')
+  const failure = params.get('sso_error')
+  if (!code && !failure) return false
+  history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  let attempt: { secret: string; url: string } | null = null
+  try {
+    attempt = JSON.parse(sessionStorage.getItem(SSO_ATTEMPT) ?? 'null')
+    sessionStorage.removeItem(SSO_ATTEMPT)
+  } catch {
+    attempt = null
+  }
+  if (failure) {
+    gateError.value = failure
+    loading.value = false
+    return true
+  }
+  if (!attempt) {
+    gateError.value = 'This sign-in started in another tab. Start it again here.'
+    loading.value = false
+    return true
+  }
+  const { secret, url } = attempt
+  connecting.value = true
+  void createAuthClient({ url })
+    .exchangeSso(code!, secret)
+    .then((result) => connect(url, result.token))
+    .catch((e: unknown) => {
+      gateError.value = describe(e)
+      connecting.value = false
+      loading.value = false
+    })
+  return true
+}
 
 function clearAcceptLink() {
   acceptLink.value = null
@@ -812,6 +877,8 @@ onMounted(() => {
 
   localStorage.removeItem(STORAGE)
 
+  if (finishSso()) return
+
   const saved = sessionStorage.getItem(STORAGE)
   if (!saved) {
     loading.value = false
@@ -870,6 +937,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
     :theme="resolvedTheme()"
     @connect="(u, t) => connect(u, t)"
     @sign-in="(u, e, p) => signIn(u, e, p)"
+    @sso="startSso"
     @toggle-theme="toggleTheme"
   />
 

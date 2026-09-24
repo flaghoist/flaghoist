@@ -19,7 +19,10 @@ To manage a different server, open **Advanced** and change the server URL.
 
 When the server has [user accounts](/auth/#user-accounts) turned on, the sign-in screen asks for
 your email and password instead, and **Use an access token** switches back to the token. Your
-password is hashed in the browser and never sent to the server.
+password is hashed in the browser and never sent to the server. With
+[single sign-on](/auth/#user-accounts) set up, **Continue with ...** sends you to your identity
+provider and back, signed in; if the server is SSO only, that is the only button apart from the
+access token.
 
 ![The Flaghoist dashboard listing five flags, each with a toggle, a rollout slider, and a percentage.](/shot-flags.png)
 

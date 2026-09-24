@@ -120,6 +120,10 @@ export interface AuthConfig {
   /** Whether the server has user accounts. False means a shared admin token is the only way in. */
   accounts: boolean
   password?: { kdf: string; iterations: number }
+  /** False when the server only allows SSO. */
+  passwordSignIn?: boolean
+  /** SSO is available, with the name to put on its button. */
+  sso?: { label: string } | null
   /** Accounts are on but none exist yet: sign in with the admin token and create the first one. */
   setupRequired?: boolean
 }
@@ -130,6 +134,12 @@ export interface AccountUser {
   name: string
   role: string
   status: string
+  /** Whether the account has a password. SSO-only accounts do not. */
+  hasPassword?: boolean
+  /** Whether the account has signed in with SSO. */
+  sso?: boolean
+  /** `sso` when the identity provider's groups decide the role, so it cannot be changed here. */
+  roleManagedBy?: 'sso'
   createdAt: string
   lastLoginAt?: string
 }
@@ -146,6 +156,8 @@ export interface Me {
   identity: string
   role: string | null
   accounts: boolean
+  /** False when the server only allows SSO sign-in. */
+  passwordSignIn?: boolean
   /** The signed-in account. Null for the admin token or any other non-account credential. */
   user: AccountUser | null
   session: { id: string; createdAt: string; expiresAt: string } | null
@@ -243,6 +255,13 @@ export interface AuthClient {
    * in. The password is stretched here and never sent.
    */
   acceptLink(token: string, input: { name?: string; password: string }): Promise<SignInResult>
+  /**
+   * Where to send the browser to sign in with SSO. `returnTo` is the dashboard address to come back
+   * to; `browserHash` is `sha256Base64Url(secret)` for a secret this tab keeps until it returns.
+   */
+  ssoStartUrl(returnTo: string, browserHash: string): string
+  /** Trade the code SSO sends back for a session. Only the tab holding the secret can. */
+  exchangeSso(code: string, browserSecret: string): Promise<SignInResult>
 }
 
 export interface AdminClient {
@@ -462,6 +481,17 @@ export function inviteLink(dashboardUrl: string, token: string): string {
   return `${dashboardUrl.replace(/#.*$/, '')}#accept=${encodeURIComponent(token)}`
 }
 
+/** SHA-256 of a string, base64url encoded: the form `ssoStartUrl` wants the tab secret in. */
+export async function sha256Base64Url(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return toBase64Url(new Uint8Array(digest))
+}
+
+/** A fresh random secret for an SSO attempt, kept by the tab that starts it. */
+export function newBrowserSecret(): string {
+  return toBase64Url(crypto.getRandomValues(new Uint8Array(32)))
+}
+
 /** A client for signing in, which needs no credential. */
 export function createAuthClient(
   options: Omit<AdminClientOptions, 'token' | 'environment'>,
@@ -515,6 +545,20 @@ export function createAuthClient(
         await request('/api/v1/invites/accept', {
           method: 'POST',
           body: JSON.stringify({ token, name: input.name, salt, clientKey }),
+        }),
+      )) as SignInResult
+    },
+
+    ssoStartUrl(returnTo, browserHash) {
+      const base = options.url.replace(/\/+$/, '')
+      return `${base}/api/v1/auth/sso/start?return=${encodeURIComponent(returnTo)}&browser=${browserHash}`
+    },
+
+    async exchangeSso(code, browserSecret) {
+      return (await readJson(
+        await request('/api/v1/auth/sso/exchange', {
+          method: 'POST',
+          body: JSON.stringify({ code, browserSecret }),
         }),
       )) as SignInResult
     },

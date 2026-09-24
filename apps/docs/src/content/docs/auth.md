@@ -172,6 +172,27 @@ choose "never" on purpose. The server keeps only a hash and shows each token onc
 each was last used. Use one anywhere the admin token went: `Authorization: Bearer fh_pat_...`,
 `FLAGS_ADMIN_TOKEN` for the CLI, `FLAGHOIST_ADMIN_TOKEN` for the MCP server.
 
+**Single sign-on.** Add `users.sso` and the sign-in screen offers **Continue with ...** your
+identity provider (Okta, Microsoft Entra, Google, Auth0, Keycloak, or any OpenID Connect
+provider). Setup for each is on [OIDC provider setup](/oidc-providers/#dashboard-sign-in-sso).
+
+- **Accounts** are created at first sign-in when the email domain is in `allowedDomains` and the
+  provider says the email is verified. Someone who already has a password account is linked to it
+  by email; someone with an open invite joins with the invited role.
+- **Roles** come from the provider when you set `roleMapping` (group name to role). They are
+  applied at every sign-in, the highest mapped role wins, and they cannot be changed on the Members
+  page. Someone in no mapped group is refused unless you set `defaultRole`. Without `roleMapping`,
+  new people get `defaultRole` and roles are managed in Flaghoist.
+- **SSO only**: `passwordSignIn: false` turns off passwords for everyone, invites included (the
+  invited person signs in with SSO instead). The admin token still works, as the way back in if the
+  provider is down.
+- **How it is secured**: the authorization code flow with PKCE, run by the server, so a client
+  secret never reaches the browser. The ID token's signature, issuer, audience, expiry and nonce
+  are checked. Flaghoist uses no cookies: what the server needs when the person comes back travels
+  encrypted in the `state` parameter, and the sign-in can only be finished in the tab that started
+  it. The session token is never put in a URL.
+- For the CLI and scripts, people who sign in with SSO create an access token on the Account page.
+
 **The admin token stays.** `auth.admin` keeps working as a break-glass Owner credential for
 recovery, and the audit log records its changes as `owner (break-glass)` so they stand out. The
 dashboard offers it under **Use an access token**.

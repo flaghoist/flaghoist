@@ -275,8 +275,10 @@ describe('Account page', () => {
 
   it('offers to create the owner account when signed in with the admin token', async () => {
     const api = client({ createOwner: vi.fn(async () => ADA.user!) })
-    const tokenMe: Me = { ...ADA, identity: 'owner (break-glass)', user: null, session: null }
+    const tokenMe: Me = { ...ADA, identity: 'admin token', user: null, session: null }
     const wrapper = mount(AccountPage, { props: { api, me: tokenMe, setupRequired: true } })
+    expect(wrapper.text()).toContain('You are signed in with the admin token, not with an account.')
+    expect(wrapper.text()).not.toContain('break-glass')
     await wrapper.find('#owner-email').setValue('ada@example.com')
     await wrapper.find('#owner-password').setValue('correct horse battery')
     await wrapper.find('#owner-confirm').setValue('correct horse battery')

@@ -236,8 +236,8 @@ provider). Setup for each is on [OIDC provider setup](/oidc-providers/#dashboard
   it. The session token is never put in a URL.
 - For the CLI and scripts, people who sign in with SSO create an access token on the Account page.
 
-**The admin token stays.** `auth.admin` keeps working as a break-glass Owner credential for
-recovery, and the audit log records its changes as `owner (break-glass)` so they stand out. The
+**The admin token stays.** `auth.admin` keeps working as an Owner credential for
+recovery, and the audit log records its changes as `admin token` so they stand out. The
 dashboard offers it under **Use an access token**.
 
 **How passwords are handled.** The password never leaves the browser. The dashboard stretches it

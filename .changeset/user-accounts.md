@@ -10,8 +10,8 @@ password, and every change is recorded against their email. Passwords are hashed
 with PBKDF2 and never reach the server, which stores only a keyed HMAC, so sign-in fits the
 Cloudflare Workers free plan. Sessions are revocable, end after 30 idle minutes or 12 hours, and
 are listed on a new Account page along with a password change form. Failed sign-ins are throttled
-per email and per IP. The admin token stays as a break-glass Owner credential, creates the first
-account, and is recorded as `owner (break-glass)`. The server refuses to start with `users` set on
+per email and per IP. The admin token stays as an Owner credential for recovery, creates the first
+account, and is recorded as `admin token`. The server refuses to start with `users` set on
 a storage adapter without the record store.
 
 Sign-ins, password changes and webhook changes go to a new security log, read with

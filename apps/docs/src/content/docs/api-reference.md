@@ -186,7 +186,7 @@ curl "https://team-flags.you.workers.dev/api/v1/audit?limit=20&flagKey=new-check
 ```
 
 `actor` is the identity your auth verifier returned (an email for OIDC or a signed-in account,
-`admin` for a bare bearer token, `owner (break-glass)` for that token once accounts are on; never `api-key`, since the audit log only covers admin writes). By default
+`admin` for a bare bearer token, `admin token` for that token once accounts are on; never `api-key`, since the audit log only covers admin writes). By default
 entries live in an in-memory ring buffer (last 500, lost on restart); implement
 `appendAudit`/`listAudit` on your storage adapter to persist them (the memory adapter already does,
 for local development).

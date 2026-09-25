@@ -90,7 +90,7 @@ export interface ServerConfig {
    * Turn on user accounts: people sign in to the dashboard with an email and password, get a role,
    * and every change is recorded against their email. Needs a storage adapter with the record
    * store (every bundled adapter has one) and a `pepper` secret. The `auth.admin` verifier keeps
-   * working as a break-glass Owner credential, for creating the first account and for recovery.
+   * working as an Owner credential, for creating the first account and for recovery.
    *
    * Omit to keep the single shared admin token, exactly as before.
    */

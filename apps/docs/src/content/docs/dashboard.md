@@ -118,6 +118,9 @@ removes the member. Owners are listed but only an owner can change them, and you
 controls. Someone opening an invite or reset link sees a short form to set their password, then
 lands in the dashboard signed in.
 
+With more than one environment, each member row also has a role per environment (the main role
+unless you pick another), and the dashboard follows the role for the environment you are viewing.
+
 The dashboard follows your role: viewers see flags with the switches turned off, editors do not see
 import or delete, and Webhooks and Members appear only for admins and owners. The server checks
 every action regardless.

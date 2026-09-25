@@ -100,16 +100,16 @@ password; pass it with `--code` where there is no terminal. A recovery code work
 On a server with [user accounts](/auth/#user-accounts) turned on, with the same `FLAGS_URL` and a
 token for the admin role or higher:
 
-| Command                                          | Description                                    |
-| ------------------------------------------------ | ---------------------------------------------- |
-| `flaghoist users list`                           | Members and open invites                       |
-| `flaghoist users invite <email> [--role <role>]` | Print an invite link (role defaults to viewer) |
-| `flaghoist users role <email> <role>`            | Change a member's role                         |
-| `flaghoist users disable <email>`                | Block sign-in and end their sessions           |
-| `flaghoist users enable <email>`                 | Allow sign-in again                            |
-| `flaghoist users remove <email>`                 | Remove a member                                |
-| `flaghoist users reset <email>`                  | Print a password reset link (valid 24 hours)   |
-| `flaghoist users revoke <email>`                 | Cancel an open invite                          |
+| Command                                          | Description                                                           |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| `flaghoist users list`                           | Members and open invites                                              |
+| `flaghoist users invite <email> [--role <role>]` | Print an invite link (role defaults to viewer)                        |
+| `flaghoist users role <email> <role> [--env E]`  | Change a role; with `--env`, in one environment (`default` clears it) |
+| `flaghoist users disable <email>`                | Block sign-in and end their sessions                                  |
+| `flaghoist users enable <email>`                 | Allow sign-in again                                                   |
+| `flaghoist users remove <email>`                 | Remove a member                                                       |
+| `flaghoist users reset <email>`                  | Print a password reset link (valid 24 hours)                          |
+| `flaghoist users revoke <email>`                 | Cancel an open invite                                                 |
 
 Links point at the dashboard the server serves at `/admin`.
 

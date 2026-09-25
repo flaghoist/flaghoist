@@ -327,6 +327,43 @@ describe('SSO sign-in', () => {
   })
 })
 
+describe('SSO and environment roles', () => {
+  it('lets an admin give a group-managed member a different role in one environment', async () => {
+    const app = createFlagServer({
+      storage: memoryAdapter(),
+      auth: { admin: bearerToken(ADMIN_TOKEN), read: apiKey('read-key-for-tests-0123') },
+      environments: ['production', 'staging'],
+      users: {
+        pepper: PEPPER,
+        sso: { issuer: ISSUER, clientId: CLIENT_ID, roleMapping: { engineering: 'viewer' } },
+      },
+    })
+    const { user } = await sessionFor(app, claimsFor('a@acme.com', ['engineering']))
+    const mainRole = await call(
+      app,
+      'PUT',
+      `/api/v1/users/${user.id}`,
+      { role: 'editor' },
+      ADMIN_TOKEN,
+    )
+    expect(mainRole.status).toBe(409)
+    const perEnv = await call(
+      app,
+      'PUT',
+      `/api/v1/users/${user.id}`,
+      { environmentRoles: { staging: 'editor' } },
+      ADMIN_TOKEN,
+    )
+    expect(perEnv.status).toBe(200)
+    // The next sign-in re-applies the group role and keeps the environment role.
+    const again = await sessionFor(app, claimsFor('a@acme.com', ['engineering']))
+    const me = await json<{ environmentRoles: Record<string, string> }>(
+      call(app, 'GET', '/api/v1/auth/me', undefined, again.token),
+    )
+    expect(me.environmentRoles).toEqual({ production: 'viewer', staging: 'editor' })
+  })
+})
+
 describe('what SSO refuses', () => {
   it('a hand-back used from another tab', async () => {
     const app = makeServer()

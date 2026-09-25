@@ -266,11 +266,13 @@ async function runUsersCommand(args: string[]): Promise<void> {
       url: { type: 'string' },
       token: { type: 'string' },
       role: { type: 'string' },
+      env: { type: 'string' },
     },
   })
   const client = clientFrom(values)
   const url = serverFrom(values)
-  for (const line of await runUsers(client, url, positionals, { role: values.role })) {
+  const options = { role: values.role, env: values.env }
+  for (const line of await runUsers(client, url, positionals, options)) {
     console.log(line)
   }
 }

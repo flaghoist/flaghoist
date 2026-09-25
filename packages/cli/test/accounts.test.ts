@@ -34,10 +34,11 @@ function totpNow(secret: string): string {
 const URL = 'http://flaghoist.local'
 
 // End to end through the real client: PBKDF2 at full strength in the client, HMAC on the server.
-function setup(withUsers = true) {
+function setup(withUsers = true, environments?: string[]) {
   const app = createFlagServer({
     storage: memoryAdapter(),
     auth: { admin: bearerToken(ADMIN_TOKEN), read: apiKey('read-key-for-tests-0123') },
+    ...(environments ? { environments } : {}),
     ...(withUsers ? { users: { pepper: 'pepper-for-tests-0123456789abcdef0123456789' } } : {}),
   })
   const fetch = async (input: string, init?: RequestInit) => app.request(input, init)
@@ -236,5 +237,25 @@ describe('flaghoist login with two-factor', () => {
     })
     expect(asked).toEqual(['code'])
     expect(result.token.startsWith('fh_pat_')).toBe(true)
+  })
+})
+
+describe('flaghoist users role --env', () => {
+  it('sets and clears a role in one environment', async () => {
+    const { auth, admin } = setup(true, ['production', 'staging'])
+    const owner = admin(ADMIN_TOKEN)
+    const [, link] = await runUsers(owner, URL, ['invite', 'v@example.com'], { role: 'viewer' })
+    await auth.acceptLink(decodeURIComponent(link!.split('#accept=')[1]!), {
+      password: 'correct horse battery',
+    })
+    expect(
+      await runUsers(owner, URL, ['role', 'v@example.com', 'editor'], { env: 'staging' }),
+    ).toEqual(['v@example.com is editor in staging.'])
+    expect(
+      await runUsers(owner, URL, ['role', 'v@example.com', 'default'], { env: 'staging' }),
+    ).toEqual(['v@example.com has their main role (viewer) in staging.'])
+    await expect(
+      runUsers(owner, URL, ['role', 'v@example.com', 'owner'], { env: 'staging' }),
+    ).rejects.toThrow(/viewer, editor or admin/)
   })
 })

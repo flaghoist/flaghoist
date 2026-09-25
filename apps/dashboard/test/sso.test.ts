@@ -122,7 +122,8 @@ describe('the SSO round trip', () => {
     const wrapper = mount(App, { attachTo: document.body })
     await flushPromises()
     await wrapper.find('.sso-btn').trigger('click')
-    await flushPromises()
+    // Hashing the secret finishes on a later tick than flushPromises covers on a slow machine.
+    await vi.waitFor(() => expect(assign).toHaveBeenCalled())
     const attempt = JSON.parse(sessionStorage.getItem('flaghoist.sso')!) as { secret: string }
     const [, hash] = vi.mocked(auth.ssoStartUrl).mock.calls[0]!
     expect(hash).toMatch(/^[A-Za-z0-9_-]{43}$/)

@@ -1,5 +1,23 @@
 # @flaghoist/mcp
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [c7c4e6e]
+- Updated dependencies [ee48117]
+- Updated dependencies [83487f3]
+- Updated dependencies [5346548]
+- Updated dependencies [5346548]
+- Updated dependencies [5346548]
+- Updated dependencies [df25e09]
+- Updated dependencies [e16e668]
+- Updated dependencies [2840fc2]
+- Updated dependencies [3f47819]
+- Updated dependencies [af9fdf7]
+- Updated dependencies [5346548]
+  - @flaghoist/admin-client@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

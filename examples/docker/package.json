@@ -8,11 +8,11 @@
     "start": "node server.mjs"
   },
   "dependencies": {
-    "@flaghoist/adapter-memory": "^0.1.2",
-    "@flaghoist/adapter-postgres": "^0.1.2",
-    "@flaghoist/adapter-redis": "^0.1.2",
+    "@flaghoist/adapter-memory": "^0.2.0",
+    "@flaghoist/adapter-postgres": "^0.2.0",
+    "@flaghoist/adapter-redis": "^0.2.0",
     "@flaghoist/adapter-sqlite": "workspace:*",
-    "@flaghoist/server": "^0.3.0",
+    "@flaghoist/server": "^0.4.0",
     "@hono/node-server": "^2.1.1",
     "better-sqlite3": "^11.0.0",
     "ioredis": "^5.4.0",

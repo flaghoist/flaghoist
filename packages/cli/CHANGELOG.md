@@ -1,5 +1,79 @@
 # flaghoist
 
+## 0.4.0
+
+### Minor Changes
+
+- c7c4e6e: Add personal access tokens. Members create `fh_pat_` tokens for the CLI, the MCP server and
+  scripts, from the Account page or `POST /api/v1/tokens`. A token acts as its owner, so changes are
+  attributed to them; it can have a lower role than its owner but never a higher one, and the owner's
+  current role caps it on every request, so demoting, disabling or removing someone narrows or stops
+  their tokens. Tokens expire after 90 days by default (1 to 3650 days, or never on purpose), are
+  stored only as hashes, show when they were last used, and are audited when created, revoked or
+  expired.
+  
+  The CLI adds `flaghoist login` (email and password, hashed locally; saves a token in the user
+  config folder, readable only by you), `flaghoist logout` (revokes it), and
+  `flaghoist tokens list | create | revoke`. Commands fall back to the saved token when no `--token`
+  or `FLAGS_ADMIN_TOKEN` is given.
+- 83487f3: Add roles per environment. With environments configured, a member can have a different role in
+  some of them, such as editor in staging for a viewer, or read-only in production for an editor.
+  It applies to that environment's flags, exports, imports and flag history; members, webhooks and
+  the security log keep using the main role, and owners have full access everywhere. Set it with
+  `environmentRoles` on `PUT /api/v1/users/{id}`, on the Members page, or with
+  `flaghoist users role <email> <role> --env <environment>`. Access tokens still cap it, and
+  `GET /api/v1/auth/me` reports the role per environment so the dashboard follows the environment
+  being viewed. Changes are recorded in the security log.
+- df25e09: Add member events on webhooks and an optional email sender. Webhooks can subscribe to
+  `member.invited`, `member.joined`, `member.role_changed`, `member.disabled`, `member.enabled` and
+  `member.removed`, with a `member` object in the payload. They are opt-in and never part of the
+  default event list, so existing receivers only ever see flag events. Sign-ins, passwords, two-factor
+  and access tokens are never sent to webhooks.
+  
+  `users.email` takes an object with `send({ to, subject, text, html })`; invites and password reset
+  links are then emailed as well as shown, to the dashboard address the admin is using when its origin
+  is allowed. No provider is bundled; the docs show Resend and Postmark in a few lines. A failed send
+  is logged and the link still returned, and responses say whether the link was `emailed`.
+- e16e668: Add invites and member management for user accounts. Admins create single-use invite links
+  (bound to one email, valid 7 days by default via `users.invites.expiresInDays`) and pass them on
+  themselves; opening one sets a password and signs in. A new Members page and
+  `flaghoist users` commands change roles, disable, enable and remove members, and create 24-hour
+  password reset links that sign out the member's other sessions. Only an owner can grant or act on
+  the owner role, the last active owner cannot be demoted, disabled or removed, and nobody can
+  change their own role. Demoting or disabling a member signs them out. Link tokens are stored only
+  as hashes. Every change is recorded in the security log.
+  
+  The dashboard now follows the signed-in role: viewers see flags read-only, editors do not see
+  import or delete, and Webhooks and Members appear only for admins and owners.
+- 3f47819: Add two-factor sign-in for password accounts. Members set up codes from an authenticator app on
+  the Account page (a QR code, one confirming code, and ten recovery codes shown once); signing in
+  then asks for the current code after the password, in the dashboard and in `flaghoist login`
+  (`--code` where there is no terminal). Codes work once, wrong codes count toward the sign-in
+  lockout, recovery codes are single use, the secret is stored encrypted with a key derived from the
+  pepper, and recovery codes only as hashes. `users.twoFactor: 'admins' | 'everyone'` makes it
+  required; anyone who must have it is asked to set it up at their next sign-in and can do nothing
+  else until they have. SSO sign-ins are exempt. Admins can turn it off for a member who lost their
+  device, which signs them out everywhere. All of it is recorded in the security log.
+  
+  `signIn` and `acceptLink` in `@flaghoist/admin-client` now return a `TwoFactorChallenge` for such
+  accounts; check with `isTwoFactorChallenge` and finish with `completeTwoFactor`.
+
+### Patch Changes
+
+- Updated dependencies [c7c4e6e]
+- Updated dependencies [ee48117]
+- Updated dependencies [83487f3]
+- Updated dependencies [5346548]
+- Updated dependencies [5346548]
+- Updated dependencies [5346548]
+- Updated dependencies [df25e09]
+- Updated dependencies [e16e668]
+- Updated dependencies [2840fc2]
+- Updated dependencies [3f47819]
+- Updated dependencies [af9fdf7]
+- Updated dependencies [5346548]
+  - @flaghoist/admin-client@0.3.0
+
 ## 0.3.1
 
 ### Patch Changes

@@ -245,6 +245,24 @@ a minute and only with the tab's secret. `GET /api/v1/auth/config` reports
 with `code: "password_disabled"`. Changing the role of someone whose role comes from SSO groups
 answers `409` with `code: "managed_by_sso"`.
 
+### Two-factor sign-in
+
+| Method   | Path                                   | Auth    | Purpose                                                     |
+| -------- | -------------------------------------- | ------- | ----------------------------------------------------------- |
+| `POST`   | `/api/v1/auth/login/two-factor`        | none    | `{ challenge, code }` returns `{ token, expiresAt, user }`  |
+| `POST`   | `/api/v1/me/two-factor/setup`          | session | Returns `{ secret, uri }` for the authenticator app         |
+| `POST`   | `/api/v1/me/two-factor/confirm`        | session | `{ code }` turns it on and returns `{ recoveryCodes }` once |
+| `POST`   | `/api/v1/me/two-factor/recovery-codes` | session | `{ code }` replaces the recovery codes                      |
+| `DELETE` | `/api/v1/me/two-factor`                | session | `{ code }` turns it off, unless the role requires it        |
+| `DELETE` | `/api/v1/users/{id}/two-factor`        | admin   | Turn it off for a member and sign them out everywhere       |
+
+For an account with two-factor on, `POST /api/v1/auth/login` (and accepting a reset link) returns
+`{ twoFactorRequired: true, challenge }` instead of a session. The challenge lasts five minutes.
+`code` is the six digits from the app or a recovery code. A wrong code answers `401` with
+`code: "invalid_code"`. A password session that must set two-factor up gets `403` with
+`code: "two_factor_setup_required"` from every route except its own account routes;
+`GET /api/v1/auth/me` reports `twoFactor: { enabled, required, setupRequired }`.
+
 ### Access tokens
 
 Signed in with an account (a session or another access token). The admin token has none.

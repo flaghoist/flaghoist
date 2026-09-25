@@ -92,6 +92,7 @@ async function runLogin(args: string[]): Promise<void> {
       url: { type: 'string' },
       email: { type: 'string' },
       'password-stdin': { type: 'boolean' },
+      code: { type: 'string' },
     },
   })
   const url = values.url ?? process.env.FLAGS_URL
@@ -110,6 +111,18 @@ async function runLogin(args: string[]): Promise<void> {
     email,
     password,
     tokenName: `flaghoist CLI on ${hostname()}`,
+    twoFactorCode: async () => {
+      if (values.code) return values.code
+      if (!process.stdin.isTTY) {
+        throw new Error('This account uses two-factor codes. Pass the current one with --code.')
+      }
+      const rl = createInterface({ input: process.stdin, output: process.stdout })
+      try {
+        return (await rl.question('Two-factor code (or a recovery code): ')).trim()
+      } finally {
+        rl.close()
+      }
+    },
   })
   const path = credentialsPath()
   saveCredential(path, url, {
@@ -515,7 +528,7 @@ Scaffolding
   deploy [--target T]      Deploy (prompts for the platform; T is cloudflare or other)
 
 Signing in, on a server with user accounts
-  login [--url U] [--email E] [--password-stdin]
+  login [--url U] [--email E] [--password-stdin] [--code C]
                                Sign in and save a personal access token for this server
   logout [--url U]             Revoke that token and forget it
 ${TOKENS_USAGE}

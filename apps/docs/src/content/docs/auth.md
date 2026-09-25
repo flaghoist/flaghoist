@@ -211,14 +211,30 @@ page lists your sessions and signs out any of them. Changing your password signs
 On Cloudflare KV a sign-out can take up to about a minute to reach every location, because KV
 itself is eventually consistent.
 
+**Two-factor sign-in.** Members who sign in with a password can add a code from an authenticator
+app (1Password, Google Authenticator, Authy and others) on the **Account** page: scan the QR code,
+enter one code to confirm, and save the ten one-time recovery codes shown. After that, signing in
+asks for the current code after the password, in the dashboard and in `flaghoist login`. A code
+works once, wrong codes count toward the sign-in lockout below, and a recovery code signs in once
+when the device is lost. The secret is stored encrypted with a key derived from the pepper, and
+recovery codes only as hashes. A password reset link replaces the password but keeps two-factor
+on.
+
+Set `users.twoFactor` to require it: `'admins'` for admins and owners, or `'everyone'`. Someone
+who must use it but has not set it up is asked to at their next sign-in, and can do nothing else
+until they have, including creating access tokens. SSO sign-ins are exempt; the identity provider's
+own two-factor covers them. If someone loses their device and their recovery codes, an admin turns
+two-factor off for them on the **Members** page (an owner for an owner), which signs them out
+everywhere; they sign in with their password and set it up again.
+
 **Failed sign-ins.** After five failures for one email within 15 minutes, that email is locked for
 30 seconds, doubling with each further failure up to 15 minutes. Thirty failures from one IP address
 lock that address for 15 minutes. Unknown emails are locked and answered exactly like real ones, so
 neither the response nor the lockout reveals which accounts exist.
 
 **Security log.** Sign-ins, failed sign-ins, sign-outs, password changes and resets, invites,
-member changes, access tokens created, revoked or expired, and webhook changes go to a separate
-security log. Admins and owners see it under **Audit log**,
+member changes, access tokens created, revoked or expired, two-factor turned on, off or reset and
+recovery codes used, and webhook changes go to a separate security log. Admins and owners see it under **Audit log**,
 **Security**; see the [API reference](/api-reference/#audit-log).
 
 ## Security notes

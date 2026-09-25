@@ -1,11 +1,36 @@
 import { memoryAdapter } from '@flaghoist/adapter-memory'
-import { ApiError, createAdminClient, createAuthClient } from '@flaghoist/admin-client'
+import {
+  ApiError,
+  createAdminClient,
+  createAuthClient,
+  isTwoFactorChallenge,
+} from '@flaghoist/admin-client'
 import { apiKey, bearerToken, createFlagServer } from '@flaghoist/server'
 import { describe, expect, it } from 'vitest'
+import { createHmac } from 'node:crypto'
 import { loginForToken, runTokens } from '../src/tokens'
 import { runUsers } from '../src/users'
 
 const ADMIN_TOKEN = 'break-glass-token-for-tests-0123456789'
+
+/** The session token from a sign-in that needs no second step. */
+function tokenOf(result: Awaited<ReturnType<ReturnType<typeof createAuthClient>['signIn']>>) {
+  if (isTwoFactorChallenge(result)) throw new Error('unexpected two-factor challenge')
+  return result.token
+}
+
+/** The current six-digit code for a base32 secret (RFC 6238, SHA-1, 30 seconds). */
+function totpNow(secret: string): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  let bits = ''
+  for (const ch of secret) bits += alphabet.indexOf(ch).toString(2).padStart(5, '0')
+  const key = Buffer.from(bits.match(/.{8}/g)!.map((b) => parseInt(b, 2)))
+  const counter = Buffer.alloc(8)
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)))
+  const mac = createHmac('sha1', key).update(counter).digest()
+  const offset = mac[mac.length - 1]! & 15
+  return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, '0')
+}
 const URL = 'http://flaghoist.local'
 
 // End to end through the real client: PBKDF2 at full strength in the client, HMAC on the server.
@@ -37,8 +62,7 @@ describe('accounts through the admin client', () => {
     })
     expect(owner).toMatchObject({ email: 'ada@example.com', role: 'owner' })
 
-    const signedIn = await auth.signIn('ada@example.com', 'correct horse battery')
-    const client = admin(signedIn.token)
+    const client = admin(tokenOf(await auth.signIn('ada@example.com', 'correct horse battery')))
     expect((await client.me()).user?.email).toBe('ada@example.com')
 
     await client.changePassword({
@@ -142,8 +166,8 @@ describe('flaghoist login and tokens', () => {
     const client = admin(result.token)
     expect((await client.me()).token?.name).toBe('flaghoist CLI on test')
     // Only the token remains: the session used to create it is already gone.
-    const signedIn = await auth.signIn('ada@example.com', 'correct horse battery')
-    const sessions = await admin(signedIn.token).listSessions()
+    const signedIn = tokenOf(await auth.signIn('ada@example.com', 'correct horse battery'))
+    const sessions = await admin(signedIn).listSessions()
     expect(sessions).toHaveLength(1)
   })
 
@@ -160,7 +184,7 @@ describe('flaghoist login and tokens', () => {
       email: 'ada@example.com',
       password: 'correct horse battery',
     })
-    const session = admin((await auth.signIn('ada@example.com', 'correct horse battery')).token)
+    const session = admin(tokenOf(await auth.signIn('ada@example.com', 'correct horse battery')))
     const [message, token] = await runTokens(session, ['create', 'deploys'], {
       role: 'viewer',
       expiresDays: '30',
@@ -174,5 +198,43 @@ describe('flaghoist login and tokens', () => {
     await expect(runTokens(session, ['create', 'x'], { expiresDays: 'soon' })).rejects.toThrow(
       /--expires-days/,
     )
+  })
+})
+
+describe('flaghoist login with two-factor', () => {
+  it('asks for the code when the account uses one', async () => {
+    const { auth, admin, fetch } = setup()
+    await admin(ADMIN_TOKEN).createOwner({
+      email: 'ada@example.com',
+      password: 'correct horse battery',
+    })
+    const session = admin(tokenOf(await auth.signIn('ada@example.com', 'correct horse battery')))
+    const { secret } = await session.beginTwoFactor()
+    const recovery = await session.confirmTwoFactor(totpNow(secret))
+
+    await expect(
+      loginForToken({
+        url: URL,
+        email: 'ada@example.com',
+        password: 'correct horse battery',
+        tokenName: 't',
+        fetch,
+      }),
+    ).rejects.toThrow(/--code/)
+
+    const asked: string[] = []
+    const result = await loginForToken({
+      url: URL,
+      email: 'ada@example.com',
+      password: 'correct horse battery',
+      tokenName: 't',
+      fetch,
+      twoFactorCode: async () => {
+        asked.push('code')
+        return recovery[0]!
+      },
+    })
+    expect(asked).toEqual(['code'])
+    expect(result.token.startsWith('fh_pat_')).toBe(true)
   })
 })

@@ -140,8 +140,27 @@ export interface AccountUser {
   sso?: boolean
   /** `sso` when the identity provider's groups decide the role, so it cannot be changed here. */
   roleManagedBy?: 'sso'
+  /** Whether the account uses two-factor codes. */
+  twoFactor?: boolean
   createdAt: string
   lastLoginAt?: string
+}
+
+/**
+ * The password was right and the account uses two-factor codes: finish with
+ * `completeTwoFactor(challenge, code)` within five minutes.
+ */
+export interface TwoFactorChallenge {
+  twoFactorRequired: true
+  challenge: string
+}
+
+export function isTwoFactorChallenge(value: unknown): value is TwoFactorChallenge {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { twoFactorRequired?: unknown }).twoFactorRequired === true
+  )
 }
 
 export interface SignInResult {
@@ -163,6 +182,21 @@ export interface Me {
   session: { id: string; createdAt: string; expiresAt: string } | null
   /** The personal access token in use, when that is the credential. */
   token?: AccessToken | null
+  /** Two-factor state of the signed-in account. Null without an account. */
+  twoFactor?: {
+    enabled: boolean
+    /** Whether the server's policy makes this account use it. */
+    required: boolean
+    /** Required but not set up: nothing else works until it is. */
+    setupRequired: boolean
+  } | null
+}
+
+export interface TwoFactorSetup {
+  /** The secret, for typing into an app that cannot scan. */
+  secret: string
+  /** The `otpauth://` link to show as a QR code. */
+  uri: string
 }
 
 /** A personal access token, as listed. The secret itself is shown only when it is created. */
@@ -246,15 +280,23 @@ export interface LinkInfo {
 export interface AuthClient {
   /** The server's sign-in options. A server without accounts, or too old to have them, reports `accounts: false`. */
   config(): Promise<AuthConfig>
-  /** Sign in with an email and password. The password is stretched here and never sent. */
-  signIn(email: string, password: string): Promise<SignInResult>
+  /**
+   * Sign in with an email and password. The password is stretched here and never sent. For an
+   * account with two-factor codes this returns a challenge instead; see `isTwoFactorChallenge`.
+   */
+  signIn(email: string, password: string): Promise<SignInResult | TwoFactorChallenge>
+  /** Finish a sign-in with the code from an authenticator app, or a recovery code. */
+  completeTwoFactor(challenge: string, code: string): Promise<SignInResult>
   /** What an invite or reset link is for. Fails with 410 when it expired or was used. */
   inspectLink(token: string): Promise<LinkInfo>
   /**
    * Accept an invite (creating the account) or a reset link (replacing the password), and sign
    * in. The password is stretched here and never sent.
    */
-  acceptLink(token: string, input: { name?: string; password: string }): Promise<SignInResult>
+  acceptLink(
+    token: string,
+    input: { name?: string; password: string },
+  ): Promise<SignInResult | TwoFactorChallenge>
   /**
    * Where to send the browser to sign in with SSO. `returnTo` is the dashboard address to come back
    * to; `browserHash` is `sha256Base64Url(secret)` for a secret this tab keeps until it returns.
@@ -311,6 +353,16 @@ export interface AdminClient {
   listTokens(): Promise<AccessToken[]>
   createToken(input: TokenInput): Promise<NewAccessToken>
   revokeToken(id: string): Promise<void>
+  /** Start setting up two-factor codes: a secret to show as a QR code. */
+  beginTwoFactor(): Promise<TwoFactorSetup>
+  /** Finish setup with a code from the app. Returns ten recovery codes, shown once. */
+  confirmTwoFactor(code: string): Promise<string[]>
+  /** Replace the recovery codes. Needs a current code. */
+  newRecoveryCodes(code: string): Promise<string[]>
+  /** Turn two-factor codes off. Needs a current code. */
+  disableTwoFactor(code: string): Promise<void>
+  /** Turn two-factor off for a member who lost their device. Signs them out everywhere. */
+  resetMemberTwoFactor(id: string): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -518,7 +570,16 @@ export function createAuthClient(
           body: JSON.stringify({ email, clientKey }),
         }),
       )
-      return body as SignInResult
+      return body as SignInResult | TwoFactorChallenge
+    },
+
+    async completeTwoFactor(challenge, code) {
+      return (await readJson(
+        await request('/api/v1/auth/login/two-factor', {
+          method: 'POST',
+          body: JSON.stringify({ challenge, code }),
+        }),
+      )) as SignInResult
     },
 
     async inspectLink(token) {
@@ -546,7 +607,7 @@ export function createAuthClient(
           method: 'POST',
           body: JSON.stringify({ token, name: input.name, salt, clientKey }),
         }),
-      )) as SignInResult
+      )) as SignInResult | TwoFactorChallenge
     },
 
     ssoStartUrl(returnTo, browserHash) {
@@ -815,6 +876,40 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
 
     async revokeToken(id) {
       await request(`/api/v1/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    },
+
+    async beginTwoFactor() {
+      return (await readJson(
+        await request('/api/v1/me/two-factor/setup', { method: 'POST' }),
+      )) as TwoFactorSetup
+    },
+
+    async confirmTwoFactor(code) {
+      const body = (await readJson(
+        await request('/api/v1/me/two-factor/confirm', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        }),
+      )) as { recoveryCodes: string[] }
+      return body.recoveryCodes
+    },
+
+    async newRecoveryCodes(code) {
+      const body = (await readJson(
+        await request('/api/v1/me/two-factor/recovery-codes', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        }),
+      )) as { recoveryCodes: string[] }
+      return body.recoveryCodes
+    },
+
+    async disableTwoFactor(code) {
+      await request('/api/v1/me/two-factor', { method: 'DELETE', body: JSON.stringify({ code }) })
+    },
+
+    async resetMemberTwoFactor(id) {
+      await request(`/api/v1/users/${encodeURIComponent(id)}/two-factor`, { method: 'DELETE' })
     },
   }
 }

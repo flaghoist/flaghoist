@@ -33,6 +33,8 @@ import {
   type UserRecord,
 } from './accounts'
 import { createAuditLog } from './audit'
+import { seal, unseal } from './sealed'
+import { otpauthUri } from './totp'
 import {
   buildAuthorizationUrl,
   completeSignIn,
@@ -197,6 +199,11 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     /** The personal access token presented, when that is the credential. */
     pat: TokenRecord | null
     token: string | null
+    /**
+     * A password session whose account must use two-factor codes but has not set them up. It can
+     * reach its own account and nothing else until it has.
+     */
+    twoFactorPending: boolean
   }
   type Authorized = Caller & { role: Role }
 
@@ -219,7 +226,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         )
       }
       const { user, session } = resolved
-      return { cfg, identity: user.email, role: user.role, user, session, pat: null, token }
+      const twoFactorPending =
+        session.via !== 'sso' && accounts.twoFactorRequired(user) && !user.twoFactor
+      return {
+        cfg,
+        identity: user.email,
+        role: user.role,
+        user,
+        session,
+        pat: null,
+        token,
+        twoFactorPending,
+      }
     }
     if (accounts && token?.startsWith(TOKEN_PREFIX)) {
       const resolved = await accounts.resolveToken(token, async (expired) => {
@@ -240,7 +258,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         )
       }
       const { user, token: pat, role } = resolved
-      return { cfg, identity: user.email, role, user, session: null, pat, token }
+      return {
+        cfg,
+        identity: user.email,
+        role,
+        user,
+        session: null,
+        pat,
+        token,
+        twoFactorPending: false,
+      }
     }
     const auth = await cfg.auth.admin(c.req.raw.headers)
     if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
@@ -249,7 +276,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     // log, so a change made with it stands out from one made by a named person.
     const breakGlass = accounts !== null && auth.role === undefined && auth.identity === 'admin'
     const identity = breakGlass ? 'owner (break-glass)' : (auth.identity ?? 'unknown')
-    return { cfg, identity, role, user: null, session: null, pat: null, token }
+    return {
+      cfg,
+      identity,
+      role,
+      user: null,
+      session: null,
+      pat: null,
+      token,
+      twoFactorPending: false,
+    }
   }
 
   /**
@@ -264,6 +300,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   ): Promise<Authorized | Response> {
     const caller = await authenticate(c)
     if (caller instanceof Response) return caller
+    if (caller.twoFactorPending) return twoFactorSetupFirst(c)
     if (caller.role === null || !can(caller.role, permission)) {
       return c.json(
         {
@@ -275,6 +312,15 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     }
     return caller as Authorized
   }
+
+  const twoFactorSetupFirst = (c: Context<{ Bindings: Env }>) =>
+    c.json(
+      {
+        error: 'Your role needs two-factor sign-in. Set it up on your Account page to continue.',
+        code: 'two_factor_setup_required',
+      },
+      403,
+    )
 
   const app = new Hono<{ Bindings: Env }>()
 
@@ -1004,6 +1050,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       return c.json({ error: 'Invalid email or password.', code: 'invalid_credentials' }, 401)
     }
     const signedIn = user as UserRecord
+    // The password was right. With two-factor on, the session waits for a code.
+    if (signedIn.twoFactor) {
+      return c.json({
+        twoFactorRequired: true,
+        challenge: await twoFactorChallenge(cfg, signedIn),
+      })
+    }
     await accounts.clearFailures(email)
     await accounts.recordLogin(signedIn)
     const { token, session } = await accounts.createSession(signedIn, c.req.header('user-agent'))
@@ -1014,6 +1067,81 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       changeDescription: fromIp(ip),
     })
     return c.json({ token, expiresAt: session.expiresAt, user: publicUser(signedIn) })
+  })
+
+  /** Proof that the password step passed, good for five minutes, for the code step to finish. */
+  function twoFactorChallenge(cfg: ServerConfig, user: UserRecord): Promise<string> {
+    return seal(cfg.users!.pepper, 'two-factor-challenge', {
+      exp: Date.now() + 5 * 60_000,
+      userId: user.id,
+    })
+  }
+
+  app.post('/api/v1/auth/login/two-factor', async (c) => {
+    const cfg = resolve(c.env)
+    const accounts = accountsOf(cfg)
+    if (!cfg.users || !accounts) return accountsOff(c)
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const challenge = typeof body.challenge === 'string' ? body.challenge : ''
+    const code = typeof body.code === 'string' ? body.code : ''
+    const opened = challenge
+      ? await unseal<{ exp: number; userId: string }>(
+          cfg.users.pepper,
+          'two-factor-challenge',
+          challenge,
+        )
+      : null
+    const user = opened ? await accounts.getUser(opened.userId) : null
+    if (!user || user.status !== 'active' || !user.twoFactor) {
+      return c.json(
+        {
+          error: 'This sign-in has expired. Enter your password again.',
+          code: 'challenge_expired',
+        },
+        401,
+      )
+    }
+    const ip = clientIp(c)
+    const throttle = await accounts.throttled(user.email, ip)
+    if (!throttle.ok) return throttledResponse(c, throttle.retryAfterSeconds)
+    const used = await accounts.checkSecondFactor(user, code)
+    if (!used) {
+      await accounts.recordFailure(user.email, ip)
+      await audit.record({
+        action: 'login.failed',
+        actor: user.email,
+        target: { type: 'user', id: user.id },
+        changeDescription: ['Wrong two-factor code', fromIp(ip)].filter(Boolean).join('. '),
+      })
+      return c.json(
+        {
+          error: 'That code is not right. Enter the current one from your app.',
+          code: 'invalid_code',
+        },
+        401,
+      )
+    }
+    const fresh = (await accounts.getUser(user.id)) ?? user
+    await accounts.clearFailures(user.email)
+    await accounts.recordLogin(fresh)
+    const { token, session } = await accounts.createSession(fresh, c.req.header('user-agent'))
+    await audit.record({
+      action: 'login',
+      actor: user.email,
+      target: { type: 'user', id: user.id },
+      changeDescription: ['With two-factor', fromIp(ip)].filter(Boolean).join('. '),
+    })
+    if (used === 'recovery') {
+      const left = fresh.twoFactor?.recoveryCodes.length ?? 0
+      await audit.record({
+        action: 'two_factor.recovery_used',
+        actor: user.email,
+        target: { type: 'user', id: user.id },
+        changeDescription: `${left} recovery code${left === 1 ? '' : 's'} left`,
+      })
+    }
+    return c.json({ token, expiresAt: session.expiresAt, user: publicUser(fresh) })
   })
 
   app.post('/api/v1/auth/logout', async (c) => {
@@ -1058,6 +1186,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           }
         : null,
       token: caller.pat ? publicToken(caller.pat) : null,
+      twoFactor: caller.user
+        ? {
+            enabled: caller.user.twoFactor !== undefined,
+            required: accountsOf(caller.cfg)?.twoFactorRequired(caller.user) ?? false,
+            setupRequired: caller.twoFactorPending,
+          }
+        : null,
     })
   })
 
@@ -1405,7 +1540,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     if (!user || user.status !== 'active') {
       return c.json({ error: 'This sign-in has expired. Try again.', code: 'sso_expired' }, 410)
     }
-    const { token, session } = await accounts.createSession(user, c.req.header('user-agent'))
+    const { token, session } = await accounts.createSession(user, c.req.header('user-agent'), 'sso')
     return c.json({ token, expiresAt: session.expiresAt, user: publicUser(user) })
   })
 
@@ -1425,6 +1560,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         400,
       )
     }
+    if (caller.twoFactorPending) return twoFactorSetupFirst(c)
     return { ...(caller as Authorized), user: caller.user, accounts }
   }
 
@@ -1490,6 +1626,96 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       actor: caller.identity,
       target: { type: 'token', id: revoked.id },
       changeDescription: revoked.name,
+    })
+    return c.body(null, 204)
+  })
+
+  // ---- Two-factor codes on the signed-in account ----
+
+  const invalidCode = (c: Context<{ Bindings: Env }>) =>
+    c.json(
+      {
+        error: 'That code is not right. Enter the current one from your app.',
+        code: 'invalid_code',
+      },
+      400,
+    )
+
+  app.post('/api/v1/me/two-factor/setup', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const { accounts, user } = caller
+    if (user.twoFactor) {
+      return c.json({ error: 'Two-factor sign-in is already on.', code: 'already_enabled' }, 409)
+    }
+    if (!user.password) {
+      return c.json(
+        {
+          error: "This account signs in with SSO. Your identity provider's two-factor covers it.",
+          code: 'no_password',
+        },
+        409,
+      )
+    }
+    const secret = await accounts.beginTwoFactor(user)
+    return c.json({ secret, uri: otpauthUri(secret, user.email) })
+  })
+
+  app.post('/api/v1/me/two-factor/confirm', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const { accounts, user } = caller
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    if (!user.pendingTwoFactor) {
+      return c.json({ error: 'Start the setup first.', code: 'not_started' }, 409)
+    }
+    const codes = await accounts.confirmTwoFactor(user, String(body.code ?? ''))
+    if (!codes) return invalidCode(c)
+    await audit.record({
+      action: 'two_factor.enabled',
+      actor: user.email,
+      target: { type: 'user', id: user.id },
+    })
+    return c.json({ recoveryCodes: codes })
+  })
+
+  app.post('/api/v1/me/two-factor/recovery-codes', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const { accounts, user } = caller
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    if (!user.twoFactor)
+      return c.json({ error: 'Two-factor sign-in is off.', code: 'not_enabled' }, 409)
+    if (!(await accounts.checkSecondFactor(user, String(body.code ?? '')))) return invalidCode(c)
+    const codes = await accounts.newRecoveryCodes((await accounts.getUser(user.id)) ?? user)
+    return c.json({ recoveryCodes: codes })
+  })
+
+  app.delete('/api/v1/me/two-factor', async (c) => {
+    const caller = await signedInUser(c)
+    if (caller instanceof Response) return caller
+    const { accounts, user } = caller
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    if (!user.twoFactor)
+      return c.json({ error: 'Two-factor sign-in is off.', code: 'not_enabled' }, 409)
+    if (accounts.twoFactorRequired(user)) {
+      return c.json(
+        {
+          error: 'Your role needs two-factor sign-in, so it cannot be turned off.',
+          code: 'required',
+        },
+        409,
+      )
+    }
+    if (!(await accounts.checkSecondFactor(user, String(body.code ?? '')))) return invalidCode(c)
+    await accounts.removeTwoFactor((await accounts.getUser(user.id)) ?? user)
+    await audit.record({
+      action: 'two_factor.disabled',
+      actor: user.email,
+      target: { type: 'user', id: user.id },
     })
     return c.body(null, 204)
   })
@@ -1622,6 +1848,30 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     await accounts.removeUser(user)
     await audit.record({
       action: 'user.removed',
+      actor: caller.identity,
+      target: { type: 'user', id: user.id },
+      changeDescription: user.email,
+    })
+    return c.body(null, 204)
+  })
+
+  // For a member who lost their phone and their recovery codes. They sign in with their password
+  // and set two-factor up again; everywhere they were signed in is signed out.
+  app.delete('/api/v1/users/:id/two-factor', async (c) => {
+    const caller = await memberAdmin(c)
+    if (caller instanceof Response) return caller
+    const { accounts } = caller
+    const user = await accounts.getUser(c.req.param('id'))
+    if (!user) return c.json({ error: 'Member not found' }, 404)
+    if (user.role === 'owner' && caller.role !== 'owner') return ownersOnly(c)
+    if (caller.user?.id === user.id) return notYourself(c, 'reset two-factor for')
+    if (!user.twoFactor && !user.pendingTwoFactor) {
+      return c.json({ error: `${user.email} does not use two-factor sign-in.` }, 409)
+    }
+    await accounts.removeTwoFactor(user)
+    await accounts.revokeSessionsFor(user.id)
+    await audit.record({
+      action: 'two_factor.reset',
       actor: caller.identity,
       target: { type: 'user', id: user.id },
       changeDescription: user.email,
@@ -1825,6 +2075,11 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       })
     }
     await accounts.consumeInvite(token)
+    // A reset replaces the password, not the second factor: someone with two-factor on still
+    // needs a code (or a recovery code) to sign in.
+    if (user.twoFactor) {
+      return c.json({ twoFactorRequired: true, challenge: await twoFactorChallenge(cfg, user) })
+    }
     await accounts.recordLogin(user)
     const session = await accounts.createSession(user, c.req.header('user-agent'))
     return c.json({

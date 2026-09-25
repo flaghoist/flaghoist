@@ -163,6 +163,19 @@ function resetLink(m: Member) {
 }
 
 const pendingRemove = ref<Member | null>(null)
+const pendingTwoFactorReset = ref<Member | null>(null)
+
+function confirmTwoFactorReset() {
+  const m = pendingTwoFactorReset.value
+  if (!m) return
+  return withBusy(m.id, async () => {
+    await props.api.resetMemberTwoFactor(m.id)
+    members.value = members.value.map((x) => (x.id === m.id ? { ...x, twoFactor: false } : x))
+    emit('notify', `Two-factor sign-in is off for ${m.email}, and they are signed out.`, 'ok')
+  }).finally(() => {
+    pendingTwoFactorReset.value = null
+  })
+}
 
 function confirmRemove() {
   const m = pendingRemove.value
@@ -268,6 +281,7 @@ onMounted(() => void load())
               <span v-if="isSelf(m)" class="tag tag-self">You</span>
               <span v-if="m.status !== 'active'" class="tag tag-off">Disabled</span>
               <span v-if="m.sso" class="tag tag-sso">SSO</span>
+              <span v-if="m.twoFactor" class="tag tag-sso">2FA</span>
             </span>
             <span class="meta">
               <template v-if="m.name">{{ m.email }} · </template>last active
@@ -298,6 +312,15 @@ onMounted(() => void load())
                 @click="resetLink(m)"
               >
                 Reset password
+              </button>
+              <button
+                v-if="m.twoFactor"
+                class="btn btn-quiet btn-sm"
+                :disabled="busy.has(m.id)"
+                :aria-label="`Turn off two-factor sign-in for ${m.email}`"
+                @click="pendingTwoFactorReset = m"
+              >
+                Reset 2FA
               </button>
               <button
                 class="btn btn-quiet btn-sm"
@@ -363,6 +386,15 @@ onMounted(() => void load())
       :busy="busy.has(pendingRemove.id)"
       @confirm="confirmRemove"
       @cancel="pendingRemove = null"
+    />
+    <ConfirmDialog
+      v-if="pendingTwoFactorReset"
+      :title="`Turn off two-factor for ${pendingTwoFactorReset.email}?`"
+      body="For someone who lost their device and recovery codes. They are signed out everywhere, sign in again with their password alone, and can then set two-factor up again. Check it is really them first."
+      confirm-label="Turn off"
+      :busy="busy.has(pendingTwoFactorReset.id)"
+      @confirm="confirmTwoFactorReset"
+      @cancel="pendingTwoFactorReset = null"
     />
   </div>
 </template>

@@ -84,6 +84,9 @@ you. After that, commands for that server need no token, and no `--url` if it is
 have signed in to. `--token` and `FLAGS_ADMIN_TOKEN` still take priority. In a script, or anywhere without an interactive terminal, pipe the password in with
 `--password-stdin`: `flaghoist login --url ... --email ... --password-stdin < password.txt`.
 
+If the account uses two-factor codes, `flaghoist login` asks for the current code after the
+password; pass it with `--code` where there is no terminal. A recovery code works too.
+
 `flaghoist logout` revokes the token on the server and removes it from the file.
 
 | Command                                                        | Description                           |

@@ -9,12 +9,15 @@ import {
   type Me,
 } from '../api'
 import { assignableRoles, ROLES } from '../roles'
+import TwoFactorSetup from './TwoFactorSetup.vue'
 
 const props = defineProps<{ api: AdminClient; me: Me; setupRequired: boolean }>()
 const emit = defineEmits<{
   notify: [text: string, tone: 'ok' | 'error']
   failed: [error: unknown]
   ownerCreated: [email: string, password: string]
+  /** Something about the signed-in account changed, such as two-factor turning on. */
+  changed: []
 }>()
 
 const user = computed(() => props.me.user)
@@ -92,6 +95,51 @@ async function changePassword() {
   } finally {
     pwBusy.value = false
   }
+}
+
+/* ---- two-factor ------------------------------------------------------------- */
+
+const twoFactorOn = ref(props.me.twoFactor?.enabled === true)
+const manageCode = ref('')
+const manageError = ref('')
+const manageBusy = ref(false)
+const freshCodes = ref<string[] | null>(null)
+
+function onTwoFactorOn() {
+  twoFactorOn.value = true
+  emit('notify', 'Two-factor sign-in is on.', 'ok')
+  emit('changed')
+}
+
+async function withCode(fn: (code: string) => Promise<void>) {
+  manageError.value = ''
+  manageBusy.value = true
+  try {
+    await fn(manageCode.value.trim())
+    manageCode.value = ''
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 400 || e.status === 409)) {
+      manageError.value = e.message
+    } else emit('failed', e)
+  } finally {
+    manageBusy.value = false
+  }
+}
+
+function regenerateCodes() {
+  return withCode(async (code) => {
+    freshCodes.value = await props.api.newRecoveryCodes(code)
+  })
+}
+
+function turnOffTwoFactor() {
+  return withCode(async (code) => {
+    await props.api.disableTwoFactor(code)
+    twoFactorOn.value = false
+    freshCodes.value = null
+    emit('notify', 'Two-factor sign-in is off.', 'ok')
+    emit('changed')
+  })
 }
 
 /* ---- access tokens ---------------------------------------------------------- */
@@ -398,6 +446,61 @@ onMounted(() => {
       </form>
     </section>
 
+    <section
+      v-if="user && hasSession && user.hasPassword !== false"
+      class="section"
+      aria-labelledby="tfa-heading"
+    >
+      <h2 id="tfa-heading">Two-factor sign-in</h2>
+      <TwoFactorSetup
+        v-if="!twoFactorOn"
+        :api="api"
+        @done="onTwoFactorOn"
+        @failed="(e: unknown) => emit('failed', e)"
+      />
+      <template v-else>
+        <p class="hint">
+          On. Signing in asks for a code from your authenticator app.
+          <template v-if="me.twoFactor?.required"> Your role requires it.</template>
+        </p>
+        <form class="token-form" @submit.prevent="regenerateCodes">
+          <div class="field">
+            <label class="label" for="tfa-manage-code">Current code</label>
+            <input
+              id="tfa-manage-code"
+              v-model="manageCode"
+              class="mono"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              required
+            />
+          </div>
+          <button type="submit" class="btn btn-ghost btn-sm" :disabled="manageBusy || !manageCode">
+            New recovery codes
+          </button>
+          <button
+            v-if="!me.twoFactor?.required"
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="manageBusy || !manageCode"
+            @click="turnOffTwoFactor"
+          >
+            Turn off
+          </button>
+        </form>
+        <p v-if="manageError" class="err" role="alert">{{ manageError }}</p>
+        <div v-if="freshCodes" class="token-panel" role="status">
+          <p class="token-title">
+            New recovery codes. The old ones no longer work. Save these; they are not shown again.
+          </p>
+          <ol class="mono fresh-codes" aria-label="Recovery codes">
+            <li v-for="c in freshCodes" :key="c">{{ c }}</li>
+          </ol>
+          <button class="btn btn-quiet btn-sm" @click="freshCodes = null">Done</button>
+        </div>
+      </template>
+    </section>
+
     <section v-if="user" class="section" aria-labelledby="tokens-heading">
       <h2 id="tokens-heading">Access tokens</h2>
       <p class="hint">
@@ -613,6 +716,14 @@ onMounted(() => {
   background: var(--red-wash);
   border-radius: var(--r-sm);
   width: 100%;
+}
+.fresh-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 12rem));
+  gap: 0.3rem 1.5rem;
+  margin: 0 0 0.6rem;
+  padding-left: 1.4rem;
+  font-size: 0.86rem;
 }
 .spaced-hint {
   margin-top: 0.8rem;

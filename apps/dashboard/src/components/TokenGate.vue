@@ -2,11 +2,19 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { createAuthClient, type AuthConfig } from '../api'
 
-defineProps<{ error?: string; connecting?: boolean; theme?: 'light' | 'dark' }>()
+const props = defineProps<{
+  error?: string
+  connecting?: boolean
+  theme?: 'light' | 'dark'
+  /** The password was right; ask for the two-factor code. */
+  twoFactor?: boolean
+}>()
 const emit = defineEmits<{
   connect: [url: string, token: string]
   signIn: [url: string, email: string, password: string]
   sso: [url: string]
+  twoFactorCode: [code: string]
+  cancelTwoFactor: []
   toggleTheme: []
 }>()
 
@@ -24,6 +32,16 @@ const config = ref<AuthConfig | null>(null)
 // 'password' only once the server has said it has accounts; every other server keeps the token form.
 const mode = ref<'password' | 'token'>('token')
 const firstField = ref<HTMLInputElement | null>(null)
+
+const tfaCode = ref('')
+const tfaEl = ref<HTMLInputElement | null>(null)
+watch(
+  () => props.twoFactor,
+  (on) => {
+    tfaCode.value = ''
+    if (on) setTimeout(() => tfaEl.value?.focus(), 0)
+  },
+)
 
 const sso = computed(() => (config.value?.accounts ? (config.value.sso ?? null) : null))
 const showPassword = computed(() => config.value?.passwordSignIn !== false)
@@ -117,7 +135,34 @@ function submit() {
       </div>
       <p class="sub">Sign in to manage this server's flags.</p>
 
-      <form @submit.prevent="submit">
+      <form v-if="twoFactor" @submit.prevent="emit('twoFactorCode', tfaCode.trim())">
+        <label class="label" for="gate-tfa">Two-factor code</label>
+        <input
+          id="gate-tfa"
+          ref="tfaEl"
+          v-model="tfaCode"
+          class="mono full"
+          autocomplete="one-time-code"
+          aria-describedby="gate-tfa-hint"
+          required
+        />
+        <p id="gate-tfa-hint" class="tfa-hint">
+          The six digits from your authenticator app, or one of your recovery codes.
+        </p>
+        <p v-if="error" class="err" role="alert">{{ error }}</p>
+        <button
+          type="submit"
+          class="btn btn-primary full connect"
+          :disabled="connecting || !tfaCode"
+        >
+          {{ connecting ? 'Checking' : 'Continue' }}
+        </button>
+        <button type="button" class="btn btn-quiet full switch" @click="emit('cancelTwoFactor')">
+          Back
+        </button>
+      </form>
+
+      <form v-else @submit.prevent="submit">
         <template v-if="!servedByServer">
           <label class="label" for="gate-url">Server URL</label>
           <input
@@ -321,6 +366,11 @@ function submit() {
 }
 .switch {
   margin-top: 0.5rem;
+}
+.tfa-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-mute);
 }
 .divider {
   display: flex;

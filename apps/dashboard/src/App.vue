@@ -5,6 +5,7 @@ import {
   createAdminClient,
   createAuthClient,
   flagEtag,
+  isTwoFactorChallenge,
   newBrowserSecret,
   sha256Base64Url,
   type AdminClient,
@@ -26,6 +27,7 @@ import SettingsPage from './components/SettingsPage.vue'
 import Sidebar from './components/Sidebar.vue'
 import ToastStack, { type Toast } from './components/ToastStack.vue'
 import TokenGate from './components/TokenGate.vue'
+import TwoFactorSetup from './components/TwoFactorSetup.vue'
 import WebhooksPage from './components/WebhooksPage.vue'
 import { can } from './roles'
 
@@ -326,6 +328,7 @@ function isRoleRefusal(e: unknown): boolean {
 function describe(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.code === 'session_expired') return 'Your session ended. Sign in again.'
+    if (e.code === 'invalid_code' || e.code === 'challenge_expired') return e.message
     if (e.code === 'token_invalid') {
       return 'This access token has expired or was revoked. Sign in again.'
     }
@@ -343,7 +346,13 @@ async function connect(url: string, token: string, persist = true, environment?:
   gateError.value = ''
   const client = createAdminClient({ url, token, environment })
   try {
-    flags.value = await client.list({ includeArchived: showArchived.value })
+    try {
+      flags.value = await client.list({ includeArchived: showArchived.value })
+    } catch (e) {
+      // Signed in, but the role needs two-factor set up first: the setup screen takes over below.
+      if (!isTwoFactorSetupRefusal(e)) throw e
+      flags.value = []
+    }
     api.value = client
     serverUrl.value = url
     serverToken.value = token
@@ -399,17 +408,56 @@ async function loadIdentity(client: AdminClient, url: string) {
   }
 }
 
+// Set when the password was right and a two-factor code is still needed.
+const twoFactorStep = ref<{ url: string; challenge: string } | null>(null)
+
 async function signIn(url: string, email: string, password: string) {
   connecting.value = true
   gateError.value = ''
   try {
     const result = await createAuthClient({ url }).signIn(email, password)
+    if (isTwoFactorChallenge(result)) {
+      twoFactorStep.value = { url, challenge: result.challenge }
+      connecting.value = false
+      return
+    }
     await connect(url, result.token)
   } catch (e) {
     gateError.value =
       e instanceof ApiError && e.status === 401 ? 'Invalid email or password.' : describe(e)
     connecting.value = false
   }
+}
+
+async function finishTwoFactor(code: string) {
+  const step = twoFactorStep.value
+  if (!step) return
+  connecting.value = true
+  gateError.value = ''
+  try {
+    const result = await createAuthClient({ url: step.url }).completeTwoFactor(step.challenge, code)
+    twoFactorStep.value = null
+    await connect(step.url, result.token)
+  } catch (e) {
+    if (e instanceof ApiError && e.code === 'challenge_expired') twoFactorStep.value = null
+    gateError.value = describe(e)
+    connecting.value = false
+  }
+}
+
+function isTwoFactorSetupRefusal(e: unknown): boolean {
+  return e instanceof ApiError && e.code === 'two_factor_setup_required'
+}
+
+const mustSetUpTwoFactor = computed(() => me.value?.twoFactor?.setupRequired === true)
+
+async function onTwoFactorReady() {
+  await connect(serverUrl.value, serverToken.value, false, currentEnvironment.value)
+  if (api.value) toast('Two-factor sign-in is on.', 'ok')
+}
+
+async function refreshIdentity() {
+  if (api.value) await loadIdentity(api.value, serverUrl.value)
 }
 
 function onAccountError(e: unknown) {
@@ -486,6 +534,10 @@ async function reloadOnConflict(e: unknown) {
 }
 
 function handle(e: unknown): string {
+  if (isTwoFactorSetupRefusal(e)) {
+    void refreshIdentity()
+    return ''
+  }
   if (e instanceof ApiError && (e.status === 401 || e.status === 403) && !isRoleRefusal(e)) {
     disconnect(
       isSession.value
@@ -936,10 +988,25 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
     :connecting="connecting"
     :theme="resolvedTheme()"
     @connect="(u, t) => connect(u, t)"
+    :two-factor="twoFactorStep !== null"
     @sign-in="(u, e, p) => signIn(u, e, p)"
     @sso="startSso"
+    @two-factor-code="finishTwoFactor"
+    @cancel-two-factor="twoFactorStep = null"
     @toggle-theme="toggleTheme"
   />
+
+  <div v-else-if="mustSetUpTwoFactor" class="tfa-gate">
+    <div class="card tfa-card">
+      <h1 class="tfa-title">Set up two-factor sign-in</h1>
+      <p class="tfa-sub">
+        Your role needs a code from an authenticator app as well as your password. Set it up to
+        continue.
+      </p>
+      <TwoFactorSetup :api="api" @done="onTwoFactorReady" @failed="onAccountError" />
+      <button class="btn btn-quiet btn-sm tfa-out" @click="disconnect()">Log out</button>
+    </div>
+  </div>
 
   <div v-else class="shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <Sidebar
@@ -1392,6 +1459,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         @notify="(text, tone) => toast(text, tone)"
         @failed="onAccountError"
         @owner-created="onOwnerCreated"
+        @changed="refreshIdentity"
       />
 
       <!-- Webhooks -->
@@ -1805,6 +1873,31 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   display: flex;
   align-items: center;
   gap: 0.3rem;
+}
+.tfa-gate {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+}
+.tfa-card {
+  width: 100%;
+  max-width: 460px;
+  padding: 1.6rem 1.5rem;
+}
+.tfa-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.tfa-sub {
+  margin: 0 0 1.2rem;
+  font-size: 0.84rem;
+  color: var(--text-2);
+}
+.tfa-out {
+  margin-top: 1.2rem;
 }
 .read-only-note {
   margin: 0 0 1rem;

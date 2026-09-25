@@ -98,6 +98,12 @@ token is shown once, with a **Copy** button; afterwards the list shows its first
 it expires and when it was last used, with **Revoke**. You can also sign in to the dashboard with a
 token under **Use an access token**; password and session settings then need a normal sign-in.
 
+**Two-factor sign-in** on the Account page sets up codes from an authenticator app: a QR code to
+scan (the key is shown too, for apps that cannot scan), one code to confirm, then ten recovery
+codes to save. Once it is on, the same section makes new recovery codes or turns it off, both with
+a current code. When your role requires it, the dashboard asks you to set it up straight after
+signing in.
+
 Signed in with the admin token before any account exists, the same page creates the owner account.
 
 ## Members

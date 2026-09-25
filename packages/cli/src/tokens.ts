@@ -1,6 +1,7 @@
 import {
   createAdminClient,
   createAuthClient,
+  isTwoFactorChallenge,
   type AccessToken,
   type AdminClient,
   type AdminClientOptions,
@@ -91,6 +92,8 @@ export async function loginForToken(input: {
   email: string
   password: string
   tokenName: string
+  /** Asked only when the account uses two-factor codes. */
+  twoFactorCode?: () => Promise<string>
   fetch?: AdminClientOptions['fetch']
 }): Promise<{ token: string; tokenId: string; email: string; role: string; expiresAt?: string }> {
   const auth = createAuthClient({ url: input.url, fetch: input.fetch })
@@ -100,7 +103,16 @@ export async function loginForToken(input: {
       'This server has no user accounts. Use its admin token with --token or FLAGS_ADMIN_TOKEN.',
     )
   }
-  const signedIn = await auth.signIn(input.email, input.password)
+  const first = await auth.signIn(input.email, input.password)
+  let signedIn
+  if (isTwoFactorChallenge(first)) {
+    if (!input.twoFactorCode) {
+      throw new Error('This account uses two-factor codes. Pass the current one with --code.')
+    }
+    signedIn = await auth.completeTwoFactor(first.challenge, await input.twoFactorCode())
+  } else {
+    signedIn = first
+  }
   const session = createAdminClient({ url: input.url, token: signedIn.token, fetch: input.fetch })
   try {
     const { token, info } = await session.createToken({ name: input.tokenName })

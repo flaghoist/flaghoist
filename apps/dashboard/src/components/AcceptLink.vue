@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ApiError, createAuthClient, MIN_PASSWORD_LENGTH, type LinkInfo } from '../api'
+import {
+  ApiError,
+  createAuthClient,
+  isTwoFactorChallenge,
+  MIN_PASSWORD_LENGTH,
+  type LinkInfo,
+} from '../api'
 
 const props = defineProps<{ serverUrl: string; token: string; theme?: 'light' | 'dark' }>()
 const emit = defineEmits<{ signedIn: [url: string, token: string]; cancel: [] }>()
@@ -42,6 +48,26 @@ onMounted(async () => {
   }
 })
 
+const challenge = ref<string | null>(null)
+const code = ref('')
+
+async function submitCode() {
+  if (!challenge.value) return
+  error.value = ''
+  busy.value = true
+  try {
+    const result = await createAuthClient({ url: props.serverUrl }).completeTwoFactor(
+      challenge.value,
+      code.value.trim(),
+    )
+    emit('signedIn', props.serverUrl, result.token)
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Something went wrong.'
+  } finally {
+    busy.value = false
+  }
+}
+
 async function submit() {
   error.value = ''
   if (password.value.length < MIN_PASSWORD_LENGTH) {
@@ -58,7 +84,9 @@ async function submit() {
       name: name.value.trim() || undefined,
       password: password.value,
     })
-    emit('signedIn', props.serverUrl, result.token)
+    // A reset keeps two-factor on: the new password is set, and a code finishes the sign-in.
+    if (isTwoFactorChallenge(result)) challenge.value = result.challenge
+    else emit('signedIn', props.serverUrl, result.token)
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Something went wrong.'
   } finally {
@@ -85,6 +113,25 @@ async function submit() {
       </template>
 
       <p v-else-if="!info" class="sub" role="status">Checking your link...</p>
+
+      <form v-else-if="challenge" @submit.prevent="submitCode">
+        <p class="sub" role="status">
+          Your new password is set. Enter a code from your authenticator app, or a recovery code, to
+          sign in.
+        </p>
+        <label class="label" for="accept-code">Two-factor code</label>
+        <input
+          id="accept-code"
+          v-model="code"
+          class="mono full"
+          autocomplete="one-time-code"
+          required
+        />
+        <p v-if="error" class="err" role="alert">{{ error }}</p>
+        <button type="submit" class="btn btn-primary full connect" :disabled="busy || !code">
+          {{ busy ? 'Checking' : 'Sign in' }}
+        </button>
+      </form>
 
       <form v-else @submit.prevent="submit">
         <p class="sub">

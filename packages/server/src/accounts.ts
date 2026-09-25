@@ -1,6 +1,14 @@
 import type { StorageAdapter } from '@flaghoist/core'
 import { isRole, ROLES, type Role } from './permissions'
+import { seal, unseal } from './sealed'
 import { assertSsoConfig, type SsoConfig } from './sso'
+import {
+  looksLikeRecoveryCode,
+  matchTotp,
+  newRecoveryCodes,
+  newTotpSecret,
+  normalizeRecoveryCode,
+} from './totp'
 
 /**
  * User accounts, password sign-in and server sessions. Everything here is stored through the
@@ -33,6 +41,13 @@ export interface UsersConfig {
   }
   /** Sign in with an OpenID Connect provider as well as, or instead of, a password. */
   sso?: SsoConfig
+  /**
+   * Who must use a two-factor code with their password: `optional` (the default), `admins` (admins
+   * and owners) or `everyone`. Someone who must but has not set it up is asked to at their next
+   * sign-in and can do nothing else until they have. SSO sign-ins are exempt; the identity
+   * provider's own two-factor covers them.
+   */
+  twoFactor?: 'optional' | 'admins' | 'everyone'
 }
 
 export const PASSWORD_KDF = 'pbkdf2-sha256'
@@ -84,6 +99,17 @@ export interface UserRecord {
   sso?: { issuer: string; subject: string }
   /** Set when the SSO provider's groups decide this account's role. */
   roleManagedBy?: 'sso'
+  /** Two-factor codes, once set up. The secret is sealed: the server must read it, not just match it. */
+  twoFactor?: {
+    secret: string
+    enabledAt: string
+    /** The last time step a code was accepted for, so no code works twice. */
+    lastStep?: number
+    /** SHA-256 hashes of the unused recovery codes. */
+    recoveryCodes: string[]
+  }
+  /** A secret shown for setup and not yet confirmed with a code. Sealed, like the live one. */
+  pendingTwoFactor?: { secret: string; createdAt: string }
   createdAt: string
   updatedAt: string
   lastLoginAt?: string
@@ -102,6 +128,8 @@ export interface PublicUser {
   sso?: boolean
   /** Set when the SSO provider decides the role, so it cannot be changed here. */
   roleManagedBy?: 'sso'
+  /** Whether the account uses two-factor codes. */
+  twoFactor: boolean
   createdAt: string
   lastLoginAt?: string
 }
@@ -114,6 +142,8 @@ export interface SessionRecord {
   lastSeenAt: string
   expiresAt: string
   userAgent?: string
+  /** How the session was signed in, when it was not with a password. */
+  via?: 'sso'
 }
 
 /** An invite to join, or a link to set a new password. Stored under the hash of its token. */
@@ -342,6 +372,7 @@ export function publicUser(user: UserRecord): PublicUser {
     status: user.status,
     createdAt: user.createdAt,
     hasPassword: user.password !== undefined,
+    twoFactor: user.twoFactor !== undefined,
     ...(user.sso ? { sso: true } : {}),
     ...(user.roleManagedBy ? { roleManagedBy: user.roleManagedBy } : {}),
     ...(user.lastLoginAt ? { lastLoginAt: user.lastLoginAt } : {}),
@@ -432,6 +463,13 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
 
   // Keyed by a hash: an issuer URL and subject together can outgrow a record id.
   const ssoKey = (issuer: string, subject: string) => sha256Hex(`${issuer}\n${subject}`)
+
+  // The two-factor secret must be read back to compute codes, so it is sealed rather than hashed.
+  const sealSecret = (secret: string) =>
+    seal(pepper, 'totp-secret', { exp: Number.MAX_SAFE_INTEGER, secret })
+  const openSecret = async (sealed: string) =>
+    (await unseal<{ exp: number; secret: string }>(pepper, 'totp-secret', sealed))?.secret ?? null
+  const hashRecoveryCode = (code: string) => sha256Hex(`recovery:${normalizeRecoveryCode(code)}`)
 
   async function tokensOf(userId: string): Promise<{ key: string; token: TokenRecord }[]> {
     return (await records.listRecords(TOKENS))
@@ -572,6 +610,101 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
       )
       await Promise.all(ended.map((s) => records.deleteRecord(SESSIONS, s.key)))
       return ended.length
+    },
+
+    // ---- two-factor codes ----
+
+    /** Whether the policy makes this account use two-factor codes with its password. */
+    twoFactorRequired(user: UserRecord): boolean {
+      const policy = users.twoFactor ?? 'optional'
+      if (policy === 'everyone') return true
+      return policy === 'admins' && (user.role === 'admin' || user.role === 'owner')
+    },
+
+    /** Start setup: a fresh secret, kept sealed on the account until a code confirms it. */
+    async beginTwoFactor(user: UserRecord): Promise<string> {
+      const secret = newTotpSecret()
+      await records.putRecord(USERS, user.id, {
+        ...user,
+        pendingTwoFactor: {
+          secret: await sealSecret(secret),
+          createdAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      } satisfies UserRecord)
+      return secret
+    },
+
+    /** Finish setup with a code from the app. Returns the recovery codes, or null for a wrong code. */
+    async confirmTwoFactor(user: UserRecord, code: string): Promise<string[] | null> {
+      if (!user.pendingTwoFactor) return null
+      const secret = await openSecret(user.pendingTwoFactor.secret)
+      if (!secret) return null
+      const step = await matchTotp(secret, code)
+      if (step === null) return null
+      const codes = newRecoveryCodes()
+      const { pendingTwoFactor: _, ...rest } = user
+      await records.putRecord(USERS, user.id, {
+        ...rest,
+        twoFactor: {
+          secret: user.pendingTwoFactor.secret,
+          enabledAt: new Date().toISOString(),
+          lastStep: step,
+          recoveryCodes: await Promise.all(codes.map(hashRecoveryCode)),
+        },
+        updatedAt: new Date().toISOString(),
+      } satisfies UserRecord)
+      return codes
+    },
+
+    /**
+     * Check a code from the app, or a recovery code, for an account that has two-factor on. A code
+     * is accepted once: its time step is recorded, and a recovery code is used up.
+     */
+    async checkSecondFactor(user: UserRecord, code: string): Promise<'app' | 'recovery' | null> {
+      const tf = user.twoFactor
+      if (!tf) return null
+      if (looksLikeRecoveryCode(code)) {
+        const hash = await hashRecoveryCode(code)
+        if (!tf.recoveryCodes.includes(hash)) return null
+        await records.putRecord(USERS, user.id, {
+          ...user,
+          twoFactor: { ...tf, recoveryCodes: tf.recoveryCodes.filter((h) => h !== hash) },
+          updatedAt: new Date().toISOString(),
+        } satisfies UserRecord)
+        return 'recovery'
+      }
+      const secret = await openSecret(tf.secret)
+      const step = secret ? await matchTotp(secret, code) : null
+      if (step === null || (tf.lastStep !== undefined && step <= tf.lastStep)) return null
+      await records.putRecord(USERS, user.id, {
+        ...user,
+        twoFactor: { ...tf, lastStep: step },
+        updatedAt: new Date().toISOString(),
+      } satisfies UserRecord)
+      return 'app'
+    },
+
+    async newRecoveryCodes(user: UserRecord): Promise<string[] | null> {
+      if (!user.twoFactor) return null
+      const codes = newRecoveryCodes()
+      await records.putRecord(USERS, user.id, {
+        ...user,
+        twoFactor: {
+          ...user.twoFactor,
+          recoveryCodes: await Promise.all(codes.map(hashRecoveryCode)),
+        },
+        updatedAt: new Date().toISOString(),
+      } satisfies UserRecord)
+      return codes
+    },
+
+    async removeTwoFactor(user: UserRecord): Promise<void> {
+      const { twoFactor: _, pendingTwoFactor: __, ...rest } = user
+      await records.putRecord(USERS, user.id, {
+        ...rest,
+        updatedAt: new Date().toISOString(),
+      } satisfies UserRecord)
     },
 
     // ---- personal access tokens ----
@@ -866,6 +999,7 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
     async createSession(
       user: UserRecord,
       userAgent: string | undefined,
+      via?: 'sso',
     ): Promise<{ token: string; session: SessionRecord }> {
       const token = SESSION_PREFIX + toBase64Url(randomBytes(32))
       const now = Date.now()
@@ -876,6 +1010,7 @@ export function createAccountStore(storage: StorageAdapter, users: UsersConfig) 
         lastSeenAt: new Date(now).toISOString(),
         expiresAt: new Date(now + maxMs).toISOString(),
         ...(userAgent ? { userAgent: userAgent.slice(0, MAX_USER_AGENT_LENGTH) } : {}),
+        ...(via ? { via } : {}),
       }
       await records.putRecord(SESSIONS, await sha256Hex(token), session)
       return { token, session }

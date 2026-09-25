@@ -35,7 +35,7 @@ flickers in and out between deploys.
 ## Managing members
 
 On a server with user accounts turned on, admins invite and manage people from the command line
-too. Invite and reset commands print a link to send yourself; Flaghoist does not send email.
+too. Invite and reset commands print a link to send yourself, and the server emails it as well when it has an email sender set up.
 
 ```bash
 flaghoist users invite ada@example.com --role editor

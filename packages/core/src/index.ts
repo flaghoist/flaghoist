@@ -1,5 +1,5 @@
 export type * from './types'
-export { auditCategory, FLAG_AUDIT_ACTIONS, WEBHOOK_EVENTS } from './types'
+export { auditCategory, FLAG_AUDIT_ACTIONS, MEMBER_WEBHOOK_EVENTS, WEBHOOK_EVENTS } from './types'
 export { clampPercentage, isInRollout, stickyBucket } from './hash'
 export {
   assertRecordAddress,

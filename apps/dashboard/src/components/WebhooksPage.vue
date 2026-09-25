@@ -10,12 +10,28 @@ const ALL_EVENTS: WebhookEvent[] = [
   'flag.restored',
 ]
 
+// Opt-in: never part of "All flag events", so a receiver built for flags gets only flags.
+const MEMBER_EVENTS: WebhookEvent[] = [
+  'member.invited',
+  'member.joined',
+  'member.role_changed',
+  'member.disabled',
+  'member.enabled',
+  'member.removed',
+]
+
 const EVENT_LABELS: Record<WebhookEvent, string> = {
   'flag.created': 'Created',
   'flag.updated': 'Updated',
   'flag.deleted': 'Deleted',
   'flag.archived': 'Archived',
   'flag.restored': 'Restored',
+  'member.invited': 'Member invited',
+  'member.joined': 'Member joined',
+  'member.role_changed': 'Role changed',
+  'member.disabled': 'Member disabled',
+  'member.enabled': 'Member enabled',
+  'member.removed': 'Member removed',
 }
 
 const props = defineProps<{ api: AdminClient }>()
@@ -76,14 +92,15 @@ function toggleEvent(event: WebhookEvent) {
   formEvents.value = new Set(formEvents.value)
 }
 
-const allEventsSelected = computed(() => formEvents.value.size === ALL_EVENTS.length)
+const allEventsSelected = computed(() => ALL_EVENTS.every((e) => formEvents.value.has(e)))
 
 function toggleAllEvents() {
-  if (allEventsSelected.value) {
-    formEvents.value = new Set()
-  } else {
-    formEvents.value = new Set(ALL_EVENTS)
+  const next = new Set(formEvents.value)
+  for (const e of ALL_EVENTS) {
+    if (allEventsSelected.value) next.delete(e)
+    else next.add(e)
   }
+  formEvents.value = next
 }
 
 async function save() {
@@ -250,10 +267,25 @@ function maskSecret(secret: string): string {
           <legend class="form-label">Events</legend>
           <label class="event-check">
             <input type="checkbox" :checked="allEventsSelected" @change="toggleAllEvents" />
-            <span>All events</span>
+            <span>All flag events</span>
           </label>
           <div class="event-grid">
             <label v-for="ev in ALL_EVENTS" :key="ev" class="event-check">
+              <input type="checkbox" :checked="formEvents.has(ev)" @change="toggleEvent(ev)" />
+              <span>{{ EVENT_LABELS[ev] }}</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="form-fieldset">
+          <legend class="form-label">Member events</legend>
+          <p class="member-note">
+            Invites, joins, role changes, disables and removals, for servers with user accounts. The
+            payload has a <code class="mono">member</code> object instead of a
+            <code class="mono">flag</code>.
+          </p>
+          <div class="event-grid">
+            <label v-for="ev in MEMBER_EVENTS" :key="ev" class="event-check">
               <input type="checkbox" :checked="formEvents.has(ev)" @change="toggleEvent(ev)" />
               <span>{{ EVENT_LABELS[ev] }}</span>
             </label>
@@ -370,6 +402,11 @@ function maskSecret(secret: string): string {
 .webhook-url {
   font-size: 0.82rem;
   word-break: break-all;
+}
+.member-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-2);
 }
 .webhook-events {
   display: flex;

@@ -1,5 +1,15 @@
-import type { FlagSnapshot, StorageAdapter, WebhookEndpoint, WebhookEvent } from '@flaghoist/core'
-import { WEBHOOK_EVENTS } from '@flaghoist/core'
+import type {
+  FlagSnapshot,
+  FlagWebhookEvent,
+  MemberWebhookEvent,
+  StorageAdapter,
+  WebhookEndpoint,
+  WebhookEvent,
+} from '@flaghoist/core'
+import { MEMBER_WEBHOOK_EVENTS, WEBHOOK_EVENTS } from '@flaghoist/core'
+
+/** Every event a webhook can subscribe to: flag events, and the opt-in member events. */
+export const ALL_WEBHOOK_EVENTS: WebhookEvent[] = [...WEBHOOK_EVENTS, ...MEMBER_WEBHOOK_EVENTS]
 
 // ---------------------------------------------------------------------------
 // Webhook store (persistent when the adapter supports it, in-memory otherwise)
@@ -82,7 +92,7 @@ export function validateWebhookInput(
   if (obj.events !== undefined) {
     if (!Array.isArray(obj.events)) return { ok: false, error: 'events must be an array' }
     for (const e of obj.events) {
-      if (!WEBHOOK_EVENTS.includes(e as WebhookEvent)) {
+      if (!ALL_WEBHOOK_EVENTS.includes(e as WebhookEvent)) {
         return { ok: false, error: `Unknown event: ${String(e)}` }
       }
     }
@@ -120,8 +130,8 @@ export async function sign(secret: string, body: string): Promise<string> {
 // Dispatch
 // ---------------------------------------------------------------------------
 
-export interface WebhookPayload {
-  event: WebhookEvent
+export interface FlagWebhookPayload {
+  event: FlagWebhookEvent
   timestamp: string
   flag: {
     key: string
@@ -134,6 +144,25 @@ export interface WebhookPayload {
   /** The environment the change happened in. Absent means the default environment. */
   environment?: string
 }
+
+/** A team change. Only sent to webhooks that list the member event. */
+export interface MemberWebhookPayload {
+  event: MemberWebhookEvent
+  timestamp: string
+  actor: string
+  member: {
+    /** Absent for `member.invited`: the account does not exist yet. */
+    id?: string
+    email: string
+    role: string
+    status?: string
+    environmentRoles?: Record<string, string>
+  }
+  /** What changed from, on `member.role_changed`. */
+  previous?: { role: string; environmentRoles?: Record<string, string> }
+}
+
+export type WebhookPayload = FlagWebhookPayload | MemberWebhookPayload
 
 export async function dispatchWebhooks(
   store: WebhookStore,

@@ -157,9 +157,40 @@ keep accounts in memory and lose them on the next restart.
 token. Sign in with it, open **Account**, and create the owner account. After that, sign in with
 your email.
 
+**Emailing invites and reset links.** By default Flaghoist sends no email: you copy each link and
+pass it on. Give `users.email` an object with a `send` method and invites and password reset links
+are emailed as well as shown. Flaghoist bundles no email provider; any service with an HTTP API
+fits. With Resend:
+
+```ts
+users: {
+  pepper: env.AUTH_PEPPER,
+  email: {
+    async send({ to, subject, text, html }) {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${env.RESEND_API_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ from: 'Flaghoist <flags@acme.com>', to, subject, text, html }),
+      })
+      if (!res.ok) throw new Error(`Resend answered ${res.status}`)
+    },
+  },
+},
+```
+
+With Postmark, the same shape posts to `https://api.postmarkapp.com/email` with an
+`X-Postmark-Server-Token` header and a body of `{ From, To, Subject, TextBody, HtmlBody }`. If
+sending fails, the error is logged and the link is still shown, so nobody is stuck. Emailed links
+point at the dashboard the admin is using when its origin is in `allowedOrigins`, and at the
+server's own `/admin` otherwise. On a server with SSO only, the invite email tells the person to
+sign in with SSO instead of carrying a password link.
+
 **Inviting people.** Admins and owners invite from the dashboard's **Members** page (or
 `flaghoist users invite`): enter an email and a role, and Flaghoist gives you a link to pass on
-yourself. It does not send email. The link works once, for that email only, for 7 days (change it
+yourself, and emails it too when `users.email` is set up. The link works once, for that email only, for 7 days (change it
 with `users.invites.expiresInDays`). Opening it lets the person choose a password and signs them
 in. An open invite can be given a new link, which stops the old one working, or cancelled.
 

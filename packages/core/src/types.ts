@@ -241,15 +241,40 @@ export interface AuditPage {
 // Webhooks
 // ---------------------------------------------------------------------------
 
-export type WebhookEvent =
+export type FlagWebhookEvent =
   'flag.created' | 'flag.updated' | 'flag.deleted' | 'flag.archived' | 'flag.restored'
 
-export const WEBHOOK_EVENTS: WebhookEvent[] = [
+/**
+ * Team changes, for servers with user accounts. Opt-in: a webhook gets them only when it lists
+ * them, never through the default event list, so a receiver built for flag events never sees a
+ * payload of another shape.
+ */
+export type MemberWebhookEvent =
+  | 'member.invited'
+  | 'member.joined'
+  | 'member.role_changed'
+  | 'member.disabled'
+  | 'member.enabled'
+  | 'member.removed'
+
+export type WebhookEvent = FlagWebhookEvent | MemberWebhookEvent
+
+/** The flag events: what a webhook subscribes to when it names no events. */
+export const WEBHOOK_EVENTS: FlagWebhookEvent[] = [
   'flag.created',
   'flag.updated',
   'flag.deleted',
   'flag.archived',
   'flag.restored',
+]
+
+export const MEMBER_WEBHOOK_EVENTS: MemberWebhookEvent[] = [
+  'member.invited',
+  'member.joined',
+  'member.role_changed',
+  'member.disabled',
+  'member.enabled',
+  'member.removed',
 ]
 
 export interface WebhookEndpoint {

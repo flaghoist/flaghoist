@@ -6,6 +6,8 @@ import {
   type EvaluationContext,
   type FeatureFlag,
   type FlagSnapshot,
+  type FlagWebhookEvent,
+  type MemberWebhookEvent,
   type WebhookEvent,
 } from '@flaghoist/core'
 import { Hono, type Context } from 'hono'
@@ -34,6 +36,7 @@ import {
   type UserRecord,
 } from './accounts'
 import { createAuditLog } from './audit'
+import { inviteEmail, resetEmail } from './email'
 import { seal, unseal } from './sealed'
 import { otpauthUri } from './totp'
 import {
@@ -65,17 +68,20 @@ import {
 import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
 import {
+  ALL_WEBHOOK_EVENTS,
   createWebhookStore,
   dispatchWebhooks,
   generateId,
   generateSecret,
   sign as signWebhook,
   validateWebhookInput,
+  type MemberWebhookPayload,
   type WebhookPayload,
 } from './webhooks'
 
 export type { PublicInvite, PublicSession, PublicToken, PublicUser, UsersConfig } from './accounts'
 export type { AuditEntry, AuditLog, AuditPage, FlagSnapshot } from './audit'
+export type { EmailMessage, EmailSender } from './email'
 export type { SsoConfig } from './sso'
 export { apiKey, apiKeys, bearerToken, oidc, type OidcOptions } from './auth'
 export {
@@ -94,7 +100,7 @@ export {
 export { openApiDocument } from './openapi'
 export { can, minimumRole, ROLES, type Permission, type Role } from './permissions'
 export type { AuthResult, Authenticator, ConfigResolver, ServerConfig } from './types'
-export type { WebhookPayload } from './webhooks'
+export type { FlagWebhookPayload, MemberWebhookPayload, WebhookPayload } from './webhooks'
 
 const DEFAULT_CACHE_TTL_SECONDS = 30
 const MAX_BODY_BYTES = 64 * 1024
@@ -171,7 +177,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   }
 
   function fireWebhook(
-    event: WebhookEvent,
+    event: FlagWebhookEvent,
     flagKey: string,
     actor: string,
     environment: string | undefined,
@@ -190,6 +196,37 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       actor,
       previous,
       environment,
+    }
+    dispatchWebhooks(webhookStore, event, payload).catch(() => {})
+  }
+
+  /** Tell webhooks that listed a member event about a team change. Fire and forget. */
+  function fireMemberEvent(
+    event: MemberWebhookEvent,
+    actor: string,
+    member: {
+      id?: string
+      email: string
+      role: Role
+      status?: string
+      environmentRoles?: Record<string, Role>
+    },
+    previous?: { role: Role; environmentRoles?: Record<string, Role> },
+  ) {
+    const payload: MemberWebhookPayload = {
+      event,
+      timestamp: new Date().toISOString(),
+      actor,
+      member: {
+        ...(member.id ? { id: member.id } : {}),
+        email: member.email,
+        role: member.role,
+        ...(member.status ? { status: member.status } : {}),
+        ...(member.environmentRoles && Object.keys(member.environmentRoles).length > 0
+          ? { environmentRoles: member.environmentRoles }
+          : {}),
+      },
+      ...(previous ? { previous } : {}),
     }
     dispatchWebhooks(webhookStore, event, payload).catch(() => {})
   }
@@ -899,7 +936,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       if (obj.events !== undefined) {
         if (!Array.isArray(obj.events)) return c.json({ error: 'events must be an array' }, 400)
         for (const e of obj.events) {
-          if (!WEBHOOK_EVENTS.includes(e as WebhookEvent)) {
+          if (!ALL_WEBHOOK_EVENTS.includes(e as WebhookEvent)) {
             return c.json({ error: `Unknown event: ${String(e)}` }, 400)
           }
         }
@@ -1271,6 +1308,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       target: { type: 'user', id: user.id },
       changeDescription: `${user.email} as owner`,
     })
+    fireMemberEvent('member.joined', caller.identity, user)
     return c.json({ user: publicUser(user) }, 201)
   })
 
@@ -1520,6 +1558,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
             target: { type: 'user', id: user.id },
             changeDescription: `Joined as ${user.role} with SSO`,
           })
+          fireMemberEvent('member.joined', email, user)
         } else {
           await audit.record({
             action: 'user.created',
@@ -1527,6 +1566,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
             target: { type: 'user', id: user.id },
             changeDescription: `${email} as ${user.role}, with SSO`,
           })
+          fireMemberEvent('member.joined', email, user)
         }
       }
     }
@@ -1547,6 +1587,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
             target: { type: 'user', id: user.id },
             changeDescription: `${email}: role ${before} to ${groupRole}`,
           })
+          fireMemberEvent('member.role_changed', 'SSO groups', user, { role: before })
         }
       }
     }
@@ -1791,8 +1832,51 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   const notYourself = (c: Context<{ Bindings: Env }>, what: string) =>
     c.json({ error: `You cannot ${what} yourself.`, code: 'self_change' }, 409)
 
-  function linkResponse(token: string, invite: InviteRecord) {
-    return { token, invite: publicInvite(invite) }
+  /**
+   * Hand a new invite or reset link back to the admin, and email it when the server has a sender.
+   * The link points at the dashboard the admin is using when it names an allowed address, and at
+   * this server's `/admin` otherwise. A failed email is logged; the link is still returned.
+   */
+  async function deliverLink(
+    c: Context<{ Bindings: Env }>,
+    cfg: ServerConfig,
+    token: string,
+    invite: InviteRecord,
+    requested: unknown,
+  ): Promise<{ token: string; invite: ReturnType<typeof publicInvite>; emailed: boolean }> {
+    const sender = cfg.users?.email
+    let emailed = false
+    if (sender) {
+      const base =
+        allowedReturn(cfg, c.req.url, typeof requested === 'string' ? requested : undefined) ??
+        `${new URL(c.req.url).origin}/admin/`
+      // With SSO only, the invite is accepted by signing in with SSO, so the email links to the
+      // sign-in screen rather than to a set-your-password form that would refuse it.
+      const ssoOnly = passwordOff(cfg) ? (cfg.users?.sso?.label ?? 'SSO') : undefined
+      const plainBase = base.replace(/#.*$/, '')
+      const link =
+        invite.kind === 'invite' && ssoOnly
+          ? plainBase
+          : `${plainBase}#accept=${encodeURIComponent(token)}`
+      const message =
+        invite.kind === 'invite'
+          ? inviteEmail({
+              to: invite.email,
+              role: invite.role,
+              invitedBy: invite.invitedBy,
+              link,
+              expiresAt: invite.expiresAt,
+              ssoLabel: ssoOnly,
+            })
+          : resetEmail({ to: invite.email, link, expiresAt: invite.expiresAt })
+      try {
+        await sender.send(message)
+        emailed = true
+      } catch (err) {
+        console.error('[flaghoist] sending the email failed; the link was still returned', err)
+      }
+    }
+    return { token, invite: publicInvite(invite), emailed }
   }
 
   app.get('/api/v1/users', async (c) => {
@@ -1915,6 +1999,19 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         changeDescription: `${user.email}: ${changes.join(', ')}`,
       })
     }
+    if (roleChanged || envRolesChanged) {
+      fireMemberEvent('member.role_changed', caller.identity, saved, {
+        role: user.role,
+        ...(user.environmentRoles ? { environmentRoles: user.environmentRoles } : {}),
+      })
+    }
+    if (statusChanged) {
+      fireMemberEvent(
+        status === 'disabled' ? 'member.disabled' : 'member.enabled',
+        caller.identity,
+        saved,
+      )
+    }
     return c.json(publicUser(saved))
   })
 
@@ -1934,6 +2031,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       target: { type: 'user', id: user.id },
       changeDescription: user.email,
     })
+    fireMemberEvent('member.removed', caller.identity, { ...user, status: 'removed' })
     return c.body(null, 204)
   })
 
@@ -1977,6 +2075,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         409,
       )
     }
+    const body = await readBody(c)
+    if (body instanceof Response) return body
     const { token, invite } = await accounts.createInvite({
       kind: 'reset',
       email: user.email,
@@ -1984,13 +2084,14 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       userId: user.id,
       invitedBy: caller.identity,
     })
+    const result = await deliverLink(c, caller.cfg, token, invite, body.dashboardUrl)
     await audit.record({
       action: 'password.reset',
       actor: caller.identity,
       target: { type: 'user', id: user.id },
-      changeDescription: `Reset link for ${user.email}`,
+      changeDescription: `Reset link for ${user.email}${result.emailed ? ', emailed' : ''}`,
     })
-    return c.json(linkResponse(token, invite), 201)
+    return c.json(result, 201)
   })
 
   app.get('/api/v1/invites', async (c) => {
@@ -2020,13 +2121,15 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       role,
       invitedBy: caller.identity,
     })
+    const result = await deliverLink(c, caller.cfg, token, invite, body.dashboardUrl)
     await audit.record({
       action: 'invite.created',
       actor: caller.identity,
       target: { type: 'invite', id: invite.id },
-      changeDescription: `${email} as ${role}`,
+      changeDescription: `${email} as ${role}${result.emailed ? ', emailed' : ''}`,
     })
-    return c.json(linkResponse(token, invite), 201)
+    fireMemberEvent('member.invited', caller.identity, { email, role })
+    return c.json(result, 201)
   })
 
   // A new link for an open invite. The old link stops working.
@@ -2045,13 +2148,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       role: existing.role,
       invitedBy: caller.identity,
     })
+    const body = await readBody(c)
+    if (body instanceof Response) return body
+    const result = await deliverLink(c, caller.cfg, token, invite, body.dashboardUrl)
     await audit.record({
       action: 'invite.created',
       actor: caller.identity,
       target: { type: 'invite', id: invite.id },
-      changeDescription: `${existing.email} as ${existing.role}, resent`,
+      changeDescription: `${existing.email} as ${existing.role}, resent${
+        result.emailed ? ', emailed' : ''
+      }`,
     })
-    return c.json(linkResponse(token, invite), 201)
+    return c.json(result, 201)
   })
 
   app.delete('/api/v1/invites/:id', async (c) => {
@@ -2135,6 +2243,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         target: { type: 'user', id: user.id },
         changeDescription: `Joined as ${user.role}`,
       })
+      fireMemberEvent('member.joined', user.email, user)
     } else {
       const existing = invite.userId ? await accounts.getUser(invite.userId) : null
       if (!existing || existing.email !== invite.email) {

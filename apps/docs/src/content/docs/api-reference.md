@@ -330,12 +330,34 @@ curl -X POST https://team-flags.you.workers.dev/api/v1/webhooks \
 }
 ```
 
-`events` and `enabled` are optional on create (default: every event, enabled). `secret` is generated
+`events` and `enabled` are optional on create (default: every flag event, enabled). `secret` is generated
 server-side and returned once on create; the dashboard lets you reveal it again later since it's kept
 in storage, but treat it as a credential. `PUT /api/v1/webhooks/:id` accepts a partial `{ url?,
 events?, enabled? }` to update one without resending the rest. `POST /api/v1/webhooks/:id/test`
 sends a synthetic `flag.updated` delivery so you can verify your endpoint without touching a real
 flag.
+
+### Member events
+
+On a server with [user accounts](/auth/#user-accounts), a webhook can also receive team changes:
+`member.invited`, `member.joined`, `member.role_changed`, `member.disabled`, `member.enabled` and
+`member.removed`. They are opt-in: a webhook gets them only when its `events` list names them, never
+by default, so a receiver written for flag events never sees another shape. Their payload has a
+`member` object in place of `flag`:
+
+```json
+{
+  "event": "member.role_changed",
+  "timestamp": "2026-09-25T10:00:00.000Z",
+  "actor": "ada@example.com",
+  "member": { "id": "usr_...", "email": "ed@example.com", "role": "admin", "status": "active" },
+  "previous": { "role": "editor" }
+}
+```
+
+`member.invited` has no `id` yet. `environmentRoles` appears on `member` (and `previous`) when the
+member has roles per environment. Sign-ins, passwords, two-factor and access tokens are never sent
+to webhooks; they stay in the security log.
 
 ### Delivery
 

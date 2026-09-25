@@ -384,13 +384,13 @@ describe('roles and attribution', () => {
     expect(((await put.json()) as { code: string }).code).toBe('insufficient_role')
   })
 
-  it('labels the admin token as break-glass once accounts are on', async () => {
+  it('labels the admin token as such once accounts are on', async () => {
     const app = makeServer()
     await call(app, 'PUT', '/api/v1/flags/x', { enabled: true }, ADMIN_TOKEN)
     const audit = (await (
       await call(app, 'GET', '/api/v1/audit', undefined, ADMIN_TOKEN)
     ).json()) as { entries: { actor: string }[] }
-    expect(audit.entries[0]?.actor).toBe('owner (break-glass)')
+    expect(audit.entries[0]?.actor).toBe('admin token')
   })
 })
 

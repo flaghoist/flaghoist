@@ -111,7 +111,7 @@ describe('member events on webhooks', () => {
     ])
     expect(deliveries[0]!.body).toMatchObject({
       event: 'member.invited',
-      actor: 'owner (break-glass)',
+      actor: 'admin token',
       member: { email: 'a@example.com', role: 'viewer' },
     })
     expect(deliveries[0]!.body.member).not.toHaveProperty('id')
@@ -161,7 +161,8 @@ describe('emailing invites and reset links', () => {
     expect(message.subject).toBe('You are invited to Flaghoist')
     const link = `https://flags-ui.example.com/#accept=${encodeURIComponent(res.token)}`
     expect(message.text).toContain(link)
-    expect(message.text).toContain('owner (break-glass) invited you to Flaghoist as editor.')
+    expect(message.text).toContain('You are invited to Flaghoist as editor.')
+    expect(message.text).not.toContain('admin token')
     expect(message.html).toContain(link)
   })
 

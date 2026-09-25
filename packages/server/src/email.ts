@@ -43,14 +43,17 @@ function htmlBody(paragraphs: string[], link: string, button: string): string {
 export function inviteEmail(input: {
   to: string
   role: string
-  invitedBy: string
+  /** Who sent the invite. Absent when it came from the admin token rather than a person. */
+  invitedBy?: string
   link: string
   expiresAt: string
   /** Set when the server signs in with SSO only: there is no password to choose. */
   ssoLabel?: string
 }): EmailMessage {
   const paragraphs = [
-    `${input.invitedBy} invited you to Flaghoist as ${input.role}.`,
+    input.invitedBy
+      ? `${input.invitedBy} invited you to Flaghoist as ${input.role}.`
+      : `You are invited to Flaghoist as ${input.role}.`,
     input.ssoLabel
       ? `Open Flaghoist and choose Continue with ${input.ssoLabel}, signing in as ${input.to}. The invite lasts until ${formatDate(input.expiresAt)}.`
       : `Open the link to choose a password and sign in. It works once, until ${formatDate(input.expiresAt)}.`,

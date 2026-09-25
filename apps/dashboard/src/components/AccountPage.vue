@@ -339,8 +339,13 @@ onMounted(() => {
         </p>
       </template>
       <p v-else class="hint">
-        You are signed in with an access token as <strong>{{ me.identity }}</strong
-        >, not with an account.
+        <template v-if="me.identity === 'admin token' || me.identity === 'admin'"
+          >You are signed in with the admin token, not with an account.</template
+        >
+        <template v-else
+          >You are signed in with a token as <strong>{{ me.identity }}</strong
+          >, not with an account.</template
+        >
         <template v-if="me.accounts && !setupRequired">
           Sign out and sign in with your email to manage your account.</template
         >

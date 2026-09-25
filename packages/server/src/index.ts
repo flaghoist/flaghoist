@@ -102,6 +102,12 @@ export { can, minimumRole, ROLES, type Permission, type Role } from './permissio
 export type { AuthResult, Authenticator, ConfigResolver, ServerConfig } from './types'
 export type { FlagWebhookPayload, MemberWebhookPayload, WebhookPayload } from './webhooks'
 
+/**
+ * How the shared admin token appears in the audit log, flag metadata and webhooks once user
+ * accounts are on, so its changes stand out from those made by a named person.
+ */
+export const ADMIN_TOKEN_IDENTITY = 'admin token'
+
 const DEFAULT_CACHE_TTL_SECONDS = 30
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -257,7 +263,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   /**
    * Identify the caller of an admin request. With accounts on, a session token or a personal access
    * token is resolved against the record store; anything else goes to the configured `auth.admin`
-   * verifier, which becomes the break-glass credential. A verifier that reports no role gets `owner`, the full access every
+   * verifier, which becomes the recovery credential. A verifier that reports no role gets `owner`, the full access every
    * admin verifier had before roles existed.
    */
   async function authenticate(c: Context<{ Bindings: Env }>): Promise<Caller | Response> {
@@ -319,10 +325,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     const auth = await cfg.auth.admin(c.req.raw.headers)
     if (!auth.ok) return c.json({ error: auth.message ?? 'Unauthorized' }, auth.status ?? 401)
     const role = auth.role === undefined ? 'owner' : isRole(auth.role) ? auth.role : null
-    // With accounts on, the shared bearer token is the break-glass credential. Say so in the audit
-    // log, so a change made with it stands out from one made by a named person.
-    const breakGlass = accounts !== null && auth.role === undefined && auth.identity === 'admin'
-    const identity = breakGlass ? 'owner (break-glass)' : (auth.identity ?? 'unknown')
+    // With accounts on, the shared bearer token is the way back in when accounts fail. Name it in
+    // the audit log, so a change made with it stands out from one made by a named person.
+    const adminToken = accounts !== null && auth.role === undefined && auth.identity === 'admin'
+    const identity = adminToken ? ADMIN_TOKEN_IDENTITY : (auth.identity ?? 'unknown')
     return {
       cfg,
       identity,
@@ -1268,7 +1274,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     })
   })
 
-  // First run: with accounts on and none created yet, the break-glass credential creates the first
+  // First run: with accounts on and none created yet, the admin token creates the first
   // Owner. Everyone after that is invited.
   app.post('/api/v1/auth/setup', async (c) => {
     const caller = await authenticate(c)
@@ -1312,7 +1318,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     return c.json({ user: publicUser(user) }, 201)
   })
 
-  /** The signed-in account, for routes that act on it. The break-glass token has none. */
+  /** The signed-in account, for routes that act on it. The admin token has none. */
   async function signedInUser(
     c: Context<{ Bindings: Env }>,
   ): Promise<
@@ -1622,7 +1628,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
   // ---- Personal access tokens: the signed-in user's own ----
 
-  /** The account behind a session or an access token. The break-glass token has none. */
+  /** The account behind a session or an access token. The admin token has none. */
   async function tokenOwner(
     c: Context<{ Bindings: Env }>,
   ): Promise<(Authorized & { user: UserRecord; accounts: AccountStore }) | Response> {
@@ -1863,7 +1869,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           ? inviteEmail({
               to: invite.email,
               role: invite.role,
-              invitedBy: invite.invitedBy,
+              invitedBy: invite.invitedBy === ADMIN_TOKEN_IDENTITY ? undefined : invite.invitedBy,
               link,
               expiresAt: invite.expiresAt,
               ssoLabel: ssoOnly,

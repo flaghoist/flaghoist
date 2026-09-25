@@ -4,7 +4,7 @@ const ROLES = ['viewer', 'editor', 'admin', 'owner']
 
 export const USERS_USAGE = `  users list
   users invite <email> [--role viewer|editor|admin|owner]
-  users role <email> <role>
+  users role <email> <role> [--env E]   With --env, the role in one environment; "default" clears it
   users disable <email>
   users enable <email>
   users remove <email>
@@ -35,7 +35,7 @@ export async function runUsers(
   client: AdminClient,
   serverUrl: string,
   positionals: string[],
-  options: { role?: string },
+  options: { role?: string; env?: string },
 ): Promise<string[]> {
   const [sub, a, b] = positionals
   const dashboard = `${serverUrl.replace(/\/+$/, '')}/admin/`
@@ -64,8 +64,23 @@ export async function runUsers(
       ]
     }
     case 'role': {
-      if (!a || !b) throw new Error('Usage: flaghoist users role <email> <role>')
+      if (!a || !b) throw new Error('Usage: flaghoist users role <email> <role> [--env E]')
       const member = await memberByEmail(client, a)
+      if (options.env) {
+        const clear = b === 'default'
+        if (!clear && (!ROLES.includes(b) || b === 'owner')) {
+          throw new Error('An environment role must be viewer, editor or admin, or "default".')
+        }
+        const updated = await client.updateMember(member.id, {
+          environmentRoles: { ...member.environmentRoles, [options.env]: clear ? null : b },
+        })
+        const now = updated.environmentRoles?.[options.env]
+        return [
+          now
+            ? `${updated.email} is ${now} in ${options.env}.`
+            : `${updated.email} has their main role (${updated.role}) in ${options.env}.`,
+        ]
+      }
       const updated = await client.updateMember(member.id, { role: requireRole(b) })
       return [`${updated.email} is now ${updated.role}.`]
     }

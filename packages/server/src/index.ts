@@ -22,6 +22,7 @@ import {
   publicSession,
   publicToken,
   publicUser,
+  roleInEnvironment,
   DEFAULT_TOKEN_DAYS,
   MAX_TOKEN_DAYS,
   SESSION_PREFIX,
@@ -51,7 +52,16 @@ import { createDefinitionCache, type DefinitionCache } from './cache'
 import { resolveAdminEnvironment, resolveReadEnvironment, scopedStorage } from './environments'
 import { buildFlag, flagEtag } from './flags'
 import { openApiDocument } from './openapi'
-import { can, isRole, minimumRole, ROLES, type Permission, type Role } from './permissions'
+import {
+  can,
+  isEnvironmentPermission,
+  isRole,
+  lowerRole,
+  minimumRole,
+  ROLES,
+  type Permission,
+  type Role,
+} from './permissions'
 import { defaultRateLimitKey, memoryRateLimit } from './ratelimit'
 import type { ConfigResolver, ServerConfig } from './types'
 import {
@@ -301,7 +311,18 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     const caller = await authenticate(c)
     if (caller instanceof Response) return caller
     if (caller.twoFactorPending) return twoFactorSetupFirst(c)
-    if (caller.role === null || !can(caller.role, permission)) {
+    let role = caller.role
+    // Flag actions use the member's role in the environment the request targets. An unknown
+    // environment is left for the route to reject with its own message.
+    if (role !== null && caller.user && isEnvironmentPermission(permission)) {
+      const env = resolveAdminEnvironment(
+        caller.cfg.environments,
+        defaultEnvOf(caller.cfg),
+        c.req.raw.headers,
+      )
+      if (env.ok) role = effectiveRole(caller, env.environment)
+    }
+    if (role === null || !can(role, permission)) {
       return c.json(
         {
           error: `This needs the ${minimumRole(permission)} role or higher.`,
@@ -310,7 +331,14 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         403,
       )
     }
-    return caller as Authorized
+    return { ...caller, role }
+  }
+
+  /** An account's role in one environment, capped by the access token in use, if any. */
+  function effectiveRole(caller: Caller, environment: string): Role | null {
+    if (!caller.user) return caller.role
+    const inEnvironment = roleInEnvironment(caller.user, environment)
+    return caller.pat ? lowerRole(caller.pat.role, inEnvironment) : inEnvironment
   }
 
   const twoFactorSetupFirst = (c: Context<{ Bindings: Env }>) =>
@@ -1186,6 +1214,13 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
           }
         : null,
       token: caller.pat ? publicToken(caller.pat) : null,
+      // The role this credential has in each environment, for a dashboard that follows it.
+      environmentRoles:
+        caller.user && caller.cfg.environments && caller.cfg.environments.length > 0
+          ? Object.fromEntries(
+              caller.cfg.environments.map((env) => [env, effectiveRole(caller, env)]),
+            )
+          : null,
       twoFactor: caller.user
         ? {
             enabled: caller.user.twoFactor !== undefined,
@@ -1796,6 +1831,45 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     const roleChanged = role !== user.role
     const statusChanged = status !== user.status
 
+    // Per-environment roles: replaced as a whole. A null value removes an environment's override.
+    let environmentRoles = user.environmentRoles ?? {}
+    if (body.environmentRoles !== undefined) {
+      const envs = caller.cfg.environments ?? []
+      const value = body.environmentRoles
+      if (envs.length === 0) {
+        return c.json({ error: 'This server has no environments configured.' }, 400)
+      }
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return c.json({ error: 'environmentRoles must be an object of environment to role.' }, 400)
+      }
+      const next: Record<string, Role> = {}
+      for (const [env, r] of Object.entries(value as Record<string, unknown>)) {
+        if (!envs.includes(env)) {
+          return c.json({ error: `Unknown environment "${env}".` }, 400)
+        }
+        if (r === null) continue
+        if (!isRole(r) || r === 'owner') {
+          return c.json({ error: 'An environment role must be viewer, editor or admin.' }, 400)
+        }
+        next[env] = r
+      }
+      environmentRoles = next
+    }
+    // Owners have full access everywhere, so an owner keeps no overrides.
+    if (role === 'owner') {
+      if (body.environmentRoles !== undefined && Object.keys(environmentRoles).length > 0) {
+        return c.json({ error: 'Owners have full access in every environment.' }, 400)
+      }
+      environmentRoles = {}
+    }
+    const envChanges = [
+      ...new Set([...Object.keys(user.environmentRoles ?? {}), ...Object.keys(environmentRoles)]),
+    ]
+      .sort()
+      .filter((env) => user.environmentRoles?.[env] !== environmentRoles[env])
+      .map((env) => `${env}: ${environmentRoles[env] ?? 'main role'}`)
+    const envRolesChanged = envChanges.length > 0 && role !== 'owner'
+
     if (roleChanged && user.roleManagedBy === 'sso' && caller.cfg.users?.sso?.roleMapping) {
       return c.json(
         {
@@ -1809,14 +1883,21 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     if ((user.role === 'owner' || role === 'owner') && caller.role !== 'owner') {
       if (roleChanged || statusChanged) return ownersOnly(c)
     }
-    if (caller.user?.id === user.id && (roleChanged || statusChanged)) {
-      return notYourself(c, roleChanged ? 'change the role of' : 'disable')
+    if (caller.user?.id === user.id && (roleChanged || statusChanged || envRolesChanged)) {
+      return notYourself(c, roleChanged || envRolesChanged ? 'change the role of' : 'disable')
     }
     if ((roleChanged || status === 'disabled') && (await isLastOwner(accounts, user))) {
       return lastOwner(c)
     }
 
-    const saved = await accounts.saveUser({ ...user, role, status, name })
+    const { environmentRoles: _previous, ...rest } = user
+    const saved = await accounts.saveUser({
+      ...rest,
+      role,
+      status,
+      name,
+      ...(Object.keys(environmentRoles).length > 0 ? { environmentRoles } : {}),
+    })
     // Losing access takes effect now: a disabled or demoted member signs in again, or not at all.
     const demoted = ROLES.indexOf(role) < ROLES.indexOf(user.role)
     if (status === 'disabled' || demoted) await accounts.revokeSessionsFor(user.id)
@@ -1825,6 +1906,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     if (roleChanged) changes.push(`role ${user.role} to ${role}`)
     if (statusChanged) changes.push(status === 'disabled' ? 'disabled' : 'enabled')
     if (name !== user.name) changes.push('name changed')
+    if (envRolesChanged) changes.push(...envChanges.map((change) => `role in ${change}`))
     if (changes.length > 0) {
       await audit.record({
         action: 'user.updated',

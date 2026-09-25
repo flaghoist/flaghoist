@@ -287,7 +287,7 @@ Admin or owner. Only an owner can grant the owner role or act on an owner.
 | Method   | Path                          | Purpose                                                        |
 | -------- | ----------------------------- | -------------------------------------------------------------- |
 | `GET`    | `/api/v1/users`               | Members, with `lastActiveAt`                                   |
-| `PUT`    | `/api/v1/users/{id}`          | `{ role?, status?: "active" \| "disabled", name? }`            |
+| `PUT`    | `/api/v1/users/{id}`          | `{ role?, status?, name?, environmentRoles? }`                 |
 | `DELETE` | `/api/v1/users/{id}`          | Remove a member                                                |
 | `POST`   | `/api/v1/users/{id}/reset`    | A password reset link: `{ token, invite }`, valid 24 hours     |
 | `GET`    | `/api/v1/invites`             | Open invites                                                   |
@@ -296,6 +296,10 @@ Admin or owner. Only an owner can grant the owner role or act on an owner.
 | `DELETE` | `/api/v1/invites/{id}`        | Cancel an open invite                                          |
 | `POST`   | `/api/v1/invites/inspect`     | No auth. `{ token }` returns what the link is for              |
 | `POST`   | `/api/v1/invites/accept`      | No auth. `{ token, name?, salt, clientKey }` returns a session |
+
+`environmentRoles` maps environment names to `viewer`, `editor` or `admin` and replaces the
+member's per-environment roles; `null` for an environment removes its entry. `GET /api/v1/auth/me`
+reports the caller's role in each environment as `environmentRoles`.
 
 The `token` (`fh_inv_...` or `fh_rst_...`) is returned once and stored only as a hash. The
 dashboard link for it is `<dashboard>#accept=<token>`; `inviteLink()` in `@flaghoist/admin-client`

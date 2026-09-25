@@ -47,3 +47,25 @@ export function can(role: unknown, permission: Permission): boolean {
   if (!isRole(role)) return false
   return ROLES.indexOf(role) >= ROLES.indexOf(MINIMUM_ROLE[permission])
 }
+
+/**
+ * Permissions that act on one environment's flags. For these, a member's role in the environment
+ * the request targets applies; everything else (members, webhooks, the security log) uses their
+ * main role.
+ */
+const ENVIRONMENT_PERMISSIONS: readonly Permission[] = [
+  'flags:read',
+  'flags:write',
+  'flags:delete',
+  'flags:import',
+  'audit:read',
+]
+
+export function isEnvironmentPermission(permission: Permission): boolean {
+  return ENVIRONMENT_PERMISSIONS.includes(permission)
+}
+
+/** The lower of two roles. */
+export function lowerRole(a: Role, b: Role): Role {
+  return ROLES.indexOf(a) <= ROLES.indexOf(b) ? a : b
+}

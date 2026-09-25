@@ -142,6 +142,8 @@ export interface AccountUser {
   roleManagedBy?: 'sso'
   /** Whether the account uses two-factor codes. */
   twoFactor?: boolean
+  /** Roles that differ from `role` in particular environments, for flags there. */
+  environmentRoles?: Record<string, string>
   createdAt: string
   lastLoginAt?: string
 }
@@ -182,6 +184,8 @@ export interface Me {
   session: { id: string; createdAt: string; expiresAt: string } | null
   /** The personal access token in use, when that is the credential. */
   token?: AccessToken | null
+  /** The role this credential has in each configured environment. Null without environments. */
+  environmentRoles?: Record<string, string> | null
   /** Two-factor state of the signed-in account. Null without an account. */
   twoFactor?: {
     enabled: boolean
@@ -336,10 +340,18 @@ export interface AdminClient {
   /** Sign out every session of the signed-in user except this one. */
   revokeOtherSessions(): Promise<{ revoked: number }>
   listMembers(): Promise<Member[]>
-  /** Change a member's role, name, or status (`disabled` blocks sign-in and ends their sessions). */
+  /**
+   * Change a member's role, name, or status (`disabled` blocks sign-in and ends their sessions).
+   * `environmentRoles` replaces their per-environment roles; `null` for an environment removes it.
+   */
   updateMember(
     id: string,
-    changes: { role?: string; status?: 'active' | 'disabled'; name?: string },
+    changes: {
+      role?: string
+      status?: 'active' | 'disabled'
+      name?: string
+      environmentRoles?: Record<string, string | null>
+    },
   ): Promise<AccountUser>
   removeMember(id: string): Promise<void>
   /** A link that lets a member set a new password, valid for 24 hours. */

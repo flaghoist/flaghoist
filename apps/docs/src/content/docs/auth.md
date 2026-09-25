@@ -116,6 +116,18 @@ A request the caller's role does not cover is refused with `403` and
 tells it apart from a `403` that rejects the credential itself, and the dashboard uses it to show
 the message instead of signing you out.
 
+### Roles per environment
+
+With [environments](/api-reference/#environments) configured and user accounts on, a member can
+have a different role in some environments: a viewer who is an editor in staging, or an editor who
+is read-only in production. Set it on the **Members** page or with
+`flaghoist users role <email> <role> --env <environment>`. It applies to that environment's flags,
+exports, imports and flag history. Members, webhooks and the security log always use the main role,
+and owners have full access everywhere, so they take no environment roles. An environment role can
+be higher or lower than the main role, up to admin. An access token still caps it: a token made at
+viewer stays read-only in every environment. For SSO members whose main role comes from groups,
+environment roles are still set in Flaghoist.
+
 ## User accounts
 
 Turn on accounts and people sign in to the dashboard with their own email and password. Every

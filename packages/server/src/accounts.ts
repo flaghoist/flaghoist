@@ -1,5 +1,5 @@
 import type { StorageAdapter } from '@flaghoist/core'
-import { isRole, ROLES, type Role } from './permissions'
+import { isRole, lowerRole, type Role } from './permissions'
 import { seal, unseal } from './sealed'
 import { assertSsoConfig, type SsoConfig } from './sso'
 import {
@@ -99,6 +99,11 @@ export interface UserRecord {
   sso?: { issuer: string; subject: string }
   /** Set when the SSO provider's groups decide this account's role. */
   roleManagedBy?: 'sso'
+  /**
+   * A different role in some environments, such as editor in staging for a viewer. Applies to that
+   * environment's flags only. Owners have none: they have full access everywhere.
+   */
+  environmentRoles?: Record<string, Role>
   /** Two-factor codes, once set up. The secret is sealed: the server must read it, not just match it. */
   twoFactor?: {
     secret: string
@@ -130,6 +135,8 @@ export interface PublicUser {
   roleManagedBy?: 'sso'
   /** Whether the account uses two-factor codes. */
   twoFactor: boolean
+  /** Roles that differ from `role` in particular environments. */
+  environmentRoles?: Record<string, Role>
   createdAt: string
   lastLoginAt?: string
 }
@@ -363,6 +370,12 @@ const EMAIL_BASE_LOCK_MS = 30_000
 const MAX_LOCK_MS = 15 * 60_000
 const IP_MAX_FAILURES = 30
 
+/** A member's role in one environment: their override there, or their main role. */
+export function roleInEnvironment(user: UserRecord, environment: string): Role {
+  if (user.role === 'owner') return 'owner'
+  return user.environmentRoles?.[environment] ?? user.role
+}
+
 export function publicUser(user: UserRecord): PublicUser {
   return {
     id: user.id,
@@ -373,6 +386,9 @@ export function publicUser(user: UserRecord): PublicUser {
     createdAt: user.createdAt,
     hasPassword: user.password !== undefined,
     twoFactor: user.twoFactor !== undefined,
+    ...(user.environmentRoles && Object.keys(user.environmentRoles).length > 0
+      ? { environmentRoles: user.environmentRoles }
+      : {}),
     ...(user.sso ? { sso: true } : {}),
     ...(user.roleManagedBy ? { roleManagedBy: user.roleManagedBy } : {}),
     ...(user.lastLoginAt ? { lastLoginAt: user.lastLoginAt } : {}),
@@ -427,10 +443,6 @@ function isTokenRecord(value: unknown): value is TokenRecord {
     typeof v.name === 'string' &&
     isRole(v.role)
   )
-}
-
-function lowerRole(a: Role, b: Role): Role {
-  return ROLES.indexOf(a) <= ROLES.indexOf(b) ? a : b
 }
 
 function isAttemptRecord(value: unknown): value is AttemptRecord {

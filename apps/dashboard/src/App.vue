@@ -50,9 +50,13 @@ const isSession = computed(() => serverToken.value.startsWith('fh_sess_'))
 const canSeeSecurity = computed(() => me.value !== null && can(me.value.role, 'audit:security'))
 // A server from before accounts cannot say who is calling, and every credential there is an owner.
 const role = computed(() => (me.value ? me.value.role : 'owner'))
-const canWrite = computed(() => can(role.value, 'flags:write'))
-const canDelete = computed(() => can(role.value, 'flags:delete'))
-const canImport = computed(() => can(role.value, 'flags:import'))
+// Flag actions follow the role in the environment being viewed, which can differ from the main one.
+const flagRole = computed(
+  () => me.value?.environmentRoles?.[currentEnvironment.value] ?? role.value,
+)
+const canWrite = computed(() => can(flagRole.value, 'flags:write'))
+const canDelete = computed(() => can(flagRole.value, 'flags:delete'))
+const canImport = computed(() => can(flagRole.value, 'flags:import'))
 const canManageWebhooks = computed(() => can(role.value, 'webhooks:manage'))
 const canManageMembers = computed(
   () => me.value?.accounts === true && can(role.value, 'members:manage'),
@@ -1475,6 +1479,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         :api="api"
         :me="me"
         :dashboard-url="dashboardUrl"
+        :environments="environments"
         @notify="(text, tone) => toast(text, tone)"
         @failed="onAccountError"
       />

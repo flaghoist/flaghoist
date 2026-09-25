@@ -12,7 +12,13 @@ import {
 import { assignableRoles } from '../roles'
 import ConfirmDialog from './ConfirmDialog.vue'
 
-const props = defineProps<{ api: AdminClient; me: Me; dashboardUrl: string }>()
+const props = defineProps<{
+  api: AdminClient
+  me: Me
+  dashboardUrl: string
+  /** Configured environments. With more than one, members can have a role per environment. */
+  environments?: string[]
+}>()
 const emit = defineEmits<{
   notify: [text: string, tone: 'ok' | 'error']
   failed: [error: unknown]
@@ -159,6 +165,30 @@ function setStatus(m: Member, status: 'active' | 'disabled') {
 function resetLink(m: Member) {
   return withBusy(m.id, async () => {
     await showLink(await props.api.createResetLink(m.id))
+  })
+}
+
+const perEnvironment = computed(() => (props.environments?.length ?? 0) > 1)
+// Environment roles go up to admin; an owner already has full access everywhere.
+const environmentRoleChoices = computed(() => roles.value.filter((r) => r !== 'owner'))
+
+function setEnvironmentRole(m: Member, environment: string, value: string) {
+  return withBusy(m.id, async () => {
+    const saved = await props.api.updateMember(m.id, {
+      environmentRoles: { ...m.environmentRoles, [environment]: value || null },
+    })
+    members.value = members.value.map((x) =>
+      x.id === m.id ? { ...x, environmentRoles: saved.environmentRoles } : x,
+    )
+    emit(
+      'notify',
+      value
+        ? `${m.email} is ${value} in ${environment}.`
+        : `${m.email} has their main role in ${environment}.`,
+      'ok',
+    )
+  }).finally(() => {
+    members.value = [...members.value]
   })
 }
 
@@ -340,6 +370,37 @@ onMounted(() => void load())
               </button>
             </template>
             <span v-else class="role-badge">{{ m.role }}</span>
+          </div>
+          <div
+            v-if="perEnvironment && m.role !== 'owner' && (manageable(m) || m.environmentRoles)"
+            class="env-roles"
+          >
+            <template v-if="manageable(m)">
+              <span class="env-roles-label" :id="`env-roles-${m.id}`">By environment</span>
+              <div
+                v-for="env in environments"
+                :key="env"
+                class="env-role"
+                role="group"
+                :aria-labelledby="`env-roles-${m.id}`"
+              >
+                <label class="env-name" :for="`env-${m.id}-${env}`">{{ env }}</label>
+                <select
+                  :id="`env-${m.id}-${env}`"
+                  :value="m.environmentRoles?.[env] ?? ''"
+                  :disabled="busy.has(m.id)"
+                  @change="setEnvironmentRole(m, env, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">Main role ({{ m.role }})</option>
+                  <option v-for="r in environmentRoleChoices" :key="r" :value="r">{{ r }}</option>
+                </select>
+              </div>
+            </template>
+            <template v-else>
+              <span v-for="(r, env) in m.environmentRoles" :key="env" class="tag tag-sso"
+                >{{ env }}: {{ r }}</span
+              >
+            </template>
           </div>
         </li>
       </ul>
@@ -544,6 +605,34 @@ onMounted(() => void load())
   border-radius: var(--r-pill);
   color: var(--accent-text);
   background: var(--accent-wash);
+}
+.env-roles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+  flex-basis: 100%;
+  padding-top: 0.2rem;
+}
+.env-roles-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+}
+.env-role {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.env-name {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+.env-role select {
+  font-size: 0.78rem;
+  text-transform: capitalize;
 }
 .danger-hover:hover {
   color: var(--red-text);

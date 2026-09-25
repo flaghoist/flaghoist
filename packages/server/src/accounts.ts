@@ -1,5 +1,6 @@
 import type { StorageAdapter } from '@flaghoist/core'
 import { isRole, lowerRole, type Role } from './permissions'
+import type { EmailSender } from './email'
 import { seal, unseal } from './sealed'
 import { assertSsoConfig, type SsoConfig } from './sso'
 import {
@@ -48,6 +49,12 @@ export interface UsersConfig {
    * provider's own two-factor covers them.
    */
   twoFactor?: 'optional' | 'admins' | 'everyone'
+  /**
+   * Email invites and password reset links as well as showing them. Flaghoist bundles no
+   * provider: pass an object with `send({ to, subject, text, html })`. See the docs for Resend and
+   * Postmark examples.
+   */
+  email?: EmailSender
 }
 
 export const PASSWORD_KDF = 'pbkdf2-sha256'

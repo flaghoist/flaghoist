@@ -271,6 +271,16 @@ export interface Invite {
 export interface LinkResult {
   token: string
   invite: Invite
+  /** Whether the server emailed the link too. It does only when it has an email sender set up. */
+  emailed?: boolean
+}
+
+export interface LinkOptions {
+  /**
+   * The dashboard address to put in an emailed link, when it is not the server's own `/admin`.
+   * The server uses it only if its origin is in `allowedOrigins`.
+   */
+  dashboardUrl?: string
 }
 
 /** What a link holder learns before accepting it. */
@@ -355,11 +365,11 @@ export interface AdminClient {
   ): Promise<AccountUser>
   removeMember(id: string): Promise<void>
   /** A link that lets a member set a new password, valid for 24 hours. */
-  createResetLink(id: string): Promise<LinkResult>
+  createResetLink(id: string, options?: LinkOptions): Promise<LinkResult>
   listInvites(): Promise<Invite[]>
-  createInvite(input: { email: string; role: string }): Promise<LinkResult>
+  createInvite(input: { email: string; role: string } & LinkOptions): Promise<LinkResult>
   /** A new link for an open invite. The old one stops working. */
-  resendInvite(id: string): Promise<LinkResult>
+  resendInvite(id: string, options?: LinkOptions): Promise<LinkResult>
   revokeInvite(id: string): Promise<void>
   /** The signed-in user's personal access tokens. */
   listTokens(): Promise<AccessToken[]>
@@ -848,9 +858,12 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
       await request(`/api/v1/users/${encodeURIComponent(id)}`, { method: 'DELETE' })
     },
 
-    async createResetLink(id) {
+    async createResetLink(id, options) {
       return (await readJson(
-        await request(`/api/v1/users/${encodeURIComponent(id)}/reset`, { method: 'POST' }),
+        await request(`/api/v1/users/${encodeURIComponent(id)}/reset`, {
+          method: 'POST',
+          body: JSON.stringify(options ?? {}),
+        }),
       )) as LinkResult
     },
 
@@ -865,9 +878,12 @@ export function createAdminClient(options: AdminClientOptions): AdminClient {
       )) as LinkResult
     },
 
-    async resendInvite(id) {
+    async resendInvite(id, options) {
       return (await readJson(
-        await request(`/api/v1/invites/${encodeURIComponent(id)}/resend`, { method: 'POST' }),
+        await request(`/api/v1/invites/${encodeURIComponent(id)}/resend`, {
+          method: 'POST',
+          body: JSON.stringify(options ?? {}),
+        }),
       )) as LinkResult
     },
 

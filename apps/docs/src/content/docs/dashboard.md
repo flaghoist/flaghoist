@@ -81,7 +81,8 @@ came from the dashboard, the CLI, or a script against the admin API. Open it fro
 ## Webhooks
 
 The Webhooks page (`g` `w`) manages HTTP callbacks fired when a flag changes. **Add webhook** takes a
-URL and which events to send (or all of them); the signing secret used to verify deliveries is shown
+URL and which events to send (all flag events by default; member events such as invites, joins and
+role changes are listed separately and are off unless you tick them); the signing secret used to verify deliveries is shown
 once on creation and can be revealed again later from the card. **Test** sends a synthetic delivery
 to your URL without touching a real flag, so you can verify your endpoint's handler before relying on
 it. See [the API reference](/api-reference/#webhooks) for the delivery format and signature scheme.

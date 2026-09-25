@@ -110,7 +110,12 @@ describe('Members page', () => {
     await wrapper.find('#invite-role').setValue('editor')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(api.createInvite).toHaveBeenCalledWith({ email: 'new@example.com', role: 'editor' })
+    expect(api.createInvite).toHaveBeenCalledWith({
+      dashboardUrl: 'https://flags.example.com/admin/',
+      email: 'new@example.com',
+      role: 'editor',
+    })
+    expect(wrapper.find('.link-note.emailed').exists()).toBe(false)
     expect((wrapper.find('#shown-link').element as HTMLInputElement).value).toBe(
       'https://flags.example.com/admin/#accept=fh_inv_abc',
     )

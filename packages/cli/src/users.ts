@@ -57,9 +57,15 @@ export async function runUsers(
     case 'invite': {
       if (!a) throw new Error('Usage: flaghoist users invite <email> [--role viewer]')
       const role = requireRole(options.role ?? 'viewer')
-      const { token, invite } = await client.createInvite({ email: a, role })
+      const { token, invite, emailed } = await client.createInvite({
+        email: a,
+        role,
+        dashboardUrl: dashboard,
+      })
       return [
-        `Invited ${invite.email} as ${invite.role}. Send them this link (valid until ${when(invite.expiresAt)}):`,
+        emailed
+          ? `Invited ${invite.email} as ${invite.role} and emailed them the link (valid until ${when(invite.expiresAt)}):`
+          : `Invited ${invite.email} as ${invite.role}. Send them this link (valid until ${when(invite.expiresAt)}):`,
         inviteLink(dashboard, token),
       ]
     }
@@ -101,9 +107,13 @@ export async function runUsers(
     case 'reset': {
       if (!a) throw new Error('Usage: flaghoist users reset <email>')
       const member = await memberByEmail(client, a)
-      const { token, invite } = await client.createResetLink(member.id)
+      const { token, invite, emailed } = await client.createResetLink(member.id, {
+        dashboardUrl: dashboard,
+      })
       return [
-        `Send ${member.email} this link to set a new password (valid until ${when(invite.expiresAt)}):`,
+        emailed
+          ? `Emailed ${member.email} a link to set a new password (valid until ${when(invite.expiresAt)}):`
+          : `Send ${member.email} this link to set a new password (valid until ${when(invite.expiresAt)}):`,
         inviteLink(dashboard, token),
       ]
     }

@@ -67,12 +67,16 @@ async function withBusy(id: string, fn: () => Promise<void>) {
 
 /* ---- the one-time link ----------------------------------------------------- */
 
-const shownLink = ref<{ url: string; invite: Invite } | null>(null)
+const shownLink = ref<{ url: string; invite: Invite; emailed: boolean } | null>(null)
 const linkEl = ref<HTMLInputElement | null>(null)
 const copied = ref(false)
 
 async function showLink(result: LinkResult) {
-  shownLink.value = { url: inviteLink(props.dashboardUrl, result.token), invite: result.invite }
+  shownLink.value = {
+    url: inviteLink(props.dashboardUrl, result.token),
+    invite: result.invite,
+    emailed: result.emailed === true,
+  }
   copied.value = false
   await nextTick()
   linkEl.value?.focus()
@@ -102,6 +106,7 @@ async function invite() {
   inviting.value = true
   try {
     const result = await props.api.createInvite({
+      dashboardUrl: props.dashboardUrl,
       email: inviteEmail.value.trim(),
       role: inviteRole.value,
     })
@@ -119,7 +124,7 @@ async function invite() {
 
 function resend(inv: Invite) {
   return withBusy(inv.id, async () => {
-    const result = await props.api.resendInvite(inv.id)
+    const result = await props.api.resendInvite(inv.id, { dashboardUrl: props.dashboardUrl })
     invites.value = invites.value.map((i) => (i.id === inv.id ? result.invite : i))
     await showLink(result)
   })
@@ -164,7 +169,7 @@ function setStatus(m: Member, status: 'active' | 'disabled') {
 
 function resetLink(m: Member) {
   return withBusy(m.id, async () => {
-    await showLink(await props.api.createResetLink(m.id))
+    await showLink(await props.api.createResetLink(m.id, { dashboardUrl: props.dashboardUrl }))
   })
 }
 
@@ -266,7 +271,8 @@ onMounted(() => void load())
       </form>
       <p v-if="inviteError" class="err" role="alert">{{ inviteError }}</p>
       <p class="hint">
-        Flaghoist does not send email. You get a link to pass on yourself; it works once.
+        You get a link that works once. If this server has an email sender set up, it is emailed to
+        them as well; otherwise pass it on yourself.
       </p>
     </section>
 
@@ -287,6 +293,9 @@ onMounted(() => void load())
           {{ copied ? 'Copied' : 'Copy' }}
         </button>
       </div>
+      <p v-if="shownLink.emailed" class="link-note emailed">
+        Emailed to {{ shownLink.invite.email }}. The link is also here in case it does not arrive.
+      </p>
       <p class="link-note">
         Anyone with this link can use it until {{ formatTime(shownLink.invite.expiresAt) }}. It is
         shown only now; create a new one if it is lost.
@@ -526,6 +535,9 @@ onMounted(() => void load())
 .link-row {
   display: flex;
   gap: 0.5rem;
+}
+.link-note.emailed {
+  color: var(--green-text);
 }
 .link-note {
   margin: 0.6rem 0 0.4rem;

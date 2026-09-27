@@ -8,10 +8,43 @@ The `flaghoist` CLI scaffolds and deploys your service and manages flags against
 ## Scaffolding
 
 ```bash
-flaghoist init [--name <name>] [--storage cloudflare-kv|redis|postgres|memory] [--platform cloudflare|container]
+flaghoist init       # asks a few questions, then writes flaghoist.toml
 flaghoist eject      # generate a code project you own
 flaghoist deploy     # deploy: prompts for the platform (Cloudflare, or another host)
 ```
+
+### Setup questions
+
+`init` and `npm create flaghoist@latest` ask the same questions, and Enter takes the default:
+
+| Question           | Default             | Flag                               |
+| ------------------ | ------------------- | ---------------------------------- |
+| Project name       | `team-flags`        | `--name`                           |
+| Where it runs      | Cloudflare Workers  | `--platform cloudflare\|container` |
+| Storage            | depends on platform | `--storage`                        |
+| Accounts and roles | on                  | `--no-accounts`                    |
+| Single sign-on     | off                 | `--sso-issuer`, `--sso-client-id`  |
+| SSO admin group    | none                | `--sso-admin-group`                |
+| Dashboard          | on                  | `--no-dashboard`                   |
+
+The storage list only shows what the chosen platform can reach: Cloudflare KV, Redis (Upstash),
+Postgres (Neon) or memory on Workers, and Postgres, Redis, SQLite or memory in a container.
+
+With accounts on, setup needs an `AUTH_PEPPER`: a long random secret the server mixes into every
+password hash, so a copy of the database alone is not enough to crack passwords. Setup generates
+one, or you can paste your own (at least 32 characters). It is printed once for your password
+manager and written to `.env`, which setup adds to `.gitignore`. It never goes in `flaghoist.toml`.
+Keep it the same for the life of the server; changing it breaks every existing password.
+
+With SSO on, setup asks for the issuer URL, client ID, the group whose members become admins, and
+the client secret. The secret goes in `.env` next to the pepper.
+
+Pass flags to skip questions, or `-y` to take the defaults for everything left. Without a terminal
+(a script or CI) setup takes the defaults and never prints the pepper.
+
+`deploy` on Cloudflare sets `AUTH_PEPPER` and `SSO_CLIENT_SECRET` on the Worker from `.env` after
+the first deploy. A secret the Worker already has is left alone. On a container host, pass `.env`
+with `docker run --env-file .env` locally and add the same values to your host's secrets.
 
 ### Platforms
 
@@ -43,7 +76,7 @@ beside it (`src/index.ts` + `wrangler.toml` for a Worker, or `server.mjs` + `Doc
 container), plus `package.json`. Run them in a directory of the service's own, not inside your
 application: they will refuse rather than overwrite files that are already there.
 `npm create flaghoist@latest team-flags` makes that directory for you, and takes the same
-`--storage` and `--platform` options.
+same options.
 
 ## Flag management
 

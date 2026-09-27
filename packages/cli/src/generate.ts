@@ -4,6 +4,8 @@ interface StorageSnippet {
   imports: string[]
   expr: string
   pkg: string
+  /** The published range to depend on. */
+  version: string
   extraDeps?: Record<string, string>
 }
 
@@ -14,6 +16,7 @@ function storageSnippet(storage: StorageKind): StorageSnippet {
         imports: [`import { cloudflareKV } from '@flaghoist/adapter-cloudflare-kv'`],
         expr: 'cloudflareKV(env.FLAGS)',
         pkg: '@flaghoist/adapter-cloudflare-kv',
+        version: '^0.3.0',
       }
     case 'redis':
       return {
@@ -23,6 +26,7 @@ function storageSnippet(storage: StorageKind): StorageSnippet {
         ],
         expr: 'redisAdapter(Redis.fromEnv(env))',
         pkg: '@flaghoist/adapter-redis',
+        version: '^0.2.0',
         extraDeps: { '@upstash/redis': '^1.34.0' },
       }
     case 'postgres':
@@ -33,6 +37,7 @@ function storageSnippet(storage: StorageKind): StorageSnippet {
         ],
         expr: 'postgresAdapter(new Pool({ connectionString: env.DATABASE_URL }))',
         pkg: '@flaghoist/adapter-postgres',
+        version: '^0.2.0',
         extraDeps: { pg: '^8.13.0' },
       }
     case 'memory':
@@ -40,12 +45,38 @@ function storageSnippet(storage: StorageKind): StorageSnippet {
         imports: [`import { memoryAdapter } from '@flaghoist/adapter-memory'`],
         expr: 'memoryAdapter()',
         pkg: '@flaghoist/adapter-memory',
+        version: '^0.2.0',
       }
     case 'sqlite':
       throw new Error(
         'SQLite storage requires a Node or container deployment. Use `npx flaghoist deploy` and pick "Another platform".',
       )
   }
+}
+
+/**
+ * The `users` block for a project with accounts on, or an empty string. Secrets are read from the
+ * environment (`env` is the Worker bindings or `process.env`), never written into the code.
+ * Shared by the Worker and container generators so the two cannot drift.
+ */
+export function usersBlock(config: FlaghoistConfig): string {
+  if (!config.accounts?.enabled) return ''
+  const sso = config.accounts.sso
+  const ssoLines = sso
+    ? [
+        '    sso: {',
+        `      issuer: ${JSON.stringify(sso.issuer)},`,
+        `      clientId: ${JSON.stringify(sso.clientId)},`,
+        '      clientSecret: env.SSO_CLIENT_SECRET,',
+        ...(sso.adminGroup
+          ? [`      roleMapping: { ${JSON.stringify(sso.adminGroup)}: 'admin' },`]
+          : []),
+        '      // Everyone else who signs in through your provider starts as a viewer.',
+        "      defaultRole: 'viewer',",
+        '    },',
+      ]
+    : []
+  return ['', '  users: {', '    pepper: env.AUTH_PEPPER,', ...ssoLines, '  },'].join('\n')
 }
 
 function adminExpr(admin: FlaghoistConfig['auth']['admin']): string {
@@ -80,7 +111,7 @@ export default createFlagServer((env) => ({
   auth: {
     admin: ${adminExpr(config.auth.admin)},
     read: apiKey(env.READ_API_KEY),
-  },${origins}${dashboard}
+  },${usersBlock(config)}${origins}${dashboard}
 }))
 `
 }
@@ -144,8 +175,8 @@ export function parseKvNamespaceId(output: string): string | undefined {
 export function generatePackageJson(config: FlaghoistConfig): string {
   const storage = storageSnippet(config.storage)
   const dependencies: Record<string, string> = {
-    '@flaghoist/server': '^0.1.0',
-    [storage.pkg]: '^0.1.0',
+    '@flaghoist/server': '^0.4.0',
+    [storage.pkg]: storage.version,
     ...storage.extraDeps,
   }
   const pkg = {

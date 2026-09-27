@@ -10,6 +10,23 @@ export type AdminAuthKind = 'bearer-token' | 'oidc'
  */
 export type PlatformKind = 'cloudflare' | 'container'
 
+/** Single sign-on settings kept in `flaghoist.toml`. The client secret is never stored here. */
+export interface SsoSettings {
+  issuer: string
+  clientId: string
+  /** Members of this identity-provider group become admins. Everyone else signs in as a viewer. */
+  adminGroup?: string
+}
+
+/**
+ * User accounts. Only the choices live in `flaghoist.toml`; the secrets (`AUTH_PEPPER`, and
+ * `SSO_CLIENT_SECRET` with SSO) come from the environment, so the file stays safe to commit.
+ */
+export interface AccountsSettings {
+  enabled: boolean
+  sso?: SsoSettings
+}
+
 export interface FlaghoistConfig {
   name: string
   storage: StorageKind
@@ -19,6 +36,8 @@ export interface FlaghoistConfig {
   allowedOrigins?: string[]
   /** Serve the admin dashboard at `/admin`. On by default. */
   dashboard: boolean
+  /** Absent means off, so a config written before accounts existed behaves as it always did. */
+  accounts?: AccountsSettings
 }
 
 export const DEFAULT_CONFIG: FlaghoistConfig = {
@@ -84,7 +103,37 @@ export function parseConfig(text: string): FlaghoistConfig {
   // Only an explicit `false` opts out, so configs written before the key existed keep the
   // dashboard, which is the documented behaviour.
   const dashboard = raw.dashboard !== false
-  return { name, storage, platform, auth: { admin, read: 'api-key' }, allowedOrigins, dashboard }
+  const accounts = parseAccounts(raw.accounts)
+  return {
+    name,
+    storage,
+    platform,
+    auth: { admin, read: 'api-key' },
+    allowedOrigins,
+    dashboard,
+    ...(accounts ? { accounts } : {}),
+  }
+}
+
+function parseAccounts(raw: unknown): AccountsSettings | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const table = raw as Record<string, unknown>
+  const enabled = table.enabled === true
+  const ssoRaw =
+    typeof table.sso === 'object' && table.sso !== null
+      ? (table.sso as Record<string, unknown>)
+      : null
+  const sso =
+    ssoRaw && typeof ssoRaw.issuer === 'string' && typeof ssoRaw.clientId === 'string'
+      ? {
+          issuer: ssoRaw.issuer,
+          clientId: ssoRaw.clientId,
+          ...(typeof ssoRaw.adminGroup === 'string' && ssoRaw.adminGroup
+            ? { adminGroup: ssoRaw.adminGroup }
+            : {}),
+        }
+      : undefined
+  return { enabled, ...(sso ? { sso } : {}) }
 }
 
 /** Render a config back to `flaghoist.toml` text. */
@@ -111,5 +160,24 @@ export function serializeConfig(config: FlaghoistConfig): string {
     `admin = ${JSON.stringify(config.auth.admin)}`,
     `read = ${JSON.stringify(config.auth.read)}`,
   )
+  if (config.accounts) {
+    lines.push(
+      '',
+      '# Accounts read AUTH_PEPPER from the environment. Never put it in this file.',
+      '[accounts]',
+      `enabled = ${config.accounts.enabled}`,
+    )
+    const sso = config.accounts.sso
+    if (sso) {
+      lines.push(
+        '',
+        '# The client secret comes from SSO_CLIENT_SECRET in the environment.',
+        '[accounts.sso]',
+        `issuer = ${JSON.stringify(sso.issuer)}`,
+        `clientId = ${JSON.stringify(sso.clientId)}`,
+      )
+      if (sso.adminGroup) lines.push(`adminGroup = ${JSON.stringify(sso.adminGroup)}`)
+    }
+  }
   return `${lines.join('\n')}\n`
 }

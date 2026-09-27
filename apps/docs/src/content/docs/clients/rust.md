@@ -32,7 +32,7 @@ async fn main() {
     headers.insert("x-api-key", HeaderValue::from_static("your-read-api-key"));
 
     let provider = OfrepProvider::new(OfrepOptions {
-        base_url: "https://team-flags.you.workers.dev".to_string(),
+        base_url: "https://flags.example.com".to_string(),
         headers,
         ..Default::default()
     })

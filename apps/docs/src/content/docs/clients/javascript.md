@@ -21,7 +21,7 @@ import { FlaghoistWebProvider } from '@flaghoist/provider-web'
 await OpenFeature.setContext({ targetingKey: user.id, plan: user.plan })
 await OpenFeature.setProviderAndWait(
   new FlaghoistWebProvider({
-    url: 'https://team-flags.you.workers.dev',
+    url: 'https://flags.example.com',
     apiKey: import.meta.env.VITE_FLAGS_KEY,
   }),
 )
@@ -53,7 +53,7 @@ import App from './App'
 await OpenFeature.setContext({ targetingKey: user.id, plan: user.plan })
 await OpenFeature.setProviderAndWait(
   new FlaghoistWebProvider({
-    url: 'https://team-flags.you.workers.dev',
+    url: 'https://flags.example.com',
     apiKey: import.meta.env.VITE_FLAGS_KEY,
   }),
 )
@@ -112,7 +112,7 @@ The wrappers only attach the `x-api-key` header. You can use the official provid
 import { OFREPWebProvider } from '@openfeature/ofrep-web-provider'
 
 new OFREPWebProvider({
-  baseUrl: 'https://team-flags.you.workers.dev',
+  baseUrl: 'https://flags.example.com',
   headers: [['x-api-key', apiKey]],
 })
 ```

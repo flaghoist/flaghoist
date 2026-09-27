@@ -33,7 +33,7 @@ import dev.openfeature.sdk.MutableContext;
 import dev.openfeature.sdk.OpenFeatureAPI;
 
 OfrepProviderOptions options = OfrepProviderOptions.builder()
-    .baseUrl("https://team-flags.you.workers.dev")
+    .baseUrl("https://flags.example.com")
     .headers(ImmutableMap.of("x-api-key", ImmutableList.of("your-read-api-key")))
     .build();
 

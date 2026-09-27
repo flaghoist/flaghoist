@@ -28,7 +28,7 @@ import (
 
 func main() {
 	provider := ofrep.NewProvider(
-		"https://team-flags.you.workers.dev",
+		"https://flags.example.com",
 		ofrep.WithApiKeyAuth("your-read-api-key"),
 	)
 	if err := openfeature.SetProviderAndWait(provider); err != nil {

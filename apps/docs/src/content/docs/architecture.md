@@ -9,12 +9,15 @@ the docs obvious.
 ## The two halves
 
 **The flag service** is deployed once for your team and lives in your infrastructure. It is a
-[Hono](https://hono.dev) app, so the same code runs on Cloudflare Workers, Node, Bun, Deno, and
-serverless platforms. It exposes:
+[Hono](https://hono.dev) app, so the same code runs on Cloudflare Workers, Node, Bun, Deno, or in a
+container. It exposes:
 
 - the **OFREP read path** (`POST /ofrep/v1/evaluate/flags`) for apps to evaluate flags,
-- the **admin API** (`GET/PUT/DELETE /api/v1/flags`) for managing them,
+- the **admin API** (`/api/v1/flags` and the routes around it) for managing them,
 - the **dashboard** at `/admin`.
+
+Apps read flags with an API key. People manage them with the admin token or, once you
+[turn on accounts](/accounts/), with their own sign-in and role.
 
 **Your apps** consume flags through OpenFeature. A provider fetches evaluated booleans from the
 service; your code calls `getBooleanValue('flag', false)` and never depends on Flaghoist directly.
@@ -34,9 +37,10 @@ given user always gets the same answer for the same flag, with no assignment sta
 
 ## Storage
 
-Storage is pluggable behind a four-method interface (`get` / `put` / `delete` / `list`). Cloudflare
-KV is the default; Redis and Postgres ship too; anything else is a small adapter you write. See
-[storage adapters](/storage-adapters/).
+Storage is pluggable behind a four-method interface (`get` / `put` / `delete` / `list`). Adapters
+for Cloudflare KV, Redis, Postgres, SQLite and memory ship with Flaghoist; anything else is a small
+adapter you write. Accounts, sessions, invites and access tokens live in the same storage, through
+an optional record store every bundled adapter has. See [storage adapters](/storage-adapters/).
 
 The read path caches flag definitions in-isolate, so a burst of evaluations does not hammer
 storage: at most one `list()` per cache window.

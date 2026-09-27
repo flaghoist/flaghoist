@@ -20,7 +20,7 @@ from openfeature.evaluation_context import EvaluationContext
 
 api.set_provider(
     OFREPProvider(
-        "https://team-flags.you.workers.dev",
+        "https://flags.example.com",
         headers_factory=lambda: {"x-api-key": "your-read-api-key"},
     )
 )

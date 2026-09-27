@@ -51,7 +51,7 @@ These commands talk to a server's admin API. Provide the server and admin token 
 environment variables:
 
 ```bash
-export FLAGS_URL=https://team-flags.you.workers.dev
+export FLAGS_URL=https://flags.example.com
 export FLAGS_ADMIN_TOKEN=…
 ```
 
@@ -70,7 +70,7 @@ definition and re-send everything else unchanged.
 
 ## Signing in
 
-On a server with [user accounts](/auth/#user-accounts) turned on, sign in once instead of passing a
+On a server with [user accounts](/accounts/) turned on, sign in once instead of passing a
 token each time:
 
 ```bash
@@ -97,7 +97,7 @@ password; pass it with `--code` where there is no terminal. A recovery code work
 
 ## Members
 
-On a server with [user accounts](/auth/#user-accounts) turned on, with the same `FLAGS_URL` and a
+On a server with [user accounts](/accounts/) turned on, with the same `FLAGS_URL` and a
 token for the admin role or higher:
 
 | Command                                          | Description                                                           |

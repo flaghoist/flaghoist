@@ -13,7 +13,7 @@ This page covers two different things:
 
 ## Dashboard sign-in (SSO)
 
-Needs [user accounts](/auth/#user-accounts) turned on. In every provider:
+Needs [user accounts](/accounts/) turned on. In every provider:
 
 1. Create an **OpenID Connect web application** (a confidential client with a client secret is
    the usual choice; a public client with PKCE also works).

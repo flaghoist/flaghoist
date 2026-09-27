@@ -1,11 +1,12 @@
 ---
 title: Self-hosting
-description: Deploy Flaghoist to Cloudflare or any Hono-supported runtime.
+description: Run Flaghoist from a single config file, or eject it into code you own, on Cloudflare Workers or any container host.
 ---
 
-Flaghoist ships as a library and a CLI, with two deployment styles.
+Flaghoist ships as a library and a CLI, and you can run it two ways: from a config file with no
+code at all, or as a small project you own.
 
-## Model B: zero-config (the default)
+## From a config file (the default)
 
 Your whole project is a `flaghoist.toml`:
 
@@ -23,31 +24,42 @@ read = "api-key"
 npx flaghoist deploy
 ```
 
-The CLI generates a Worker from the config and hands off to `wrangler`. You own no code.
+`deploy` asks where you are shipping. **Cloudflare Workers** generates a Worker from the config and
+hands off to `wrangler`. **Another platform** writes a container project (`server.mjs`, a
+`Dockerfile` and `package.json`), sets `platform = "container"` in the file, and points you at the
+[host guides](/deploy/overview/). `storage` can be `cloudflare-kv`, `redis`, `postgres`, `sqlite`
+or `memory`; a container cannot reach Cloudflare KV, so it uses Postgres unless you choose another.
 
-On the default `cloudflare-kv` storage, the first deploy also creates the KV namespace the Worker
-binds to, by running `wrangler kv namespace create FLAGS` in your account, and writes the id it gets
-back into `wrangler.toml`. Later deploys see a real id there and leave it alone, so the namespace is
-created once and your flags survive every deploy after it. To use a namespace you already have, put
-its id in `wrangler.toml` yourself and the step is skipped.
+On Cloudflare with the default `cloudflare-kv` storage, the first deploy also creates the KV
+namespace the Worker binds to, by running `wrangler kv namespace create FLAGS` in your account, and
+writes the id it gets back into `wrangler.toml`. Later deploys see a real id there and leave it
+alone, so the namespace is created once and your flags survive every deploy after it. To use a
+namespace you already have, put its id in `wrangler.toml` yourself and the step is skipped.
 
-## Model A: eject to a code project
+The config file covers storage, the dashboard and the two built-in credentials. For anything
+beyond that, such as [user accounts](/accounts/), [environments](#environments) or a custom adapter,
+eject.
 
-When you need a custom adapter, custom auth, or middleware, drop to a project you own:
+## Eject to a code project
+
+When you need accounts, a custom adapter, custom auth, or middleware, turn the config into a
+project you own:
 
 ```bash
 npx flaghoist eject
 ```
 
-This writes `src/index.ts`, `wrangler.toml`, and `package.json`. Ejecting hands you the wrangler
-commands too, so on `cloudflare-kv` create the namespace once and paste the id into
-`wrangler.toml`:
+On Cloudflare this writes `src/index.ts`, `wrangler.toml` and `package.json`. For a container it
+writes `server.mjs`, a `Dockerfile` and `package.json`. Every line is yours to change from then on.
+
+On Cloudflare with `cloudflare-kv`, ejecting hands you the wrangler commands too, so create the
+namespace once and paste the id into `wrangler.toml`:
 
 ```bash
 npx wrangler kv namespace create FLAGS
 ```
 
-The entrypoint composes the server explicitly:
+The Cloudflare entrypoint composes the server explicitly:
 
 ```ts
 import { cloudflareKV } from '@flaghoist/adapter-cloudflare-kv'

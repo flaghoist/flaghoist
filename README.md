@@ -3,9 +3,9 @@
 </p>
 
 <p align="center">
-  <strong>Feature flags at the edge. No server, no database, no bill.</strong><br />
-  Self-host your own flag service in five minutes, and use it from multiple languages
-  through their own OpenFeature providers, on day one.
+  <strong>Feature flags you host yourself.</strong><br />
+  Free on Cloudflare Workers, or one container on any host. Read flags from any language through
+  OpenFeature, and give your team its own sign-ins and roles.
 </p>
 
 <p align="center">
@@ -26,23 +26,24 @@
 
 ---
 
-> **Status: pre-alpha, under active construction.** APIs will change without notice until 0.1.0. Stars
-> and early feedback are hugely welcome; production use is not recommended yet.
+> **Status: pre-alpha, under active construction.** APIs may still change between 0.x releases.
+> Stars and early feedback are hugely welcome; production use is not recommended yet.
 
 ## What is Flaghoist?
 
-Flaghoist is a feature-flag service you **own**. It runs on your infrastructure (Cloudflare Workers by
-default, or any Node/Bun/Deno runtime), stores flags in **any fast database you point it at** (Workers
-KV by default), and speaks the **OpenFeature Remote Evaluation Protocol (OFREP)**, so multiple languages
-work with it on day one through providers that already exist, without Flaghoist writing a single
-per-language SDK.
+Flaghoist is a feature-flag service you **own**. It runs on your infrastructure (Cloudflare Workers,
+or a container on any host; Node, Bun and Deno work too), keeps flags in **a database you already
+run** (Cloudflare KV, Redis, Postgres or SQLite), and speaks the **OpenFeature Remote Evaluation
+Protocol (OFREP)**, so every language with an OpenFeature provider can read flags without Flaghoist
+writing a per-language SDK.
 
-- **$0 idle.** Scale-to-zero on the Cloudflare free tier. No always-on server, no database bill.
+- **$0 idle on Workers.** On the Cloudflare free plan it scales to zero: no always-on server, no database bill. Elsewhere it is one small container.
 - **OpenFeature-native.** Standard SDKs everywhere; swap Flaghoist for LaunchDarkly/Datadog with one provider line.
 - **Bring your own DB.** A storage adapter is four methods (`get`/`put`/`delete`/`list`). Cloudflare KV, Redis, Postgres and SQLite ship today, or write your own.
 - **Targeting from day one.** Boolean flags, sticky percentage rollouts, and ordered targeting rules.
 - **A dashboard in the box.** A single deploy gives you the read API, the admin API, and a management UI.
-- **Team-ready.** An audit trail, archive/restore, JSON export/import, HMAC-signed webhooks, and named environments (`production`/`staging`/...), all in the same deploy, no add-on service.
+- **Accounts for your team.** Invite people with four roles (viewer, editor, admin, owner), optionally different per environment. Sign in with a password or your identity provider over OpenID Connect, add two-factor codes, and hand the CLI and CI personal access tokens instead of one shared secret.
+- **Operations built in.** An audit log of every change with who made it, a security log for sign-ins and team changes, archive and restore, JSON export and import, HMAC-signed webhooks, and named environments (`production`, `staging`, ...), all in the same deploy.
 
 ## Why not just use X?
 
@@ -69,11 +70,12 @@ a UI your PM can use without a deploy.
 ```bash
 # 1. Stand up your own flag service (once, for your whole team)
 npm create flaghoist@latest team-flags   # writes flaghoist.toml, the entire project
-cd team-flags && npx flaghoist deploy    # → https://team-flags.<you>.workers.dev
+cd team-flags && npx flaghoist deploy    # Cloudflare Workers, or a container for any host
 ```
 
 Your API, your dashboard at `/admin`, and your storage, in one deploy with no code. Want the code
-instead? `npx flaghoist eject` turns it into a one-file TypeScript project you own.
+instead? `npx flaghoist eject` turns it into a small project you own, which is also where you turn
+on [accounts for your team](https://docs.flaghoist.dev/accounts/).
 
 ```bash
 # 2. In your app, install the client
@@ -113,7 +115,9 @@ Full docs: **[docs.flaghoist.dev](https://docs.flaghoist.dev)**.
 ```
 packages/
   core/                 @flaghoist/core: schema, evaluation engine, interfaces (zero deps)
-  server/               @flaghoist/server: Hono app with OFREP, admin CRUD and dashboard
+  server/               @flaghoist/server: Hono app with OFREP, the admin API, accounts
+                        and the dashboard
+  admin-client/         @flaghoist/admin-client: typed client for the admin API
   adapters/
     memory/             @flaghoist/adapter-memory: dev/test/fallback
     cloudflare-kv/      @flaghoist/adapter-cloudflare-kv: default storage
@@ -126,7 +130,8 @@ packages/
     web/                @flaghoist/provider-web: OpenFeature web SDK provider
     node/               @flaghoist/provider-node: OpenFeature server SDK provider
   vue/                  @flaghoist/vue: useFeatureFlag() composable
-  cli/                  flaghoist: scaffold, deploy, and manage flags
+  cli/                  flaghoist: scaffold, deploy, and manage flags, members and tokens
+  mcp/                  @flaghoist/mcp: manage flags from an AI assistant over MCP
   create-flaghoist/     create-flaghoist: the package behind `npm create flaghoist`
 apps/                   dashboard (Vue), web + docs (Astro)
 examples/               vue, react, node, worker, docker

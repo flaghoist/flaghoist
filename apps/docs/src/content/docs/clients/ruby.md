@@ -24,7 +24,7 @@ require "open_feature/sdk"
 require "openfeature/ofrep/provider"
 
 config = OpenFeature::OFREP::Configuration.new(
-  base_url: "https://team-flags.you.workers.dev",
+  base_url: "https://flags.example.com",
   headers: { "x-api-key" => "your-read-api-key" },
 )
 

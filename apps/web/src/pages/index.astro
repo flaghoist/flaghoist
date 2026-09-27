@@ -14,8 +14,8 @@ const languages = ['Go', 'Java', 'Python', '.NET', 'Ruby', 'Rust', 'JavaScript']
 
 const features = [
   {
-    title: 'Nothing runs when nothing asks',
-    body: 'Scale-to-zero on the Cloudflare free tier. No always-on process, no database instance, no monthly floor.',
+    title: 'Free when nobody is asking',
+    body: 'On the Cloudflare Workers free plan it scales to zero: no always-on process, no database instance, no monthly floor. Anywhere else, it is one small container.',
   },
   {
     title: 'Multiple languages, on day one',
@@ -36,6 +36,33 @@ const features = [
   {
     title: 'Inside your boundary',
     body: 'Flags live in your account and your compliance perimeter. Swapping to another provider is a one-line change.',
+  },
+]
+
+const team = [
+  {
+    title: 'Invites and four roles',
+    body: 'Invite people with a single-use link. Viewer, editor, admin or owner, checked on every request, and the dashboard hides what a role cannot do.',
+  },
+  {
+    title: 'A role per environment',
+    body: 'Let someone edit flags in staging while production stays read-only for them.',
+  },
+  {
+    title: 'Single sign-on',
+    body: 'Sign in with Okta, Microsoft Entra, Google, Auth0 or Keycloak over OpenID Connect. Your groups can decide who gets which role.',
+  },
+  {
+    title: 'Two-factor codes',
+    body: 'Authenticator app codes and recovery codes for password accounts. Require them for admins, or for everyone.',
+  },
+  {
+    title: 'Tokens for the CLI and CI',
+    body: 'Personal access tokens that expire and never outrank their owner, instead of one shared secret passed around.',
+  },
+  {
+    title: 'Who changed what',
+    body: 'Every flag change is recorded against a person. Sign-ins and team changes go to a separate security log.',
   },
 ]
 
@@ -68,11 +95,11 @@ const renderLines = (lines: { p: string; code: string; out?: boolean }[]): strin
 const steps = [
   {
     title: 'Deploy the service',
-    note: 'One config file, one command. Your own Worker and KV, or bring Redis, Postgres, SQLite, or an adapter you wrote.',
+    note: 'One config file, one command. Deploy to Cloudflare Workers, or get a container for Render, Fly.io, Railway or your own servers, backed by Redis, Postgres or SQLite.',
     lines: [
       { p: '$', code: 'npm create flaghoist@latest team-flags' },
       { p: '$', code: 'cd team-flags && npx flaghoist deploy' },
-      { p: '→', code: 'https://team-flags.you.workers.dev', out: true },
+      { p: '→', code: 'Cloudflare Workers, or a container for any host', out: true },
     ],
   },
   {
@@ -112,7 +139,7 @@ const sustain = [
     <title>Flaghoist: feature flags at the edge</title>
     <meta
       name="description"
-      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill, and multiple languages work on day one through their own OpenFeature providers."
+      content="Open-source, OpenFeature-native feature flags you host yourself: free on Cloudflare Workers or one container anywhere, readable from any language through OpenFeature, with accounts, roles and single sign-on for your team."
     />
     <link rel="canonical" href="https://flaghoist.dev/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -123,7 +150,7 @@ const sustain = [
     <meta property="og:title" content="Flaghoist: feature flags at the edge" />
     <meta
       property="og:description"
-      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill."
+      content="Open-source, OpenFeature-native feature flags you host yourself, on Cloudflare Workers or any container host, with accounts and roles for your team."
     />
     <meta property="og:image" content="https://flaghoist.dev/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -132,7 +159,7 @@ const sustain = [
     <meta name="twitter:title" content="Flaghoist: feature flags at the edge" />
     <meta
       name="twitter:description"
-      content="Open-source, OpenFeature-native feature flags you self-host in five minutes. No server, no database, no bill."
+      content="Open-source, OpenFeature-native feature flags you host yourself, on Cloudflare Workers or any container host, with accounts and roles for your team."
     />
     <meta name="twitter:image" content="https://flaghoist.dev/og.png" />
     <meta name="theme-color" content="#f7f4ec" media="(prefers-color-scheme: light)" />
@@ -156,12 +183,12 @@ const sustain = [
         '@type': 'SoftwareApplication',
         name: 'Flaghoist',
         applicationCategory: 'DeveloperApplication',
-        operatingSystem: 'Cloudflare Workers, Node.js, Bun, Deno',
+        operatingSystem: 'Cloudflare Workers, Node.js, Bun, Deno, Docker',
         url: 'https://flaghoist.dev/',
         sameAs: ['https://github.com/flaghoist/flaghoist'],
         codeRepository: 'https://github.com/flaghoist/flaghoist',
         description:
-          'Open-source, OpenFeature-native feature flags you self-host. No server, no database, no bill.',
+          'Open-source, OpenFeature-native feature flags you host yourself, on Cloudflare Workers or any container host.',
         license: 'https://www.apache.org/licenses/LICENSE-2.0',
         isAccessibleForFree: true,
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
@@ -228,8 +255,8 @@ const sustain = [
             <p class="eyebrow" data-reveal>Open source, Apache-2.0</p>
             <h1 data-reveal>Feature flags<br />at <span class="accent">the edge.</span></h1>
             <p class="lede" data-reveal>
-              No server. No database. No bill. Self-host your flag service in five minutes, and drive
-              it from any OpenFeature SDK.
+              Run it free on Cloudflare Workers, or as one container on any host. Read flags from any
+              OpenFeature SDK, and give your team its own sign-ins and roles.
             </p>
             <div class="cta" data-reveal>
               <a href="https://demo.flaghoist.dev" class="btn btn-primary">Try the live demo</a>
@@ -294,6 +321,29 @@ const sustain = [
         </div>
       </section>
 
+      <section class="team">
+        <div class="wrap">
+          <h2 class="section-title" data-reveal>Ready for the whole team.</h2>
+          <p class="section-sub" data-reveal>
+            Turn on accounts and everyone signs in as themselves. It is all part of the open-source
+            server, with no paid edition to unlock.
+          </p>
+          <div class="fgrid">
+            {
+              team.map((f) => (
+                <article data-reveal>
+                  <h3>{f.title}</h3>
+                  <p>{f.body}</p>
+                </article>
+              ))
+            }
+          </div>
+          <p class="team-more" data-reveal>
+            <a href="https://docs.flaghoist.dev/accounts/">How accounts work</a>
+          </p>
+        </div>
+      </section>
+
       <section class="compare">
         <div class="wrap">
           <h2 class="section-title" data-reveal>Why not just use X?</h2>
@@ -328,7 +378,8 @@ const sustain = [
             <strong>Why not just build it yourself?</strong> You can. A JSON blob in object storage gets
             you 60% of the way. The other 40% is what is here: sticky SHA-256 rollouts that do not
             reshuffle users on every deploy, ordered targeting rules, OFREP conformance so every
-            OpenFeature SDK works unmodified, an audit trail, and a UI your PM can use without a deploy.
+            OpenFeature SDK works unmodified, an audit trail, accounts and roles for your team, and a UI
+            your PM can use without a deploy.
           </p>
         </div>
       </section>
@@ -1008,6 +1059,21 @@ const sustain = [
         background: var(--accent-wash);
         padding: 0.1rem 0.35rem;
         border-radius: 4px;
+      }
+
+      /* ── team ────────────────────────────────────────────────── */
+      .team {
+        border-top: 1px solid var(--line-soft);
+      }
+      .team-more {
+        margin-top: 1.6rem;
+        text-align: center;
+      }
+      .team-more a {
+        color: var(--text);
+        font-weight: 500;
+        text-decoration: underline;
+        text-underline-offset: 3px;
       }
 
       /* ── features ────────────────────────────────────────────── */

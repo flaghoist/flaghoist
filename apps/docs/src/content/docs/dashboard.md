@@ -17,10 +17,10 @@ browser tab's session (it is cleared when the tab closes, and after 30 minutes o
 sent only to that server. It is never sent anywhere else, and nothing here can read it back out.
 To manage a different server, open **Advanced** and change the server URL.
 
-When the server has [user accounts](/auth/#user-accounts) turned on, the sign-in screen asks for
+When the server has [user accounts](/accounts/) turned on, the sign-in screen asks for
 your email and password instead, and **Use an access token** switches back to the token. Your
 password is hashed in the browser and never sent to the server. With
-[single sign-on](/auth/#user-accounts) set up, **Continue with ...** sends you to your identity
+[single sign-on](/accounts/#sign-in-with-your-identity-provider) set up, **Continue with ...** sends you to your identity
 provider and back, signed in; if the server is SSO only, that is the only button apart from the
 access token.
 

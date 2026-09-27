@@ -45,11 +45,24 @@ export default defineConfig({
         },
         {
           label: 'Self-hosting',
-          items: ['self-hosting', 'storage-adapters', 'auth', 'oidc-providers', 'dashboard'],
+          items: [
+            'self-hosting',
+            'storage-adapters',
+            'accounts',
+            'auth',
+            'oidc-providers',
+            'dashboard',
+          ],
         },
         {
           label: 'Deploying',
-          items: ['deploy/overview', 'deploy/docker', 'deploy/render', 'deploy/fly', 'deploy/railway'],
+          items: [
+            'deploy/overview',
+            'deploy/docker',
+            'deploy/render',
+            'deploy/fly',
+            'deploy/railway',
+          ],
         },
         {
           label: 'Read flags from your app',

@@ -19,7 +19,7 @@ using OpenFeature.Model;
 using OpenFeature.Providers.Ofrep;
 using OpenFeature.Providers.Ofrep.Configuration;
 
-var options = new OfrepOptions("https://team-flags.you.workers.dev")
+var options = new OfrepOptions("https://flags.example.com")
 {
     Headers = new Dictionary<string, string> { ["x-api-key"] = "your-read-api-key" },
 };

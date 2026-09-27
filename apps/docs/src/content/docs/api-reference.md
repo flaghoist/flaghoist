@@ -12,7 +12,7 @@ Guarded by the read API key (`x-api-key` header). Returns evaluated booleans onl
 Evaluate every flag for a context.
 
 ```bash
-curl -X POST https://team-flags.you.workers.dev/ofrep/v1/evaluate/flags \
+curl -X POST https://flags.example.com/ofrep/v1/evaluate/flags \
   -H "x-api-key: $READ_KEY" -H "content-type: application/json" \
   -d '{ "context": { "targetingKey": "user-1", "plan": "beta" } }'
 ```
@@ -58,7 +58,7 @@ alias of its `/api/v1/...` form. New integrations should use `/api/v1`.
 `PUT` is a full replace (creation metadata is preserved). Send the complete desired state:
 
 ```bash
-curl -X PUT https://team-flags.you.workers.dev/api/v1/flags/new-checkout \
+curl -X PUT https://flags.example.com/api/v1/flags/new-checkout \
   -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
   -d '{
     "enabled": true,
@@ -80,7 +80,7 @@ ETag is derived from. To avoid two editors silently overwriting each other, send
 `PUT` as `If-Match`:
 
 ```bash
-curl -X PUT https://team-flags.you.workers.dev/api/v1/flags/new-checkout \
+curl -X PUT https://flags.example.com/api/v1/flags/new-checkout \
   -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
   -H 'If-Match: "2026-08-27T10:15:00.000Z"' \
   -d '{ "enabled": false, "rollout": { "percentage": 0 } }'
@@ -98,10 +98,10 @@ from evaluation (the read path never sees it), but its definition, history, and 
 can be restored later with the same rollout and rules it had.
 
 ```bash
-curl -X POST https://team-flags.you.workers.dev/api/v1/flags/old-feature/archive \
+curl -X POST https://flags.example.com/api/v1/flags/old-feature/archive \
   -H "authorization: Bearer $ADMIN_TOKEN"
 
-curl -X POST https://team-flags.you.workers.dev/api/v1/flags/old-feature/restore \
+curl -X POST https://flags.example.com/api/v1/flags/old-feature/restore \
   -H "authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -116,7 +116,7 @@ Move flag definitions between servers, or keep a copy outside Flaghoist, as plai
 travel: no metadata, no audit history.
 
 ```bash
-curl https://team-flags.you.workers.dev/api/v1/export -H "authorization: Bearer $ADMIN_TOKEN" \
+curl https://flags.example.com/api/v1/export -H "authorization: Bearer $ADMIN_TOKEN" \
   > flags.json
 ```
 
@@ -136,7 +136,7 @@ created. Up to 500 flags per request. Each recorded change shows up in the audit
 `changeDescription: "Bulk import"`.
 
 ```bash
-curl -X POST https://team-flags.you.workers.dev/api/v1/import \
+curl -X POST https://flags.example.com/api/v1/import \
   -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
   --data-binary @flags.json
 ```
@@ -155,7 +155,7 @@ Every create, update, delete, archive, and restore is recorded, whether it came 
 the dashboard, or a bulk import.
 
 ```bash
-curl "https://team-flags.you.workers.dev/api/v1/audit?limit=20&flagKey=new-checkout" \
+curl "https://flags.example.com/api/v1/audit?limit=20&flagKey=new-checkout" \
   -H "authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -200,7 +200,7 @@ no environment. An adapter that persists audit entries should honour `category` 
 
 ## Accounts
 
-Available when the server has [user accounts](/auth/#user-accounts) turned on. The dashboard and
+Available when the server has [user accounts](/accounts/) turned on. The dashboard and
 `@flaghoist/admin-client` (`createAuthClient`, and `me`, `changePassword`, `listSessions` on the
 admin client) handle the password hashing for you; these are the endpoints underneath.
 
@@ -313,7 +313,7 @@ Get an HTTP callback when a flag changes, instead of polling. Manage endpoints t
 or the dashboard's Webhooks page.
 
 ```bash
-curl -X POST https://team-flags.you.workers.dev/api/v1/webhooks \
+curl -X POST https://flags.example.com/api/v1/webhooks \
   -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
   -d '{ "url": "https://your-service.example.com/hooks/flaghoist" }'
 ```
@@ -339,7 +339,7 @@ flag.
 
 ### Member events
 
-On a server with [user accounts](/auth/#user-accounts), a webhook can also receive team changes:
+On a server with [user accounts](/accounts/), a webhook can also receive team changes:
 `member.invited`, `member.joined`, `member.role_changed`, `member.disabled`, `member.enabled` and
 `member.removed`. They are opt-in: a webhook gets them only when its `events` list names them, never
 by default, so a receiver written for flag events never sees another shape. Their payload has a
@@ -422,7 +422,7 @@ Choose an environment with the `X-Flaghoist-Environment` header on any admin req
 the default (`production`, or whatever `defaultEnvironment` names):
 
 ```bash
-curl https://team-flags.you.workers.dev/api/v1/flags \
+curl https://flags.example.com/api/v1/flags \
   -H "authorization: Bearer $ADMIN_TOKEN" -H "x-flaghoist-environment: staging"
 ```
 
@@ -472,7 +472,7 @@ Operators available in conditions: `eq`, `neq`, `in`, `notIn`, `contains`, `star
 Every server describes itself. Fetch the machine-readable spec from a running server:
 
 ```bash
-curl https://team-flags.you.workers.dev/api/v1/openapi.json
+curl https://flags.example.com/api/v1/openapi.json
 ```
 
 It is an OpenAPI 3.1 document covering the admin API, the OFREP read endpoints, and the schemas

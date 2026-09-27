@@ -1,6 +1,6 @@
 {
   "name": "@flaghoist/adapter-sqlite",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "SQLite StorageAdapter for Flaghoist, stores flags in a SQLite table via any better-sqlite3-compatible driver.",
   "license": "Apache-2.0",
   "type": "module",

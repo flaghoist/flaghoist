@@ -18,6 +18,9 @@ dashboard = true
 [auth]
 admin = "bearer-token"
 read = "api-key"
+
+[accounts]
+enabled = true
 ```
 
 ```bash
@@ -36,14 +39,15 @@ writes the id it gets back into `wrangler.toml`. Later deploys see a real id the
 alone, so the namespace is created once and your flags survive every deploy after it. To use a
 namespace you already have, put its id in `wrangler.toml` yourself and the step is skipped.
 
-The config file covers storage, the dashboard and the two built-in credentials. For anything
-beyond that, such as [user accounts](/accounts/), [environments](#environments) or a custom adapter,
-eject.
+The config file covers storage, the dashboard, the two built-in credentials and
+[accounts](/accounts/), including basic single sign-on. Secrets such as `AUTH_PEPPER` never go in
+it; they live in a git-ignored `.env`. For anything beyond that, such as
+[environments](#environments), email for invites or a custom adapter, eject.
 
 ## Eject to a code project
 
-When you need accounts, a custom adapter, custom auth, or middleware, turn the config into a
-project you own:
+When you need a custom adapter, custom auth, middleware, or account settings the config file does
+not cover, turn the config into a project you own:
 
 ```bash
 npx flaghoist eject

@@ -1,5 +1,11 @@
 # flaghoist
 
+## 0.5.1
+
+### Patch Changes
+
+- ccddb6a: Fix the interactive setup crashing on start with "Cannot read properties of undefined (reading 'bind')". Hidden input for secrets no longer relies on Node readline internals.
+
 ## 0.5.0
 
 ### Minor Changes

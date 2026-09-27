@@ -109,7 +109,9 @@ async function submit() {
 
       <template v-if="gone">
         <p class="err" role="alert">{{ gone }}</p>
-        <button class="ck-btn ck-btn--outline ck-btn--md full spaced" @click="emit('cancel')">Go to sign in</button>
+        <button class="ck-btn ck-btn--outline ck-btn--md full spaced" @click="emit('cancel')">
+          Go to sign in
+        </button>
       </template>
 
       <p v-else-if="!info" class="sub" role="status">Checking your link...</p>
@@ -128,7 +130,11 @@ async function submit() {
           required
         />
         <p v-if="error" class="err" role="alert">{{ error }}</p>
-        <button type="submit" class="ck-btn ck-btn--solid ck-btn--md full connect" :disabled="busy || !code">
+        <button
+          type="submit"
+          class="ck-btn ck-btn--solid ck-btn--md full connect"
+          :disabled="busy || !code"
+        >
           {{ busy ? 'Checking' : 'Sign in' }}
         </button>
       </form>

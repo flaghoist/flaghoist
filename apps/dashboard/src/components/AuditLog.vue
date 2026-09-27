@@ -264,7 +264,11 @@ onMounted(() => void load())
     </div>
 
     <div class="audit-controls">
-      <div v-if="canSeeSecurity" class="ck-tabs ck-tabs--enclosed ck-tabs--sm seg" aria-label="Which log">
+      <div
+        v-if="canSeeSecurity"
+        class="ck-tabs ck-tabs--enclosed ck-tabs--sm seg"
+        aria-label="Which log"
+      >
         <div class="ck-tabs__list" role="tablist">
           <button
             class="ck-tabs__trigger"

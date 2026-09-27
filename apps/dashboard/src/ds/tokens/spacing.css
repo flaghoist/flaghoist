@@ -1,14 +1,91 @@
 /* From tokens/spacing.ts, radius.ts, semantic-tokens/radii.ts, borders.ts, z-indices.ts, blurs.ts */
-:root{
-  --spacing-0-5:0.125rem;--spacing-1:0.25rem;--spacing-1-5:0.375rem;--spacing-2:0.5rem;--spacing-2-5:0.625rem;--spacing-3:0.75rem;--spacing-3-5:0.875rem;--spacing-4:1rem;--spacing-4-5:1.125rem;--spacing-5:1.25rem;--spacing-6:1.5rem;--spacing-7:1.75rem;--spacing-8:2rem;--spacing-9:2.25rem;--spacing-10:2.5rem;--spacing-11:2.75rem;--spacing-12:3rem;--spacing-14:3.5rem;--spacing-16:4rem;--spacing-20:5rem;--spacing-24:6rem;--spacing-28:7rem;--spacing-32:8rem;--spacing-40:10rem;--spacing-48:12rem;--spacing-64:16rem;--spacing-80:20rem;--spacing-96:24rem;
-  --radius-none:0;--radius-2xs:0.0625rem;--radius-xs:0.125rem;--radius-sm:0.25rem;--radius-md:0.375rem;--radius-lg:0.5rem;--radius-xl:0.75rem;--radius-2xl:1rem;--radius-3xl:1.5rem;--radius-4xl:2rem;--radius-full:9999px;
+:root {
+  --spacing-0-5: 0.125rem;
+  --spacing-1: 0.25rem;
+  --spacing-1-5: 0.375rem;
+  --spacing-2: 0.5rem;
+  --spacing-2-5: 0.625rem;
+  --spacing-3: 0.75rem;
+  --spacing-3-5: 0.875rem;
+  --spacing-4: 1rem;
+  --spacing-4-5: 1.125rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-7: 1.75rem;
+  --spacing-8: 2rem;
+  --spacing-9: 2.25rem;
+  --spacing-10: 2.5rem;
+  --spacing-11: 2.75rem;
+  --spacing-12: 3rem;
+  --spacing-14: 3.5rem;
+  --spacing-16: 4rem;
+  --spacing-20: 5rem;
+  --spacing-24: 6rem;
+  --spacing-28: 7rem;
+  --spacing-32: 8rem;
+  --spacing-40: 10rem;
+  --spacing-48: 12rem;
+  --spacing-64: 16rem;
+  --spacing-80: 20rem;
+  --spacing-96: 24rem;
+  --radius-none: 0;
+  --radius-2xs: 0.0625rem;
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 2rem;
+  --radius-full: 9999px;
   /* semantic radii: l1 = small marks, l2 = controls, l3 = containers */
-  --radius-l1:var(--radius-xs);--radius-l2:var(--radius-sm);--radius-l3:var(--radius-md);
-  --border-xs:0.5px solid;/* @kind other */--border-sm:1px solid;/* @kind other */--border-md:2px solid;/* @kind other */--border-lg:4px solid;/* @kind other */--border-xl:8px solid;/* @kind other */
-  --z-hide:-1;/* @kind other */--z-base:0;/* @kind other */--z-docked:10;/* @kind other */--z-dropdown:1000;/* @kind other */--z-sticky:1100;/* @kind other */--z-banner:1200;/* @kind other */--z-overlay:1300;/* @kind other */--z-modal:1400;/* @kind other */--z-popover:1500;/* @kind other */--z-skip-nav:1600;/* @kind other */--z-toast:1700;/* @kind other */--z-tooltip:1800;/* @kind other */
-  --blur-sm:4px;/* @kind other */--blur-md:8px;/* @kind other */--blur-lg:12px;/* @kind other */--blur-xl:16px;/* @kind other */--blur-2xl:24px;/* @kind other */--blur-3xl:40px;/* @kind other */--blur-4xl:64px;/* @kind other */
+  --radius-l1: var(--radius-xs);
+  --radius-l2: var(--radius-sm);
+  --radius-l3: var(--radius-md);
+  --border-xs: 0.5px solid; /* @kind other */
+  --border-sm: 1px solid; /* @kind other */
+  --border-md: 2px solid; /* @kind other */
+  --border-lg: 4px solid; /* @kind other */
+  --border-xl: 8px solid; /* @kind other */
+  --z-hide: -1; /* @kind other */
+  --z-base: 0; /* @kind other */
+  --z-docked: 10; /* @kind other */
+  --z-dropdown: 1000; /* @kind other */
+  --z-sticky: 1100; /* @kind other */
+  --z-banner: 1200; /* @kind other */
+  --z-overlay: 1300; /* @kind other */
+  --z-modal: 1400; /* @kind other */
+  --z-popover: 1500; /* @kind other */
+  --z-skip-nav: 1600; /* @kind other */
+  --z-toast: 1700; /* @kind other */
+  --z-tooltip: 1800; /* @kind other */
+  --blur-sm: 4px; /* @kind other */
+  --blur-md: 8px; /* @kind other */
+  --blur-lg: 12px; /* @kind other */
+  --blur-xl: 16px; /* @kind other */
+  --blur-2xl: 24px; /* @kind other */
+  --blur-3xl: 40px; /* @kind other */
+  --blur-4xl: 64px; /* @kind other */
   /* sizes used by components (sizes.N = spacing.N) */
-  --size-control-2xs:1.5rem;--size-control-xs:2rem;--size-control-sm:2.25rem;--size-control-md:2.5rem;--size-control-lg:2.75rem;--size-control-xl:3rem;--size-control-2xl:4rem;
+  --size-control-2xs: 1.5rem;
+  --size-control-xs: 2rem;
+  --size-control-sm: 2.25rem;
+  --size-control-md: 2.5rem;
+  --size-control-lg: 2.75rem;
+  --size-control-xl: 3rem;
+  --size-control-2xl: 4rem;
   /* container max widths */
-  --size-xs:20rem;--size-sm:24rem;--size-md:28rem;--size-lg:32rem;--size-xl:36rem;--size-2xl:42rem;--size-3xl:48rem;--size-4xl:56rem;--size-5xl:64rem;--size-6xl:72rem;--size-7xl:80rem;--size-8xl:90rem;
+  --size-xs: 20rem;
+  --size-sm: 24rem;
+  --size-md: 28rem;
+  --size-lg: 32rem;
+  --size-xl: 36rem;
+  --size-2xl: 42rem;
+  --size-3xl: 48rem;
+  --size-4xl: 56rem;
+  --size-5xl: 64rem;
+  --size-6xl: 72rem;
+  --size-7xl: 80rem;
+  --size-8xl: 90rem;
 }

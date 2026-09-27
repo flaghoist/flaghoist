@@ -85,7 +85,9 @@ async function copyCodes() {
         <button class="ck-btn ck-btn--outline ck-btn--sm" @click="copyCodes">
           {{ copied ? 'Copied' : 'Copy codes' }}
         </button>
-        <button class="ck-btn ck-btn--solid ck-btn--sm" @click="emit('done')">I have saved them</button>
+        <button class="ck-btn ck-btn--solid ck-btn--sm" @click="emit('done')">
+          I have saved them
+        </button>
       </div>
     </template>
 

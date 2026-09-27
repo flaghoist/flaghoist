@@ -48,7 +48,9 @@ const shortcuts: { label: string; keys: string[] }[] = [
         </div>
         <div class="kv kv-foot">
           <span class="kv-hint">Signs you out and forgets the token.</span>
-          <button class="ck-btn ck-btn--outline ck-btn--sm cp-red" @click="emit('disconnect')">Disconnect</button>
+          <button class="ck-btn ck-btn--outline ck-btn--sm cp-red" @click="emit('disconnect')">
+            Disconnect
+          </button>
         </div>
       </div>
     </section>

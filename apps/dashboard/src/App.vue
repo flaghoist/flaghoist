@@ -1121,7 +1121,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
             <p class="page-sub">Toggle, roll out and target features without a deploy.</p>
           </div>
           <div class="page-head-actions">
-            <button class="ck-btn ck-btn--outline ck-btn--sm" @click="exportFlags" title="Export flags">
+            <button
+              class="ck-btn ck-btn--outline ck-btn--sm"
+              @click="exportFlags"
+              title="Export flags"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
               </svg>
@@ -1228,7 +1232,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
           <p>
             Create one here, or from the CLI with <code class="mono">flaghoist flag create</code>.
           </p>
-          <button v-if="canWrite" class="ck-btn ck-btn--solid ck-btn--md" @click="editor = { flag: null }">
+          <button
+            v-if="canWrite"
+            class="ck-btn ck-btn--solid ck-btn--md"
+            @click="editor = { flag: null }"
+          >
             Create a flag
           </button>
         </div>
@@ -1246,7 +1254,9 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
               ><strong>{{ filter }}</strong></template
             >.
           </p>
-          <button class="ck-btn ck-btn--outline ck-btn--md" @click="clearFilters">Clear filters</button>
+          <button class="ck-btn ck-btn--outline ck-btn--md" @click="clearFilters">
+            Clear filters
+          </button>
         </div>
 
         <div v-else class="table-wrap">
@@ -1441,7 +1451,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         />
 
         <div v-if="importPreview" class="import-overlay" @click.self="importPreview = null">
-          <div class="import-dialog ck-card ck-card--outline" role="dialog" aria-labelledby="import-title">
+          <div
+            class="import-dialog ck-card ck-card--outline"
+            role="dialog"
+            aria-labelledby="import-title"
+          >
             <h2 id="import-title">
               Import {{ importPreview.length }} flag{{ importPreview.length === 1 ? '' : 's' }}
             </h2>
@@ -1465,7 +1479,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
               >
                 Cancel
               </button>
-              <button class="ck-btn ck-btn--solid ck-btn--sm" :disabled="importBusy" @click="confirmImport">
+              <button
+                class="ck-btn ck-btn--solid ck-btn--sm"
+                :disabled="importBusy"
+                @click="confirmImport"
+              >
                 {{ importBusy ? 'Importing...' : 'Import' }}
               </button>
             </div>

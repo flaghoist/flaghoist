@@ -215,7 +215,11 @@ function maskSecret(secret: string): string {
     </section>
 
     <div v-else class="webhook-list">
-      <section v-for="hook in webhooks" :key="hook.id" class="ck-card ck-card--outline webhook-card">
+      <section
+        v-for="hook in webhooks"
+        :key="hook.id"
+        class="ck-card ck-card--outline webhook-card"
+      >
         <div class="webhook-top">
           <div class="webhook-info">
             <div class="webhook-url-row">
@@ -247,7 +251,9 @@ function maskSecret(secret: string): string {
               {{ testingId === hook.id ? 'Sending...' : 'Test' }}
             </button>
             <button class="ck-btn ck-btn--ghost ck-btn--sm" @click="openEdit(hook)">Edit</button>
-            <button class="ck-btn ck-btn--ghost ck-btn--sm danger-hover" @click="remove(hook)">Delete</button>
+            <button class="ck-btn ck-btn--ghost ck-btn--sm danger-hover" @click="remove(hook)">
+              Delete
+            </button>
           </div>
         </div>
 

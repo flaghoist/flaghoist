@@ -24,14 +24,28 @@ onMounted(() => cancelEl.value?.focus())
 
 <template>
   <div class="overlay" @click.self="emit('cancel')">
-    <div class="confirm ck-card ck-card--outline" role="alertdialog" aria-modal="true" :aria-label="title">
+    <div
+      class="confirm ck-card ck-card--outline"
+      role="alertdialog"
+      aria-modal="true"
+      :aria-label="title"
+    >
       <h2>{{ title }}</h2>
       <p>{{ body }}</p>
       <div class="actions">
-        <button ref="cancelEl" class="ck-btn ck-btn--outline ck-btn--md" :disabled="busy" @click="emit('cancel')">
+        <button
+          ref="cancelEl"
+          class="ck-btn ck-btn--outline ck-btn--md"
+          :disabled="busy"
+          @click="emit('cancel')"
+        >
           Cancel
         </button>
-        <button class="ck-btn ck-btn--outline ck-btn--md cp-red" :disabled="busy" @click="emit('confirm')">
+        <button
+          class="ck-btn ck-btn--outline ck-btn--md cp-red"
+          :disabled="busy"
+          @click="emit('confirm')"
+        >
           {{ busy ? 'Deleting…' : (confirmLabel ?? 'Delete') }}
         </button>
       </div>

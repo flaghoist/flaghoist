@@ -403,7 +403,10 @@ onMounted(() => {
       </form>
     </section>
 
-    <section v-if="user && hasSession && canChangePassword" class="section ck-card ck-card--outline">
+    <section
+      v-if="user && hasSession && canChangePassword"
+      class="section ck-card ck-card--outline"
+    >
       <h2>Password</h2>
       <form class="form" @submit.prevent="changePassword">
         <input
@@ -483,7 +486,11 @@ onMounted(() => {
               required
             />
           </div>
-          <button type="submit" class="ck-btn ck-btn--outline ck-btn--sm" :disabled="manageBusy || !manageCode">
+          <button
+            type="submit"
+            class="ck-btn ck-btn--outline ck-btn--sm"
+            :disabled="manageBusy || !manageCode"
+          >
             New recovery codes
           </button>
           <button

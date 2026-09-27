@@ -157,7 +157,11 @@ function submit() {
         >
           {{ connecting ? 'Checking' : 'Continue' }}
         </button>
-        <button type="button" class="ck-btn ck-btn--ghost ck-btn--md full switch" @click="emit('cancelTwoFactor')">
+        <button
+          type="button"
+          class="ck-btn ck-btn--ghost ck-btn--md full switch"
+          @click="emit('cancelTwoFactor')"
+        >
           Back
         </button>
       </form>

@@ -1,10 +1,41 @@
 /* From theme/global-css.ts */
-*,*::before,*::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:var(--border)}
-*{font-feature-settings:"cv11"}
-html{color:var(--fg);background:var(--bg);line-height:1.5;font-family:var(--font-body);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-body{margin:0}
-*::placeholder{color:color-mix(in srgb,var(--fg-muted) 80%,transparent)}
-*::selection{background:color-mix(in srgb,var(--cp-emphasized) 80%,transparent)}
-a{color:var(--fg);text-underline-offset:3px}
-a:hover{text-decoration:underline}
-code,kbd,pre{font-family:var(--font-mono)}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: var(--border);
+}
+* {
+  font-feature-settings: 'cv11';
+}
+html {
+  color: var(--fg);
+  background: var(--bg);
+  line-height: 1.5;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
+  margin: 0;
+}
+*::placeholder {
+  color: color-mix(in srgb, var(--fg-muted) 80%, transparent);
+}
+*::selection {
+  background: color-mix(in srgb, var(--cp-emphasized) 80%, transparent);
+}
+a {
+  color: var(--fg);
+  text-underline-offset: 3px;
+}
+a:hover {
+  text-decoration: underline;
+}
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+}

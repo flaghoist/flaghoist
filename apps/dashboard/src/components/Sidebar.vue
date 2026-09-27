@@ -90,9 +90,12 @@ const server = computed(() => props.serverUrl.replace(/^https?:\/\//, ''))
             <path d="M7 10l5 5 5-5" />
           </svg>
         </template>
-        <span v-else class="env-name" :title="`${currentEnvironment} · the only environment on this server`">{{
-          currentEnvironment
-        }}</span>
+        <span
+          v-else
+          class="env-name"
+          :title="`${currentEnvironment} · the only environment on this server`"
+          >{{ currentEnvironment }}</span
+        >
       </div>
     </div>
 

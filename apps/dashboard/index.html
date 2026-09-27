@@ -12,12 +12,16 @@
       air-gapped network. Fonts are bundled into this single file instead.
     -->
     <script>
-      // Apply a stored theme before first paint so a chosen theme never flashes the other one.
+      // Apply a stored theme before first paint so a chosen theme never flashes the other one. The
+      // design system flips on the `dark` class, so we set that rather than a color-scheme attribute.
       try {
         var t = localStorage.getItem('flaghoist.theme')
-        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        }
+        document.documentElement.classList.toggle('dark', t === 'dark')
       } catch (e) {
-        /* private mode: fall through to the OS preference */
+        /* private mode: fall through to light */
       }
     </script>
   </head>

@@ -242,10 +242,13 @@ onMounted(() => void load())
 </script>
 
 <template>
-  <div class="members">
-    <h1 class="page-title">Members</h1>
+  <main class="members">
+    <div class="page-head-text">
+      <h1 class="page-title">Members</h1>
+      <p class="page-sub">People who can sign in to this server, and what they can do.</p>
+    </div>
 
-    <section class="section" aria-labelledby="invite-heading">
+    <section class="section ck-card ck-card--outline" aria-labelledby="invite-heading">
       <h2 id="invite-heading">Invite someone</h2>
       <form class="invite-form" @submit.prevent="invite">
         <div class="field grow">
@@ -265,7 +268,7 @@ onMounted(() => void load())
             <option v-for="r in roles" :key="r" :value="r">{{ r }}</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="inviting">
+        <button type="submit" class="ck-btn ck-btn--solid ck-btn--sm" :disabled="inviting">
           {{ inviting ? 'Inviting' : 'Create invite link' }}
         </button>
       </form>
@@ -289,7 +292,7 @@ onMounted(() => void load())
       <div class="link-row">
         <label class="visually-hidden" for="shown-link">Link</label>
         <input id="shown-link" ref="linkEl" class="mono full" :value="shownLink.url" readonly />
-        <button class="btn btn-primary btn-sm" @click="copyLink">
+        <button class="ck-btn ck-btn--solid ck-btn--sm" @click="copyLink">
           {{ copied ? 'Copied' : 'Copy' }}
         </button>
       </div>
@@ -300,13 +303,16 @@ onMounted(() => void load())
         Anyone with this link can use it until {{ formatTime(shownLink.invite.expiresAt) }}. It is
         shown only now; create a new one if it is lost.
       </p>
-      <button class="btn btn-quiet btn-sm" @click="shownLink = null">Done</button>
+      <button class="ck-btn ck-btn--ghost ck-btn--sm" @click="shownLink = null">Done</button>
     </div>
 
-    <section class="section" aria-labelledby="members-heading">
-      <h2 id="members-heading">Members</h2>
-      <p v-if="loading" class="hint">Loading...</p>
-      <p v-else-if="members.length === 0" class="hint">No members yet.</p>
+    <section class="section ck-card ck-card--outline list-card" aria-labelledby="members-heading">
+      <div class="list-head">
+        <h2 id="members-heading">Members</h2>
+        <span class="list-count mono">{{ members.length }}</span>
+      </div>
+      <p v-if="loading" class="hint pad">Loading...</p>
+      <p v-else-if="members.length === 0" class="hint pad">No members yet.</p>
       <ul v-else class="list">
         <li
           v-for="m in members"
@@ -314,6 +320,9 @@ onMounted(() => void load())
           class="row"
           :class="{ disabled: m.status !== 'active' }"
         >
+          <div class="avatar" aria-hidden="true">
+            {{ (m.name || m.email || '?').trim().charAt(0).toUpperCase() }}
+          </div>
           <div class="who">
             <span class="name">
               {{ m.name || m.email }}
@@ -345,7 +354,7 @@ onMounted(() => void load())
                 <option v-for="r in roles" :key="r" :value="r">{{ r }}</option>
               </select>
               <button
-                class="btn btn-quiet btn-sm"
+                class="ck-btn ck-btn--ghost ck-btn--sm"
                 :disabled="busy.has(m.id)"
                 :aria-label="`Create a password reset link for ${m.email}`"
                 @click="resetLink(m)"
@@ -354,7 +363,7 @@ onMounted(() => void load())
               </button>
               <button
                 v-if="m.twoFactor"
-                class="btn btn-quiet btn-sm"
+                class="ck-btn ck-btn--ghost ck-btn--sm"
                 :disabled="busy.has(m.id)"
                 :aria-label="`Turn off two-factor sign-in for ${m.email}`"
                 @click="pendingTwoFactorReset = m"
@@ -362,7 +371,7 @@ onMounted(() => void load())
                 Reset 2FA
               </button>
               <button
-                class="btn btn-quiet btn-sm"
+                class="ck-btn ck-btn--ghost ck-btn--sm"
                 :disabled="busy.has(m.id)"
                 :aria-label="`${m.status === 'active' ? 'Disable' : 'Enable'} ${m.email}`"
                 @click="setStatus(m, m.status === 'active' ? 'disabled' : 'active')"
@@ -370,7 +379,7 @@ onMounted(() => void load())
                 {{ m.status === 'active' ? 'Disable' : 'Enable' }}
               </button>
               <button
-                class="btn btn-quiet btn-sm danger-hover"
+                class="ck-btn ck-btn--ghost ck-btn--sm danger-hover"
                 :disabled="busy.has(m.id)"
                 :aria-label="`Remove ${m.email}`"
                 @click="pendingRemove = m"
@@ -415,10 +424,30 @@ onMounted(() => void load())
       </ul>
     </section>
 
-    <section v-if="invites.length > 0" class="section" aria-labelledby="invites-heading">
-      <h2 id="invites-heading">Open invites</h2>
+    <section
+      v-if="invites.length > 0"
+      class="section ck-card ck-card--outline list-card"
+      aria-labelledby="invites-heading"
+    >
+      <div class="list-head">
+        <h2 id="invites-heading">Open invites</h2>
+        <span class="list-count mono">{{ invites.length }}</span>
+      </div>
       <ul class="list">
         <li v-for="inv in invites" :key="inv.id" class="row">
+          <div class="avatar avatar-invite" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="m3 7 9 6 9-6" />
+            </svg>
+          </div>
           <div class="who">
             <span class="name">{{ inv.email }}</span>
             <span class="meta"
@@ -428,7 +457,7 @@ onMounted(() => void load())
           </div>
           <div v-if="inv.role !== 'owner' || me.role === 'owner'" class="controls">
             <button
-              class="btn btn-quiet btn-sm"
+              class="ck-btn ck-btn--ghost ck-btn--sm"
               :disabled="busy.has(inv.id)"
               :aria-label="`Create a new invite link for ${inv.email}`"
               @click="resend(inv)"
@@ -436,7 +465,7 @@ onMounted(() => void load())
               New link
             </button>
             <button
-              class="btn btn-quiet btn-sm danger-hover"
+              class="ck-btn ck-btn--ghost ck-btn--sm danger-hover"
               :disabled="busy.has(inv.id)"
               :aria-label="`Cancel the invite for ${inv.email}`"
               @click="revoke(inv)"
@@ -466,54 +495,89 @@ onMounted(() => void load())
       @confirm="confirmTwoFactorReset"
       @cancel="pendingTwoFactorReset = null"
     />
-  </div>
+  </main>
 </template>
 
 <style scoped>
 .members {
-  max-width: 760px;
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.4rem 1.2rem 4rem;
+  padding: 36px 32px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 .page-title {
-  font-size: 1.15rem;
+  font-size: 1.625rem;
   font-weight: 600;
-  margin-bottom: 1.4rem;
+  letter-spacing: -0.025em;
+}
+.page-sub {
+  margin: 4px 0 0;
+  color: var(--text-mute);
+  font-size: 0.875rem;
 }
 .section {
-  margin-bottom: 2rem;
+  padding: 22px;
 }
 .section h2 {
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-2);
-  margin-bottom: 0.75rem;
+  margin-bottom: 14px;
+}
+.list-card {
+  padding: 0;
+  overflow: hidden;
+}
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.list-head h2 {
+  margin: 0;
+}
+.list-count {
+  font-size: 0.75rem;
+  color: var(--text-mute);
 }
 .invite-form {
   display: flex;
   align-items: flex-end;
-  gap: 0.6rem;
+  gap: 10px;
   flex-wrap: wrap;
 }
 .field {
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
 .field.grow {
-  flex: 1 1 220px;
+  flex: 1 1 260px;
+}
+.invite-form input,
+.invite-form select {
+  height: 38px;
 }
 .full {
   width: 100%;
 }
 .hint {
-  margin: 0.6rem 0 0;
+  margin: 12px 0 0;
   font-size: 0.8rem;
-  color: var(--text-2);
+  color: var(--text-mute);
+  text-wrap: pretty;
+}
+.hint.pad {
+  padding: 20px 22px;
+  margin: 0;
 }
 .err {
-  margin: 0.7rem 0 0;
+  margin: 12px 0 0;
   padding: 0.5rem 0.7rem;
   font-size: 0.8rem;
   color: var(--red-text);
@@ -521,26 +585,28 @@ onMounted(() => void load())
   border-radius: var(--r-sm);
 }
 .link-panel {
-  margin: 0 0 2rem;
-  padding: 1rem;
-  border: 1px solid var(--signal);
+  padding: 16px;
+  border: 1px solid rgba(255, 74, 31, 0.45);
   border-radius: var(--r-md);
   background: var(--accent-wash);
 }
 .link-title {
-  margin: 0 0 0.6rem;
+  margin: 0 0 10px;
   font-size: 0.86rem;
   color: var(--text);
 }
 .link-row {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
+}
+.link-row input {
+  height: 38px;
 }
 .link-note.emailed {
   color: var(--green-text);
 }
 .link-note {
-  margin: 0.6rem 0 0.4rem;
+  margin: 10px 0 8px;
   font-size: 0.78rem;
   color: var(--text-2);
 }
@@ -548,16 +614,12 @@ onMounted(() => void load())
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface);
 }
 .row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.7rem 1rem;
+  gap: 12px;
+  padding: 14px 22px;
   border-bottom: 1px solid var(--line-soft);
   flex-wrap: wrap;
 }
@@ -567,14 +629,39 @@ onMounted(() => void load())
 .row.disabled .name {
   color: var(--text-2);
 }
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.avatar-invite {
+  background: transparent;
+  border-style: dashed;
+  color: var(--text-mute);
+}
+.avatar-invite svg {
+  width: 14px;
+  height: 14px;
+}
 .who {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
   min-width: 0;
+  flex: 1;
 }
 .name {
   font-size: 0.86rem;
+  font-weight: 500;
   color: var(--text);
 }
 .meta {

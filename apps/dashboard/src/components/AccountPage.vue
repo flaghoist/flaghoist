@@ -306,10 +306,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="account">
-    <h1 class="page-title">Account</h1>
+  <main class="account">
+    <div class="page-head-text">
+      <h1 class="page-title">Account</h1>
+      <p class="page-sub">Your identity on this server.</p>
+    </div>
 
-    <section class="section">
+    <section class="section ck-card ck-card--outline">
       <h2>Profile</h2>
       <template v-if="user">
         <div class="setting-row">
@@ -352,7 +355,7 @@ onMounted(() => {
       </p>
     </section>
 
-    <section v-if="!user && setupRequired" class="section">
+    <section v-if="!user && setupRequired" class="section ck-card ck-card--outline">
       <h2>Create the owner account</h2>
       <p class="hint">
         This server has accounts turned on but none exist yet. Create the first one here; it gets
@@ -394,13 +397,13 @@ onMounted(() => {
           required
         />
         <p v-if="ownerError" class="err" role="alert">{{ ownerError }}</p>
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="ownerBusy">
+        <button type="submit" class="ck-btn ck-btn--solid ck-btn--sm" :disabled="ownerBusy">
           {{ ownerBusy ? 'Creating' : 'Create owner account' }}
         </button>
       </form>
     </section>
 
-    <section v-if="user && hasSession && canChangePassword" class="section">
+    <section v-if="user && hasSession && canChangePassword" class="section ck-card ck-card--outline">
       <h2>Password</h2>
       <form class="form" @submit.prevent="changePassword">
         <input
@@ -445,7 +448,7 @@ onMounted(() => {
           required
         />
         <p v-if="pwError" class="err" role="alert">{{ pwError }}</p>
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="pwBusy">
+        <button type="submit" class="ck-btn ck-btn--solid ck-btn--sm" :disabled="pwBusy">
           {{ pwBusy ? 'Saving' : 'Change password' }}
         </button>
       </form>
@@ -453,7 +456,7 @@ onMounted(() => {
 
     <section
       v-if="user && hasSession && user.hasPassword !== false"
-      class="section"
+      class="section ck-card ck-card--outline"
       aria-labelledby="tfa-heading"
     >
       <h2 id="tfa-heading">Two-factor sign-in</h2>
@@ -480,13 +483,13 @@ onMounted(() => {
               required
             />
           </div>
-          <button type="submit" class="btn btn-ghost btn-sm" :disabled="manageBusy || !manageCode">
+          <button type="submit" class="ck-btn ck-btn--outline ck-btn--sm" :disabled="manageBusy || !manageCode">
             New recovery codes
           </button>
           <button
             v-if="!me.twoFactor?.required"
             type="button"
-            class="btn btn-ghost btn-sm"
+            class="ck-btn ck-btn--outline ck-btn--sm"
             :disabled="manageBusy || !manageCode"
             @click="turnOffTwoFactor"
           >
@@ -501,12 +504,12 @@ onMounted(() => {
           <ol class="mono fresh-codes" aria-label="Recovery codes">
             <li v-for="c in freshCodes" :key="c">{{ c }}</li>
           </ol>
-          <button class="btn btn-quiet btn-sm" @click="freshCodes = null">Done</button>
+          <button class="ck-btn ck-btn--ghost ck-btn--sm" @click="freshCodes = null">Done</button>
         </div>
       </template>
     </section>
 
-    <section v-if="user" class="section" aria-labelledby="tokens-heading">
+    <section v-if="user" class="section ck-card ck-card--outline" aria-labelledby="tokens-heading">
       <h2 id="tokens-heading">Access tokens</h2>
       <p class="hint">
         For the CLI, the MCP server and scripts. A token acts as you, with the role you give it, and
@@ -539,7 +542,7 @@ onMounted(() => {
             <option value="never">Never</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="tokenBusy">
+        <button type="submit" class="ck-btn ck-btn--solid ck-btn--sm" :disabled="tokenBusy">
           {{ tokenBusy ? 'Creating' : 'Create token' }}
         </button>
       </form>
@@ -562,11 +565,11 @@ onMounted(() => {
             :value="newToken.token"
             readonly
           />
-          <button class="btn btn-primary btn-sm" @click="copyToken">
+          <button class="ck-btn ck-btn--solid ck-btn--sm" @click="copyToken">
             {{ tokenCopied ? 'Copied' : 'Copy' }}
           </button>
         </div>
-        <button class="btn btn-quiet btn-sm" @click="newToken = null">Done</button>
+        <button class="ck-btn ck-btn--ghost ck-btn--sm" @click="newToken = null">Done</button>
       </div>
 
       <ul v-if="tokens.length > 0" class="session-list">
@@ -585,7 +588,7 @@ onMounted(() => {
             </span>
           </div>
           <button
-            class="btn btn-ghost btn-sm"
+            class="ck-btn ck-btn--outline ck-btn--sm"
             :aria-label="`Revoke ${t.name}`"
             @click="revokeToken(t)"
           >
@@ -596,10 +599,10 @@ onMounted(() => {
       <p v-else class="hint">No access tokens yet.</p>
     </section>
 
-    <section v-if="user && hasSession" class="section">
+    <section v-if="user && hasSession" class="section ck-card ck-card--outline">
       <div class="section-head">
         <h2>Sessions</h2>
-        <button v-if="hasOthers" class="btn btn-ghost btn-sm" @click="revokeOthers">
+        <button v-if="hasOthers" class="ck-btn ck-btn--outline ck-btn--sm" @click="revokeOthers">
           Sign out other sessions
         </button>
       </div>
@@ -617,7 +620,7 @@ onMounted(() => {
           </div>
           <button
             v-if="!s.current"
-            class="btn btn-ghost btn-sm"
+            class="ck-btn ck-btn--outline ck-btn--sm"
             :aria-label="`Sign out ${device(s.userAgent)}, signed in ${formatTime(s.createdAt)}`"
             @click="revoke(s)"
           >
@@ -626,36 +629,43 @@ onMounted(() => {
         </li>
       </ul>
     </section>
-  </div>
+  </main>
 </template>
 
 <style scoped>
 .account {
-  max-width: 640px;
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.4rem 1.2rem 4rem;
+  padding: 36px 32px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 .page-title {
-  font-size: 1.15rem;
+  font-size: 1.625rem;
   font-weight: 600;
-  margin-bottom: 1.4rem;
+  letter-spacing: -0.025em;
+}
+.page-sub {
+  margin: 4px 0 0;
+  color: var(--text-mute);
+  font-size: 0.875rem;
 }
 .section {
-  margin-bottom: 2rem;
+  padding: 22px;
 }
 .section h2 {
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-2);
-  margin-bottom: 0.75rem;
+  margin-bottom: 14px;
 }
 .section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  margin-bottom: 14px;
 }
 .section-head h2 {
   margin-bottom: 0;
@@ -668,6 +678,13 @@ onMounted(() => {
   padding: 0.6rem 0;
   border-bottom: 1px solid var(--line-soft);
   font-size: 0.85rem;
+}
+.setting-row:last-child {
+  border-bottom: none;
+}
+.section input,
+.section select {
+  height: 38px;
 }
 .setting-label {
   color: var(--text-2);
@@ -799,20 +816,19 @@ onMounted(() => {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+/* The list sits flush to the ck-card ck-card--outline edges, so it reads as part of the section. */
 .session-list {
   list-style: none;
-  margin: 0;
+  margin: 14px -22px -22px;
   padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--surface);
+  border-top: 1px solid var(--line-soft);
 }
 .session-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.7rem 1rem;
+  padding: 14px 22px;
   border-bottom: 1px solid var(--line-soft);
 }
 .session-row:last-child {

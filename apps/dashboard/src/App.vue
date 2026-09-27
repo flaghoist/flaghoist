@@ -163,6 +163,16 @@ const environments = ref<string[]>(['production'])
 const defaultEnvironment = ref('production')
 const currentEnvironment = ref('production')
 const view = ref<View>('overview')
+const PAGE_TITLES: Record<View, string> = {
+  overview: 'Overview',
+  flags: 'Flags',
+  webhooks: 'Webhooks',
+  audit: 'Audit log',
+  settings: 'Settings',
+  account: 'Account',
+  members: 'Members',
+}
+const pageTitle = computed(() => PAGE_TITLES[view.value])
 const flags = ref<FeatureFlag[]>([])
 const loading = ref(true)
 const connecting = ref(false)
@@ -311,9 +321,13 @@ function resolvedTheme(): 'light' | 'dark' {
 }
 
 function toggleTheme() {
-  const next = resolvedTheme() === 'dark' ? 'light' : 'dark'
+  setTheme(resolvedTheme() === 'dark' ? 'light' : 'dark')
+}
+
+function setTheme(next: 'light' | 'dark') {
   theme.value = next
-  document.documentElement.dataset.theme = next
+  // The design system themes off the `dark` class on <html>.
+  document.documentElement.classList.toggle('dark', next === 'dark')
   try {
     localStorage.setItem(THEME, next)
   } catch {
@@ -1001,14 +1015,14 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   />
 
   <div v-else-if="mustSetUpTwoFactor" class="tfa-gate">
-    <div class="card tfa-card">
+    <div class="ck-card ck-card--outline tfa-card">
       <h1 class="tfa-title">Set up two-factor sign-in</h1>
       <p class="tfa-sub">
         Your role needs a code from an authenticator app as well as your password. Set it up to
         continue.
       </p>
       <TwoFactorSetup :api="api" @done="onTwoFactorReady" @failed="onAccountError" />
-      <button class="btn btn-quiet btn-sm tfa-out" @click="disconnect()">Log out</button>
+      <button class="ck-btn ck-btn--ghost ck-btn--sm tfa-out" @click="disconnect()">Log out</button>
     </div>
   </div>
 
@@ -1033,41 +1047,52 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         }
       "
       @disconnect="disconnect()"
-      @toggle-theme="toggleTheme"
+      @set-theme="setTheme"
       @toggle-collapse="toggleSidebar"
       @switch-environment="switchEnvironment"
     />
 
     <div class="main-area">
-      <!-- Mobile header (visible on small screens only) -->
-      <header class="mobile-header">
-        <button class="mobile-menu" aria-label="Toggle menu" @click="toggleSidebar">
+      <!-- Top bar: breadcrumb, global flag search, and the primary action. -->
+      <header class="topbar">
+        <button class="topbar-menu" aria-label="Toggle menu" @click="toggleSidebar">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <line x1="3" y1="6" x2="21" y2="6" />
             <line x1="3" y1="12" x2="21" y2="12" />
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <span class="mobile-title">{{
-          view === 'overview'
-            ? 'Overview'
-            : view === 'flags'
-              ? 'Flags'
-              : view === 'webhooks'
-                ? 'Webhooks'
-                : view === 'audit'
-                  ? 'Audit log'
-                  : view === 'account'
-                    ? 'Account'
-                    : view === 'members'
-                      ? 'Members'
-                      : 'Settings'
-        }}</span>
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <span class="crumb-env">{{ currentEnvironment }}</span>
+          <span class="crumb-sep" aria-hidden="true">/</span>
+          <span class="crumb-page">{{ pageTitle }}</span>
+        </nav>
+
+        <div class="topbar-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="topbar-search-icon">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref="searchEl"
+            v-model="query"
+            type="search"
+            placeholder="Search flags"
+            aria-label="Search flags"
+            @focus="view = 'flags'"
+          />
+          <kbd v-if="!query" class="kbd">/</kbd>
+        </div>
+
         <button
-          class="btn btn-primary btn-sm"
-          v-if="view === 'flags' && canWrite"
+          v-if="canWrite"
+          class="ck-btn ck-btn--solid ck-btn--sm topbar-new"
           @click="editor = { flag: null }"
         >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
           New flag
         </button>
       </header>
@@ -1085,14 +1110,18 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         "
         :read-only="!canWrite"
         @toggle="toggle"
+        @new-flag="editor = { flag: null }"
       />
 
       <!-- Flags -->
       <main v-else-if="view === 'flags'" class="content">
-        <div class="flags-header">
-          <h1 class="page-title">Flags</h1>
-          <div class="flags-actions">
-            <button class="btn btn-ghost btn-sm" @click="exportFlags" title="Export flags">
+        <div class="page-head">
+          <div class="page-head-text">
+            <h1 class="page-title">Flags</h1>
+            <p class="page-sub">Toggle, roll out and target features without a deploy.</p>
+          </div>
+          <div class="page-head-actions">
+            <button class="ck-btn ck-btn--outline ck-btn--sm" @click="exportFlags" title="Export flags">
               <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
               </svg>
@@ -1100,7 +1129,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
             </button>
             <button
               v-if="canImport"
-              class="btn btn-ghost btn-sm"
+              class="ck-btn ck-btn--outline ck-btn--sm"
               title="Import flags"
               @click="openImportPicker"
             >
@@ -1116,9 +1145,6 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
               hidden
               @change="handleImportFile"
             />
-            <button v-if="canWrite" class="btn btn-primary btn-sm" @click="editor = { flag: null }">
-              New flag
-            </button>
           </div>
         </div>
 
@@ -1126,22 +1152,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
           You have view-only access. Ask an admin for the editor role to change flags.
         </p>
 
-        <div class="toolbar">
-          <div class="search">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="search-icon">
-              <circle cx="11" cy="11" r="6.4" />
-              <path d="m16 16 4.5 4.5" />
-            </svg>
-            <input
-              ref="searchEl"
-              v-model="query"
-              type="search"
-              placeholder="Search flags"
-              aria-label="Search flags"
-            />
-            <kbd v-if="!query">/</kbd>
-          </div>
-
+        <div class="filter-row">
           <div class="filters" role="group" aria-label="Filter flags">
             <button
               v-for="f in filters"
@@ -1153,23 +1164,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
             >
               {{ f }}<span class="chip-n">{{ counts[f] }}</span>
             </button>
-            <label class="archive-toggle">
-              <input type="checkbox" :checked="showArchived" @change="toggleShowArchived" />
-              <span>Archived</span>
-            </label>
           </div>
-        </div>
-
-        <!-- Bulk action bar -->
-        <div v-if="selectedKeys.size > 0 && canWrite" class="bulk-bar">
-          <span class="bulk-count">{{ selectedKeys.size }} selected</span>
-          <button class="btn btn-ghost btn-sm" :disabled="bulkBusy" @click="bulkEnable">
-            Enable
-          </button>
-          <button class="btn btn-ghost btn-sm" :disabled="bulkBusy" @click="bulkDisable">
-            Disable
-          </button>
-          <button class="btn btn-quiet btn-sm" @click="clearSelection">Clear</button>
+          <label class="archive-toggle">
+            <input type="checkbox" :checked="showArchived" @change="toggleShowArchived" />
+            <span>Show archived</span>
+          </label>
         </div>
 
         <div v-if="loading" class="list" aria-busy="true" aria-label="Loading flags">
@@ -1229,7 +1228,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
           <p>
             Create one here, or from the CLI with <code class="mono">flaghoist flag create</code>.
           </p>
-          <button v-if="canWrite" class="btn btn-primary" @click="editor = { flag: null }">
+          <button v-if="canWrite" class="ck-btn ck-btn--solid ck-btn--md" @click="editor = { flag: null }">
             Create a flag
           </button>
         </div>
@@ -1247,11 +1246,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
               ><strong>{{ filter }}</strong></template
             >.
           </p>
-          <button class="btn btn-ghost" @click="clearFilters">Clear filters</button>
+          <button class="ck-btn ck-btn--outline ck-btn--md" @click="clearFilters">Clear filters</button>
         </div>
 
         <div v-else class="table-wrap">
-          <table class="flag-table">
+          <table class="flag-table ck-table ck-table--interactive">
             <thead>
               <tr>
                 <th class="col-check">
@@ -1340,7 +1339,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                   <div v-if="flag.archived" class="action-group">
                     <button
                       v-if="canWrite"
-                      class="btn btn-quiet btn-sm"
+                      class="ck-btn ck-btn--ghost ck-btn--sm"
                       :disabled="busy.has(flag.key)"
                       @click="restoreFlag(flag)"
                     >
@@ -1348,7 +1347,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                     </button>
                     <button
                       v-if="canDelete"
-                      class="btn btn-quiet btn-sm danger-hover"
+                      class="ck-btn ck-btn--ghost ck-btn--sm danger-hover"
                       @click="pendingDelete = flag"
                     >
                       Delete
@@ -1362,15 +1361,30 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
                       :aria-label="flag.enabled ? `Disable ${flag.key}` : `Enable ${flag.key}`"
                       @click="toggle(flag)"
                     ></button>
-                    <button v-if="canWrite" class="btn btn-quiet btn-sm" @click="editor = { flag }">
-                      Edit
+                    <button
+                      v-if="canWrite"
+                      class="row-icon-btn"
+                      title="Edit"
+                      :aria-label="`Edit ${flag.key}`"
+                      @click="editor = { flag }"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
                     </button>
                     <button
                       v-if="canWrite"
-                      class="btn btn-quiet btn-sm danger-hover"
+                      class="row-icon-btn"
+                      title="Archive"
+                      :aria-label="`Archive ${flag.key}`"
                       @click="archiveFlag(flag)"
                     >
-                      Archive
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="2" y="3" width="20" height="5" rx="1" />
+                        <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+                        <path d="M10 12h4" />
+                      </svg>
                     </button>
                   </div>
                 </td>
@@ -1381,7 +1395,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 
         <nav v-if="totalPages > 1" class="pagination" aria-label="Flag list pages">
           <button
-            class="btn btn-ghost btn-sm"
+            class="ck-btn ck-btn--outline ck-btn--sm"
             :disabled="page <= 1"
             @click="page = Math.max(1, page - 1)"
           >
@@ -1389,13 +1403,33 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
           </button>
           <span class="page-info mono">{{ page }} / {{ totalPages }}</span>
           <button
-            class="btn btn-ghost btn-sm"
+            class="ck-btn ck-btn--outline ck-btn--sm"
             :disabled="page >= totalPages"
             @click="page = Math.min(totalPages, page + 1)"
           >
             Next
           </button>
         </nav>
+
+        <!-- Floating bulk action bar, above the bottom edge while rows are selected. -->
+        <Transition name="bulk">
+          <div
+            v-if="selectedKeys.size > 0 && canWrite"
+            class="bulk-bar"
+            role="region"
+            aria-label="Bulk actions"
+          >
+            <span class="bulk-count mono">{{ selectedKeys.size }} selected</span>
+            <button class="bulk-btn" :disabled="bulkBusy" @click="bulkEnable">Enable</button>
+            <button class="bulk-btn" :disabled="bulkBusy" @click="bulkDisable">Disable</button>
+            <button class="bulk-clear" aria-label="Clear selection" @click="clearSelection">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <line x1="6" y1="6" x2="18" y2="18" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </Transition>
 
         <ConfirmDialog
           v-if="pendingDelete"
@@ -1407,7 +1441,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         />
 
         <div v-if="importPreview" class="import-overlay" @click.self="importPreview = null">
-          <div class="import-dialog card" role="dialog" aria-labelledby="import-title">
+          <div class="import-dialog ck-card ck-card--outline" role="dialog" aria-labelledby="import-title">
             <h2 id="import-title">
               Import {{ importPreview.length }} flag{{ importPreview.length === 1 ? '' : 's' }}
             </h2>
@@ -1425,13 +1459,13 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
             </div>
             <div class="import-actions">
               <button
-                class="btn btn-ghost btn-sm"
+                class="ck-btn ck-btn--outline ck-btn--sm"
                 :disabled="importBusy"
                 @click="importPreview = null"
               >
                 Cancel
               </button>
-              <button class="btn btn-primary btn-sm" :disabled="importBusy" @click="confirmImport">
+              <button class="ck-btn ck-btn--solid ck-btn--sm" :disabled="importBusy" @click="confirmImport">
                 {{ importBusy ? 'Importing...' : 'Import' }}
               </button>
             </div>
@@ -1491,7 +1525,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
         :session-age="sessionAge"
         :theme="resolvedTheme()"
         @disconnect="disconnect()"
-        @toggle-theme="toggleTheme"
+        @set-theme="setTheme"
       />
     </div>
 
@@ -1512,67 +1546,137 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 <style scoped>
 .shell {
   min-height: 100dvh;
-  padding-left: 220px;
+  padding-left: 232px;
   transition: padding-left 0.2s ease;
 }
 .shell.sidebar-collapsed {
-  padding-left: 56px;
+  padding-left: 60px;
 }
 
 .main-area {
   min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* ---- mobile header ---- */
-.mobile-header {
-  display: none;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
-}
-.mobile-menu {
+/* ---- top bar ---- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 64px;
+  padding: 0 32px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-menu {
+  display: none;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
   background: none;
   color: var(--text-2);
   padding: 0;
 }
-.mobile-menu svg {
+.topbar-menu svg {
   width: 18px;
   height: 18px;
+  fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
 }
-.mobile-title {
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1;
-  font-size: 0.95rem;
-  font-weight: 600;
+  min-width: 0;
+  font-size: 0.81rem;
+  color: var(--text-mute);
+}
+.crumb-env {
+  text-transform: capitalize;
+}
+.crumb-page {
+  color: var(--text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar-search {
+  position: relative;
+  width: 280px;
+  max-width: 36vw;
+  display: flex;
+  align-items: center;
+}
+.topbar-search-icon {
+  position: absolute;
+  left: 12px;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--text-mute);
+  stroke-width: 2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.topbar-search input {
+  width: 100%;
+  height: 36px;
+  padding: 0 36px;
+  font-size: 0.81rem;
+  background: var(--surface);
+}
+.topbar-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+.topbar-search .kbd {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+  border-bottom-width: 1px;
+}
+.topbar-new {
+  flex-shrink: 0;
 }
 
 /* ---- content ---- */
 .content {
-  max-width: 960px;
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 1.4rem 1.5rem 4rem;
+  padding: 36px 32px 96px;
 }
-.flags-header {
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.page-head-text {
+  flex: 1;
+  min-width: 200px;
+}
+.page-sub {
+  margin: 4px 0 0;
+  color: var(--text-mute);
+  font-size: 0.875rem;
+}
+.page-head-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-.flags-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  gap: 8px;
 }
 .btn-icon {
   width: 14px;
@@ -1586,41 +1690,10 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   margin-right: 0.2rem;
 }
 .page-title {
-  font-size: 1.2rem;
+  font-size: 1.625rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-.search {
-  position: relative;
-  flex: 1;
-  min-width: 200px;
-  display: flex;
-  align-items: center;
-}
-.search-icon {
-  position: absolute;
-  left: 0.6rem;
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: var(--text-mute);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  pointer-events: none;
-}
-.search input {
-  width: 100%;
-  padding-left: 2rem;
-}
-.search input::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-}
-.search kbd,
 .hintbar kbd {
   font-family: var(--font-mono);
   font-size: 0.66rem;
@@ -1629,35 +1702,38 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   border-radius: 4px;
   padding: 0.04rem 0.28rem;
 }
-.search kbd {
-  position: absolute;
-  right: 0.5rem;
-  pointer-events: none;
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 .filters {
   display: flex;
-  gap: 0.3rem;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.34rem;
-  font-size: 0.78rem;
+  gap: 0.4rem;
+  font-size: 0.8rem;
   font-weight: 500;
   text-transform: capitalize;
   color: var(--text-2);
-  background: none;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
-  padding: 0.3rem 0.7rem;
+  padding: 0.36rem 0.75rem;
   transition:
     color 0.12s,
     border-color 0.12s,
     background 0.12s;
 }
 .chip:hover {
-  border-color: var(--text-2);
+  border-color: var(--text-mute);
+  color: var(--text);
 }
 .chip.on {
   color: var(--accent-text);
@@ -1666,43 +1742,91 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 }
 .chip-n {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  opacity: 0.75;
+  font-size: 0.72rem;
+  opacity: 0.7;
 }
 .archive-toggle {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
+  gap: 0.5rem;
+  font-size: 0.81rem;
   color: var(--text-2);
   cursor: pointer;
-  margin-left: 0.5rem;
-  padding-left: 0.5rem;
-  border-left: 1px solid var(--line);
-}
-.archive-toggle input[type='checkbox'] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--signal);
-  cursor: pointer;
+  margin-left: auto;
 }
 
-/* ---- bulk bar ---- */
+/* ---- floating bulk bar ---- */
 .bulk-bar {
+  position: fixed;
+  bottom: 20px;
+  left: calc(50% + 116px);
+  transform: translateX(-50%);
+  z-index: 20;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.8rem;
-  margin-bottom: 0.75rem;
-  background: var(--accent-wash);
-  border: 1px solid var(--signal);
+  gap: 4px;
+  padding: 6px 6px 6px 16px;
+  background: var(--navy);
+  color: var(--sail);
   border-radius: var(--r-sm);
-  font-size: 0.82rem;
+  box-shadow: var(--shadow-pop);
 }
 .bulk-count {
-  font-weight: 600;
-  color: var(--accent-text);
-  margin-right: auto;
+  font-size: 0.81rem;
+  font-weight: 500;
+  margin-right: 10px;
+}
+.bulk-btn {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: rgba(247, 244, 236, 0.1);
+  color: var(--sail);
+  font-size: 0.78rem;
+  font-weight: 500;
+  transition: background 0.12s;
+}
+.bulk-btn:hover:not(:disabled) {
+  background: rgba(247, 244, 236, 0.18);
+}
+.bulk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bulk-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: #8b9ab0;
+}
+.bulk-clear:hover {
+  color: var(--sail);
+  background: rgba(247, 244, 236, 0.1);
+}
+.bulk-clear svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.bulk-enter-active,
+.bulk-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.bulk-enter-from,
+.bulk-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
 }
 
 /* ---- data table ---- */
@@ -1710,6 +1834,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--surface);
+  overflow: hidden;
   overflow-x: auto;
 }
 .flag-table {
@@ -1719,12 +1844,11 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 }
 .flag-table th {
   text-align: left;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-mute);
-  padding: 0.55rem 0.75rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--surface-2);
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
   user-select: none;
@@ -1740,7 +1864,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   margin-left: 0.2rem;
 }
 .flag-table td {
-  padding: 0.6rem 0.75rem;
+  padding: 0.75rem 0.9rem;
   border-bottom: 1px solid var(--line-soft);
   vertical-align: middle;
 }
@@ -1769,13 +1893,14 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 }
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.12rem 0.45rem;
-  border-radius: var(--r-pill);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 500;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 .badge-on {
   background: var(--green-wash);
@@ -1793,7 +1918,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 .badge-archived {
   background: var(--surface-2);
   color: var(--text-mute);
-  font-style: italic;
+  border: 1px solid var(--line);
 }
 
 .col-check {
@@ -1841,7 +1966,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 .rollout-bar {
   flex: 1;
   height: 4px;
-  background: light-dark(rgba(11, 30, 58, 0.12), rgba(247, 244, 236, 0.12));
+  background: var(--track);
   border-radius: var(--r-pill);
   overflow: hidden;
 }
@@ -1852,9 +1977,9 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   transition: width 0.2s ease;
 }
 .rollout-pct {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-2);
   width: 2.4rem;
   text-align: right;
 }
@@ -1872,12 +1997,40 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   color: var(--text-mute);
 }
 .col-actions {
-  width: 160px;
+  width: 128px;
 }
 .action-group {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.row-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-mute);
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.row-icon-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.row-icon-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .tfa-gate {
   min-height: 100dvh;
@@ -2012,14 +2165,29 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   .shell.sidebar-collapsed {
     padding-left: 0;
   }
-  .mobile-header {
+  .topbar {
+    padding: 0 16px;
+    gap: 10px;
+  }
+  .topbar-menu {
     display: flex;
+  }
+  .crumbs {
+    display: none;
+  }
+  .topbar-search {
+    flex: 1;
+    width: auto;
+    max-width: none;
+  }
+  .content {
+    padding: 24px 16px 96px;
   }
   :deep(.sidebar) {
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     width: 260px;
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-pop);
   }
   .shell:not(.sidebar-collapsed) :deep(.sidebar) {
     transform: translateX(0);
@@ -2027,8 +2195,8 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   .shell.sidebar-collapsed :deep(.sidebar) {
     transform: translateX(-100%);
   }
-  .flags-header .flags-actions .btn-primary {
-    display: none;
+  .bulk-bar {
+    left: 50%;
   }
   .col-check,
   .col-rollout,
@@ -2037,7 +2205,7 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
   }
   .flag-table th,
   .flag-table td {
-    padding: 0.5rem;
+    padding: 0.6rem;
   }
 }
 
@@ -2045,17 +2213,18 @@ function flagState(f: FeatureFlag): { kind: string; label: string } {
 .import-overlay {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.25rem;
-  background: light-dark(rgba(11, 30, 58, 0.34), rgba(2, 8, 16, 0.62));
-  backdrop-filter: blur(3px);
+  background: var(--color-black-alpha-500);
 }
 .import-dialog {
   width: min(32rem, 100%);
-  padding: 1.25rem;
+  padding: 22px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
 }
 .import-dialog h2 {
   margin: 0 0 0.3rem;

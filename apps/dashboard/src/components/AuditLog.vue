@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 const props = defineProps<{
   serverUrl: string
@@ -75,50 +75,6 @@ async function load() {
   } finally {
     loading.value = false
   }
-}
-
-function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso)
-    return d.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return iso
-  }
-}
-
-const actionLabel: Record<string, string> = {
-  create: 'Created',
-  update: 'Updated',
-  delete: 'Deleted',
-  archive: 'Archived',
-  restore: 'Restored',
-  login: 'Sign-in',
-  'login.failed': 'Failed',
-  logout: 'Sign-out',
-  'password.changed': 'Password',
-  'session.revoked': 'Revoked',
-  'password.reset': 'Reset',
-  'user.created': 'Account',
-  'user.updated': 'Member',
-  'user.removed': 'Removed',
-  'invite.created': 'Invite',
-  'invite.accepted': 'Joined',
-  'invite.revoked': 'Invite',
-  'token.created': 'Token',
-  'token.revoked': 'Token',
-  'token.expired': 'Expired',
-  'two_factor.enabled': '2FA',
-  'two_factor.disabled': '2FA',
-  'two_factor.reset': '2FA',
-  'two_factor.recovery_used': 'Recovery',
-  'webhook.created': 'Webhook',
-  'webhook.updated': 'Webhook',
-  'webhook.deleted': 'Webhook',
 }
 
 // Classes reuse the flag action colours: green for additions, accent for changes, red for
@@ -206,8 +162,72 @@ function describeChange(entry: AuditEntry): string {
 }
 
 function subject(entry: AuditEntry): string {
-  return entry.flagKey ?? entry.target?.type ?? ''
+  return entry.flagKey ?? entry.target?.id ?? entry.target?.type ?? ''
 }
+
+// The verb that reads before the target, e.g. "admin  updated  dark-mode".
+const flagVerb: Record<string, string> = {
+  create: 'created',
+  update: 'updated',
+  delete: 'deleted',
+  archive: 'archived',
+  restore: 'restored',
+}
+function verb(entry: AuditEntry): string {
+  return category.value === 'security'
+    ? (securityText[entry.action] ?? entry.action)
+    : (flagVerb[entry.action] ?? entry.action)
+}
+
+// The one-line diff shown as a chip. Security rows carry their story in the verb, so no chip.
+function diff(entry: AuditEntry): string {
+  if (category.value === 'security') return ''
+  const text = describeChange(entry)
+  return text === 'Flag archived' || text === 'Flag restored' ? '' : text
+}
+
+const DOT: Record<string, string> = {
+  create: 'var(--green)',
+  update: 'var(--signal)',
+  delete: 'var(--red)',
+  archive: 'var(--text-mute)',
+  restore: 'var(--text-2)',
+  security: 'var(--text-2)',
+}
+function dotColor(entry: AuditEntry): string {
+  return DOT[actionTone[entry.action] ?? entry.action] ?? 'var(--text-2)'
+}
+
+function formatClock(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
+function dayLabel(iso: string): string {
+  const d = new Date(iso)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString()
+  if (same(d, today)) return 'Today'
+  if (same(d, yesterday)) return 'Yesterday'
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Entries arrive newest-first; keep that order while gathering them under day headings.
+const groups = computed(() => {
+  const out: { day: string; entries: AuditEntry[] }[] = []
+  for (const entry of entries.value) {
+    const day = dayLabel(entry.timestamp)
+    const last = out[out.length - 1]
+    if (last && last.day === day) last.entries.push(entry)
+    else out.push({ day, entries: [entry] })
+  }
+  return out
+})
 
 watch(category, () => {
   actionFilter.value = ''
@@ -234,36 +254,35 @@ onMounted(() => void load())
 </script>
 
 <template>
-  <div class="audit-page">
-    <header class="audit-head">
-      <div class="audit-title-row">
-        <button class="btn btn-ghost btn-sm" @click="emit('back')">
-          <svg viewBox="0 0 24 24" aria-hidden="true" class="back-icon">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          Flags
-        </button>
-        <h2>Audit log</h2>
-        <span v-if="!loading" class="entry-count mono">{{ total }} entries</span>
+  <main class="audit-page">
+    <div class="page-head">
+      <div class="page-head-text">
+        <h1 class="page-title">Audit log</h1>
+        <p class="page-sub">Every change, who made it and why.</p>
       </div>
+      <span v-if="!loading" class="entry-count mono">{{ total }} entries</span>
+    </div>
 
-      <div v-if="canSeeSecurity" class="audit-tabs" role="group" aria-label="Which log">
-        <button
-          class="chip"
-          :class="{ on: category === 'flags' }"
-          :aria-pressed="category === 'flags'"
-          @click="category = 'flags'"
-        >
-          Flag changes
-        </button>
-        <button
-          class="chip"
-          :class="{ on: category === 'security' }"
-          :aria-pressed="category === 'security'"
-          @click="category = 'security'"
-        >
-          Security
-        </button>
+    <div class="audit-controls">
+      <div v-if="canSeeSecurity" class="ck-tabs ck-tabs--enclosed ck-tabs--sm seg" aria-label="Which log">
+        <div class="ck-tabs__list" role="tablist">
+          <button
+            class="ck-tabs__trigger"
+            role="tab"
+            :aria-selected="category === 'flags'"
+            @click="category = 'flags'"
+          >
+            Flag changes
+          </button>
+          <button
+            class="ck-tabs__trigger"
+            role="tab"
+            :aria-selected="category === 'security'"
+            @click="category = 'security'"
+          >
+            Security
+          </button>
+        </div>
       </div>
 
       <div
@@ -283,32 +302,37 @@ onMounted(() => void load())
           {{ a.label }}
         </button>
       </div>
-    </header>
+    </div>
 
     <p v-if="loading && entries.length === 0" class="status">Loading...</p>
     <p v-else-if="error" class="status err">{{ error }}</p>
-    <p v-else-if="entries.length === 0" class="status">No activity recorded yet.</p>
 
-    <div v-else class="log-list">
-      <div v-for="entry in entries" :key="entry.id" class="log-entry">
-        <span class="log-time" :title="entry.timestamp">{{ formatTime(entry.timestamp) }}</span>
-        <span class="log-action" :class="actionTone[entry.action] ?? entry.action">{{
-          actionLabel[entry.action] ?? entry.action
-        }}</span>
-        <code class="mono log-key">{{ subject(entry) }}</code>
-        <span class="log-delta">
-          {{ describeChange(entry) }}
-          <span v-if="entry.changeDescription" class="log-reason"
-            >· {{ entry.changeDescription }}</span
-          >
-        </span>
-        <span class="log-actor">{{ entry.actor }}</span>
+    <section v-else class="log-card">
+      <p v-if="entries.length === 0" class="status">No activity recorded yet.</p>
+      <div v-for="group in groups" :key="group.day" class="day-group">
+        <div class="day-head">{{ group.day }}</div>
+        <div v-for="entry in group.entries" :key="entry.id" class="log-entry">
+          <span class="entry-dot" :style="{ background: dotColor(entry) }"></span>
+          <div class="entry-body">
+            <div class="entry-line">
+              <span class="entry-actor">{{ entry.actor }}</span> {{ verb(entry) }}
+              <code v-if="subject(entry)" class="mono entry-target">{{ subject(entry) }}</code>
+            </div>
+            <span v-if="diff(entry)" class="entry-diff mono">{{ diff(entry) }}</span>
+            <span v-if="entry.changeDescription" class="entry-reason"
+              >“{{ entry.changeDescription }}”</span
+            >
+          </div>
+          <span class="entry-time mono" :title="entry.timestamp">{{
+            formatClock(entry.timestamp)
+          }}</span>
+        </div>
       </div>
-    </div>
+    </section>
 
     <nav v-if="totalPages() > 1" class="pagination" aria-label="Audit log pages">
       <button
-        class="btn btn-ghost btn-sm"
+        class="ck-btn ck-btn--outline ck-btn--sm"
         :disabled="page <= 1"
         @click="page = Math.max(1, page - 1)"
       >
@@ -316,167 +340,167 @@ onMounted(() => void load())
       </button>
       <span class="page-info mono">{{ page }} / {{ totalPages() }}</span>
       <button
-        class="btn btn-ghost btn-sm"
+        class="ck-btn ck-btn--outline ck-btn--sm"
         :disabled="page >= totalPages()"
         @click="page = Math.min(totalPages(), page + 1)"
       >
         Next
       </button>
     </nav>
-  </div>
+  </main>
 </template>
 
 <style scoped>
 .audit-page {
-  max-width: 900px;
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.4rem 1.2rem 4rem;
-}
-.audit-head {
-  margin-bottom: 1.2rem;
-}
-.audit-title-row {
+  padding: 36px 32px 64px;
   display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  margin-bottom: 0.8rem;
+  flex-direction: column;
+  gap: 22px;
 }
-.audit-title-row h2 {
-  font-size: 1.05rem;
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-head-text {
+  flex: 1;
+  min-width: 200px;
+}
+.page-title {
+  font-size: 1.625rem;
   font-weight: 600;
+  letter-spacing: -0.025em;
 }
-.back-icon {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.page-sub {
+  margin: 4px 0 0;
+  color: var(--text-mute);
+  font-size: 0.875rem;
 }
 .entry-count {
-  margin-left: auto;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--text-mute);
 }
-.audit-tabs {
+
+.audit-controls {
   display: flex;
-  gap: 0.3rem;
-  margin-bottom: 0.6rem;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 .audit-filters {
   display: flex;
-  gap: 0.3rem;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.34rem;
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--text-2);
-  background: none;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
-  padding: 0.3rem 0.7rem;
-  cursor: pointer;
+  padding: 0.32rem 0.7rem;
   transition:
     color 0.12s,
     border-color 0.12s,
     background 0.12s;
 }
 .chip:hover {
-  border-color: var(--text-2);
+  border-color: var(--text-mute);
+  color: var(--text);
 }
 .chip.on {
   color: var(--accent-text);
   border-color: var(--signal);
   background: var(--accent-wash);
 }
+
 .status {
   font-size: 0.84rem;
-  color: var(--text-2);
+  color: var(--text-mute);
   text-align: center;
   padding: 3rem 0;
 }
 .status.err {
   color: var(--red-text);
 }
-.log-list {
+
+.log-card {
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  background: var(--surface);
   overflow: hidden;
+}
+.day-head {
+  padding: 10px 22px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-mute);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-soft);
 }
 .log-entry {
   display: grid;
-  grid-template-columns: 7.5rem 5.2rem 1fr 1fr auto;
-  align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.65rem 1rem;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 14px 22px;
   border-bottom: 1px solid var(--line-soft);
-  font-size: 0.82rem;
+  align-items: start;
 }
 .log-entry:last-child {
   border-bottom: none;
 }
-.log-time {
-  font-size: 0.74rem;
-  color: var(--text-mute);
-  white-space: nowrap;
+.entry-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  margin-top: 6px;
 }
-.log-action {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  white-space: nowrap;
-  text-align: center;
+.entry-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
-.log-action.create {
-  color: var(--green-text);
-  background: var(--green-wash);
-}
-.log-action.update {
-  color: var(--accent-text);
-  background: var(--accent-wash);
-}
-.log-action.delete {
-  color: var(--red-text);
-  background: var(--red-wash);
-}
-.log-action.archive {
-  color: var(--text-mute);
-  background: var(--surface-2);
-}
-.log-action.restore {
-  color: var(--green-text);
-  background: var(--green-wash);
-}
-.log-key {
-  font-size: 0.82rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.log-delta {
-  font-size: 0.78rem;
+.entry-line {
+  font-size: 0.84rem;
   color: var(--text-2);
+}
+.entry-actor {
+  color: var(--text);
+  font-weight: 500;
+}
+.entry-target {
+  font-size: 0.8rem;
+  color: var(--text);
+  font-weight: 500;
+}
+.entry-diff {
+  align-self: flex-start;
+  font-size: 0.72rem;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  padding: 1px 8px;
+  border-radius: 5px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.log-reason {
+.entry-reason {
+  font-size: 0.78rem;
   color: var(--text-mute);
   font-style: italic;
 }
-.log-actor {
-  font-size: 0.74rem;
+.entry-time {
+  font-size: 0.72rem;
   color: var(--text-mute);
-  text-align: right;
   white-space: nowrap;
 }
 .pagination {
@@ -484,7 +508,6 @@ onMounted(() => void load())
   align-items: center;
   justify-content: center;
   gap: 0.8rem;
-  margin: 1rem 0 0;
 }
 .page-info {
   font-size: 0.78rem;
@@ -492,17 +515,8 @@ onMounted(() => void load())
 }
 
 @media (max-width: 640px) {
-  .log-entry {
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
-    padding: 0.7rem 0.8rem;
-  }
-  .log-time {
-    order: 5;
-  }
-  .log-actor {
-    text-align: left;
-    order: 4;
+  .audit-page {
+    padding: 24px 16px 64px;
   }
 }
 </style>

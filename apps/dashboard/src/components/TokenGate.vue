@@ -124,7 +124,7 @@ function submit() {
       </svg>
     </button>
 
-    <div class="card gate-card">
+    <div class="ck-card ck-card--outline gate-card">
       <div class="head">
         <svg width="26" height="26" viewBox="0 0 64 64" fill="none" aria-hidden="true">
           <circle cx="16" cy="9" r="3" fill="currentColor" />
@@ -152,12 +152,12 @@ function submit() {
         <p v-if="error" class="err" role="alert">{{ error }}</p>
         <button
           type="submit"
-          class="btn btn-primary full connect"
+          class="ck-btn ck-btn--solid ck-btn--md full connect"
           :disabled="connecting || !tfaCode"
         >
           {{ connecting ? 'Checking' : 'Continue' }}
         </button>
-        <button type="button" class="btn btn-quiet full switch" @click="emit('cancelTwoFactor')">
+        <button type="button" class="ck-btn ck-btn--ghost ck-btn--md full switch" @click="emit('cancelTwoFactor')">
           Back
         </button>
       </form>
@@ -180,7 +180,7 @@ function submit() {
         <template v-if="mode === 'password' && sso">
           <button
             type="button"
-            class="btn btn-primary full sso-btn"
+            class="ck-btn ck-btn--solid ck-btn--md full sso-btn"
             :class="{ spaced: !servedByServer }"
             :disabled="connecting"
             @click="emit('sso', url.trim())"
@@ -242,8 +242,8 @@ function submit() {
         <button
           v-if="mode === 'token' || showPassword"
           type="submit"
-          class="btn full connect"
-          :class="mode === 'password' && sso ? 'btn-ghost' : 'btn-primary'"
+          class="ck-btn ck-btn--md full connect"
+          :class="mode === 'password' && sso ? 'ck-btn--outline' : 'ck-btn--solid'"
           :disabled="connecting || (mode === 'password' ? !email || !password : !token)"
         >
           <template v-if="mode === 'password'">{{
@@ -255,7 +255,7 @@ function submit() {
         <button
           v-if="config?.accounts && !config.setupRequired"
           type="button"
-          class="btn btn-quiet full switch"
+          class="ck-btn ck-btn--ghost ck-btn--md full switch"
           @click="useToken(mode === 'password')"
         >
           {{

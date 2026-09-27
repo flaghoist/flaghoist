@@ -97,7 +97,7 @@ async function submit() {
 
 <template>
   <div class="gate">
-    <div class="card gate-card">
+    <div class="ck-card ck-card--outline gate-card">
       <div class="head">
         <svg width="26" height="26" viewBox="0 0 64 64" fill="none" aria-hidden="true">
           <circle cx="16" cy="9" r="3" fill="currentColor" />
@@ -109,7 +109,7 @@ async function submit() {
 
       <template v-if="gone">
         <p class="err" role="alert">{{ gone }}</p>
-        <button class="btn btn-ghost full spaced" @click="emit('cancel')">Go to sign in</button>
+        <button class="ck-btn ck-btn--outline ck-btn--md full spaced" @click="emit('cancel')">Go to sign in</button>
       </template>
 
       <p v-else-if="!info" class="sub" role="status">Checking your link...</p>
@@ -128,7 +128,7 @@ async function submit() {
           required
         />
         <p v-if="error" class="err" role="alert">{{ error }}</p>
-        <button type="submit" class="btn btn-primary full connect" :disabled="busy || !code">
+        <button type="submit" class="ck-btn ck-btn--solid ck-btn--md full connect" :disabled="busy || !code">
           {{ busy ? 'Checking' : 'Sign in' }}
         </button>
       </form>
@@ -181,7 +181,7 @@ async function submit() {
           required
         />
         <p v-if="error" class="err" role="alert">{{ error }}</p>
-        <button type="submit" class="btn btn-primary full connect" :disabled="busy">
+        <button type="submit" class="ck-btn ck-btn--solid ck-btn--md full connect" :disabled="busy">
           <template v-if="busy">Saving</template>
           <template v-else>{{
             isReset ? 'Set password and sign in' : 'Join and sign in'

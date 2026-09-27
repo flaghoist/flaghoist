@@ -37,6 +37,13 @@ const CORS = (
   .map((s) => s.trim())
   .filter(Boolean)
 
+// Opt in to multiple environments (e.g. FLAGS_ENVIRONMENTS=production,staging) to exercise the
+// dashboard's environment switcher. Off by default, so a plain run stays single-environment.
+const ENVIRONMENTS = (process.env.FLAGS_ENVIRONMENTS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+
 // Serve the admin dashboard too, if it has been built (`pnpm build`).
 const dashboardPath = fileURLToPath(new URL('../apps/dashboard/dist/index.html', import.meta.url))
 const dashboard = existsSync(dashboardPath) ? readFileSync(dashboardPath, 'utf8') : undefined
@@ -67,6 +74,7 @@ const app = createFlagServer({
   auth: { admin: bearerToken(ADMIN_TOKEN), read: apiKey(READ_KEY) },
   allowedOrigins: CORS,
   dashboard,
+  ...(ENVIRONMENTS.length > 1 ? { environments: ENVIRONMENTS } : {}),
   ...(AUTH_PEPPER ? { users: { pepper: AUTH_PEPPER, ...(SSO ? { sso: SSO } : {}) } } : {}),
 })
 

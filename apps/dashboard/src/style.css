@@ -1,121 +1,117 @@
-/* Both themes live in one token list via light-dark(). `color-scheme` decides which half applies,
-   so the toggle changes a single property and native controls follow along. */
+/*
+  App layer over the Chakra design system (src/ds). The DS owns the real tokens, the .ck-* component
+  styles, and light/dark (flipped by the `.dark` class on <html>). This file only:
+   1. bridges the handful of legacy var names our layout CSS still uses onto DS tokens, so those
+      pieces theme automatically with no per-file dark rules; and
+   2. keeps a few shared helpers and the switch/dialog shells the components build on.
+  Accent is orange; everything else is the monochrome zinc scale. Reach for a .ck-* class first.
+*/
 :root {
-  color-scheme: light dark;
+  /* surfaces + text */
+  --surface: var(--bg-panel);
+  --surface-2: var(--bg-muted);
+  --text: var(--fg);
+  --text-2: var(--fg-muted);
+  --text-mute: var(--fg-muted);
+  --line: var(--border);
+  --line-soft: var(--border-muted);
+  --track: var(--bg-emphasized);
 
-  /* Brand constants: identical in both themes. */
-  --navy: #0b1e3a;
-  --signal: #ff4a1f;
-  --sail: #f7f4ec;
-  --green: #1d9e75;
-  --red: #e24b4a;
+  /* accent (orange) + status */
+  --signal: var(--orange-solid);
+  --accent: var(--orange-solid);
+  --accent-text: var(--orange-fg);
+  --accent-wash: var(--orange-subtle);
+  --green: var(--green-solid);
+  --green-wash: var(--green-subtle);
+  --green-text: var(--green-fg);
+  --red: var(--red-solid);
+  --red-wash: var(--red-subtle);
+  --red-text: var(--red-fg);
+  --yellow-wash: var(--yellow-subtle);
+  --yellow-text: var(--yellow-fg);
 
-  --bg: light-dark(#f4f1e9, #071426);
-  --surface: light-dark(#fffdf8, #0c1e35);
-  --surface-2: light-dark(#f9f6ef, #102540);
-  --text: light-dark(#0b1e3a, #f4f1e9);
-  --text-2: light-dark(#33507a, #b8c4d4);
-  --text-mute: light-dark(#5a6d87, #8496ab);
-  --line: light-dark(rgba(11, 30, 58, 0.14), rgba(247, 244, 236, 0.14));
-  --line-soft: light-dark(rgba(11, 30, 58, 0.07), rgba(247, 244, 236, 0.07));
+  /* monochrome primary (near-black in light, white in dark) */
+  --primary: var(--gray-solid);
+  --on-primary: var(--gray-contrast);
 
-  --accent-wash: light-dark(rgba(255, 74, 31, 0.08), rgba(255, 74, 31, 0.14));
-  --accent-text: light-dark(#9c3616, #ff8b66);
-  --green-wash: light-dark(rgba(29, 158, 117, 0.13), rgba(29, 158, 117, 0.2));
-  --green-text: light-dark(#0f6b52, #4fd1a0);
-  --red-wash: light-dark(rgba(226, 75, 74, 0.12), rgba(226, 75, 74, 0.2));
-  --red-text: light-dark(#a32d2d, #ff9b9a);
-  --yellow-wash: light-dark(rgba(202, 138, 4, 0.12), rgba(202, 138, 4, 0.18));
-  --yellow-text: light-dark(#92400e, #fbbf24);
+  --shadow: var(--shadow-xs);
+  --shadow-pop: var(--shadow-lg);
 
-  --shadow:
-    0 1px 2px light-dark(rgba(11, 30, 58, 0.05), rgba(0, 0, 0, 0.3)),
-    0 10px 30px -18px light-dark(rgba(11, 30, 58, 0.3), rgba(0, 0, 0, 0.7));
+  --r-xs: var(--radius-l1);
+  --r-sm: var(--radius-l2);
+  --r-md: var(--radius-l3);
+  --r-lg: var(--radius-l3);
+  --r-pill: var(--radius-full);
 
-  /* One radius scale. Controls, surfaces, capsules. Nothing else. */
-  --r-sm: 7px;
-  --r-md: 12px;
-  --r-pill: 999px;
-
-  --font-ui: 'Geist Sans', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-ui: var(--font-body);
 }
 
-:root[data-theme='light'] {
-  color-scheme: light;
-}
-:root[data-theme='dark'] {
-  color-scheme: dark;
-}
-
-* {
-  box-sizing: border-box;
+/* Focus ring for anything not already handled by a .ck-* recipe. */
+:focus-visible {
+  outline: 2px solid var(--cp-focus-ring);
+  outline-offset: 2px;
 }
 
-html,
-body {
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--track);
+  cursor: pointer;
+  outline: none;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  border: 3px solid var(--bg-panel);
+  box-shadow: 0 0 0 1px var(--border);
+}
+input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  border: 3px solid var(--bg-panel);
+}
+input[type='range']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+input[type='checkbox'] {
+  accent-color: var(--orange-solid);
+  width: 15px;
+  height: 15px;
   margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: var(--font-ui);
-  color: var(--text);
-  background: var(--bg);
-  -webkit-font-smoothing: antialiased;
-  line-height: 1.5;
-}
-
-h1,
-h2,
-h3 {
-  margin: 0;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-button {
-  font-family: inherit;
   cursor: pointer;
 }
-
-:focus-visible {
-  outline: 2px solid var(--signal);
-  outline-offset: 2px;
-  border-radius: 3px;
-}
-
-input,
-select,
-textarea {
-  font-family: var(--font-ui);
-  font-size: 0.88rem;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 0.48rem 0.6rem;
-  outline: none;
-  transition:
-    border-color 0.12s,
-    box-shadow 0.12s;
-}
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--signal);
-  box-shadow: 0 0 0 3px var(--accent-wash);
-}
-input::placeholder {
-  /* Placeholders must clear AA too, so this is a real token rather than a faded text colour. */
-  color: var(--text-mute);
+select {
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .mono {
   font-family: var(--font-mono);
 }
-
-.sr-only {
+/* A stroked glyph. .ck-btn sizes it; this only sets the stroke so inline SVGs render as line icons. */
+.btn-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.danger-hover:hover {
+  color: var(--fg-error);
+  background: var(--bg-error);
+}
+.sr-only,
+.visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -124,192 +120,298 @@ input::placeholder {
   white-space: nowrap;
 }
 
-/* ---- buttons ---- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  font-size: 0.84rem;
-  font-weight: 600;
-  border-radius: var(--r-sm);
-  padding: 0.48rem 0.8rem;
-  border: 1px solid transparent;
-  white-space: nowrap;
-  transition:
-    transform 0.08s,
-    background 0.12s,
-    border-color 0.12s,
-    color 0.12s;
-}
-.btn:active {
-  transform: scale(0.98);
-}
-/* Ink on signal orange is 4.96:1. White on the same orange is 3.36:1, which fails AA for a label
-   this size, so the primary button carries ink rather than white. */
-.btn-primary {
-  background: var(--signal);
-  color: var(--navy);
-}
-.btn-primary:hover {
-  background: #ff5c35;
-}
-.btn-ghost {
-  background: var(--surface);
-  color: var(--text);
-  border-color: var(--line);
-}
-.btn-ghost:hover {
-  border-color: var(--text);
-}
-.btn-quiet {
-  background: transparent;
-  color: var(--text-2);
-}
-.btn-quiet:hover {
-  background: var(--accent-wash);
-  color: var(--text);
-}
-.btn-danger {
-  background: transparent;
-  color: var(--red-text);
-  border-color: var(--red-wash);
-}
-.btn-danger:hover {
-  background: var(--red-wash);
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn-sm {
-  font-size: 0.78rem;
-  padding: 0.34rem 0.6rem;
-}
-
-/* ---- toggle ---- */
+/*
+  Switch: our toggles are plain <button data-on> elements all over the app, so rather than restructure
+  every one into the ck-switch markup (input + ctrl + thumb), we mirror the ck-switch recipe here.
+  Same visuals, driven by the colorPalette on an ancestor (cp-green for the flag on/off switches).
+*/
 .toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-start;
   position: relative;
-  width: 40px;
-  height: 23px;
-  border-radius: var(--r-pill);
-  border: none;
-  background: light-dark(rgba(11, 30, 58, 0.22), rgba(247, 244, 236, 0.22));
+  width: 2.5rem;
+  height: 1.25rem;
   padding: 0;
-  flex: none;
-  transition: background 0.18s;
-}
-.toggle[data-on='true'] {
-  background: var(--green);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-emphasized);
+  transition: background-color var(--duration-moderate);
 }
 .toggle::after {
   content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 17px;
-  height: 17px;
-  border-radius: var(--r-pill);
+  width: 1.25rem;
+  height: 1.25rem;
+  scale: 0.8;
+  border-radius: inherit;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: transform 0.18s;
+  box-shadow: var(--shadow-sm);
+  transition: translate var(--duration-fast);
+}
+.toggle[data-on='true'] {
+  background: var(--green-solid);
 }
 .toggle[data-on='true']::after {
-  transform: translateX(17px);
+  translate: 1.25rem 0;
+  background: #fff;
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--cp-focus-ring);
+  outline-offset: 2px;
 }
 .toggle:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .toggle-sm {
-  width: 34px;
-  height: 20px;
+  width: 2rem;
+  height: 1rem;
 }
 .toggle-sm::after {
-  width: 14px;
-  height: 14px;
+  width: 1rem;
+  height: 1rem;
 }
 .toggle-sm[data-on='true']::after {
-  transform: translateX(14px);
+  translate: 1rem 0;
 }
 
-/* ---- badges ---- */
+/* A plain outline container, same recipe as .ck-card--outline, for sections we pad ourselves. */
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l3);
+}
+
+/* Inline code chip used inside body copy. */
+.inline-code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--fg);
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: var(--radius-l2);
+  white-space: nowrap;
+}
+
+/* Filter pill (the kit has no pill component). Selected state uses the ambient colorPalette. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 0.3rem 0.75rem;
+  transition:
+    color var(--duration-fast),
+    border-color var(--duration-fast),
+    background var(--duration-fast);
+}
+.chip:hover {
+  color: var(--fg);
+  border-color: var(--border-emphasized);
+}
+.chip.on {
+  color: var(--cp-fg);
+  border-color: var(--cp-solid);
+  background: var(--cp-subtle);
+}
+.chip-n {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  opacity: 0.7;
+}
+
+/* Base form controls (matches the .ck-input recipe metrics). */
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l2);
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--orange-focus-ring);
+  outline: 1px solid var(--orange-focus-ring);
+}
+input[aria-invalid='true'] {
+  border-color: var(--border-error);
+}
+
+/* Badge (mirror .ck-badge + subtle variants). */
 .badge {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
+  min-height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-l2);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 0.12rem 0.4rem;
-  border-radius: 4px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .badge-on {
-  background: var(--green-wash);
-  color: var(--green-text);
+  background: var(--green-subtle);
+  color: var(--green-fg);
 }
-.badge-off {
-  background: var(--red-wash);
-  color: var(--red-text);
+.badge-off,
+.badge-disabled {
+  background: var(--bg-muted);
+  color: var(--fg-muted);
 }
 .badge-split {
-  background: var(--accent-wash);
-  color: var(--accent-text);
+  background: var(--orange-subtle);
+  color: var(--orange-fg);
 }
-.badge-disabled {
-  background: light-dark(rgba(11, 30, 58, 0.08), rgba(247, 244, 236, 0.1));
-  color: var(--text-mute);
+.badge-archived {
+  background: var(--bg-muted);
+  color: var(--fg-muted);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* ---- range ---- */
-input[type='range'] {
-  -webkit-appearance: none;
-  appearance: none;
+/* Kbd (mirror .ck-kbd--raised). */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-l2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--fg);
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+}
+
+/* Dialog shell (mirror .ck-dialog). */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 20px;
+  overflow-y: auto;
+  background: var(--color-black-alpha-500);
+}
+.modal {
   width: 100%;
-  height: 4px;
-  padding: 0;
-  border: none;
-  border-radius: var(--r-pill);
-  background: light-dark(rgba(11, 30, 58, 0.16), rgba(247, 244, 236, 0.18));
-  cursor: pointer;
+  max-width: var(--size-lg);
+  background: var(--bg-panel);
+  border-radius: var(--radius-l3);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: ck-scale-in var(--duration-moderate);
 }
-input[type='range']:focus {
-  box-shadow: none;
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 1rem;
 }
-input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 15px;
-  height: 15px;
-  border-radius: var(--r-pill);
-  background: var(--signal);
-  border: 2px solid var(--surface);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-}
-input[type='range']::-moz-range-thumb {
-  width: 15px;
-  height: 15px;
-  border-radius: var(--r-pill);
-  background: var(--signal);
-  border: 2px solid var(--surface);
-}
-input[type='range']:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow);
-}
-
-.label {
-  display: block;
-  font-size: 0.74rem;
+.modal-head h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--text-2);
-  margin-bottom: 0.3rem;
+}
+.esc-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l2);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: var(--font-size-xs);
+  padding: 2px 7px;
+}
+.esc-btn:hover {
+  color: var(--fg);
+  border-color: var(--border-emphasized);
+}
+.modal-body {
+  padding: 0.5rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-muted);
+  background: var(--bg-subtle);
+}
+.modal-foot .foot-spacer {
+  flex: 1;
+}
+
+/* Field (mirror .ck-field). */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.field-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--fg);
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.field input,
+.field select,
+.field textarea {
+  height: 2.5rem;
+  width: 100%;
+  padding: 0 0.75rem;
+}
+.field textarea {
+  height: auto;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Multi-select chip used in the webhook dialog. */
+.event-chip {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 0.32rem 0.7rem;
+  transition:
+    color var(--duration-fast),
+    border-color var(--duration-fast),
+    background var(--duration-fast);
+}
+.event-chip:hover {
+  color: var(--fg);
+  border-color: var(--border-emphasized);
+}
+.event-chip.on {
+  color: var(--orange-fg);
+  border-color: var(--orange-solid);
+  background: var(--orange-subtle);
 }
 
 @media (prefers-reduced-motion: reduce) {

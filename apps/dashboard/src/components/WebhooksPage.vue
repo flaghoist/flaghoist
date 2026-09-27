@@ -183,26 +183,39 @@ function maskSecret(secret: string): string {
 </script>
 
 <template>
-  <div class="webhooks">
-    <div class="webhooks-header">
-      <h1 class="page-title">Webhooks</h1>
-      <button class="btn btn-primary btn-sm" @click="openCreate">Add webhook</button>
+  <main class="webhooks">
+    <div class="page-head">
+      <div class="page-head-text">
+        <h1 class="page-title">Webhooks</h1>
+        <p class="page-sub">
+          Webhooks send a POST request to your URL when flag events occur. Each delivery includes an
+          HMAC-SHA256 signature in the <code class="inline-code mono">X-Flaghoist-Signature</code>
+          header.
+        </p>
+      </div>
+      <button class="ck-btn ck-btn--solid ck-btn--sm" @click="openCreate">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="btn-icon">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Add webhook
+      </button>
     </div>
-
-    <p class="webhooks-hint">
-      Webhooks send a POST request to your URL when flag events occur. Each delivery includes an
-      HMAC-SHA256 signature in the <code class="mono">X-Flaghoist-Signature</code> header.
-    </p>
 
     <div v-if="loading" class="loading">Loading...</div>
 
-    <div v-else-if="webhooks.length === 0 && !showForm" class="empty-state">
-      <h2>No webhooks configured</h2>
-      <p>Add a webhook to get notified when flags change.</p>
-    </div>
+    <section v-else-if="webhooks.length === 0" class="empty-state">
+      <div class="empty-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2a4 4 0 0 0-3.46 6L3 18h6l3-5.2L15 18h6l-5.54-10A4 4 0 0 0 12 2z" />
+        </svg>
+      </div>
+      <span class="empty-title">No webhooks configured</span>
+      <span class="empty-sub">Add a webhook to get notified when flags change.</span>
+    </section>
 
     <div v-else class="webhook-list">
-      <div v-for="hook in webhooks" :key="hook.id" class="webhook-card card">
+      <section v-for="hook in webhooks" :key="hook.id" class="ck-card ck-card--outline webhook-card">
         <div class="webhook-top">
           <div class="webhook-info">
             <div class="webhook-url-row">
@@ -219,19 +232,22 @@ function maskSecret(secret: string): string {
               }}</span>
             </div>
           </div>
+          <button
+            class="toggle"
+            :data-on="hook.enabled"
+            :aria-label="hook.enabled ? 'Disable webhook' : 'Enable webhook'"
+            @click="toggleEnabled(hook)"
+          ></button>
           <div class="webhook-actions">
             <button
-              class="btn btn-ghost btn-sm"
+              class="ck-btn ck-btn--ghost ck-btn--sm"
               :disabled="testingId === hook.id"
               @click="test(hook)"
             >
               {{ testingId === hook.id ? 'Sending...' : 'Test' }}
             </button>
-            <button class="btn btn-ghost btn-sm" @click="openEdit(hook)">Edit</button>
-            <button class="btn btn-ghost btn-sm" @click="toggleEnabled(hook)">
-              {{ hook.enabled ? 'Disable' : 'Enable' }}
-            </button>
-            <button class="btn btn-ghost btn-sm danger-hover" @click="remove(hook)">Delete</button>
+            <button class="ck-btn ck-btn--ghost ck-btn--sm" @click="openEdit(hook)">Edit</button>
+            <button class="ck-btn ck-btn--ghost ck-btn--sm danger-hover" @click="remove(hook)">Delete</button>
           </div>
         </div>
 
@@ -240,69 +256,96 @@ function maskSecret(secret: string): string {
           <code class="mono secret-value">{{
             revealedSecrets.has(hook.id) ? hook.secret : maskSecret(hook.secret)
           }}</code>
-          <button class="btn btn-quiet btn-sm" @click="toggleSecret(hook.id)">
+          <button class="ck-btn ck-btn--ghost ck-btn--sm" @click="toggleSecret(hook.id)">
             {{ revealedSecrets.has(hook.id) ? 'Hide' : 'Reveal' }}
           </button>
         </div>
-      </div>
+      </section>
     </div>
 
-    <!-- Create / Edit form -->
-    <div v-if="showForm" class="webhook-form-overlay" @click.self="closeForm">
-      <div class="webhook-form card" role="dialog" aria-labelledby="webhook-form-title">
-        <h2 id="webhook-form-title">{{ editingId ? 'Edit webhook' : 'Add webhook' }}</h2>
+    <!-- Create / Edit dialog -->
+    <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
+      <div class="modal" role="dialog" aria-labelledby="webhook-form-title">
+        <div class="modal-head">
+          <h2 id="webhook-form-title">{{ editingId ? 'Edit webhook' : 'Add webhook' }}</h2>
+          <button class="esc-btn mono" aria-label="Close" @click="closeForm">esc</button>
+        </div>
 
-        <label class="form-label">
-          URL
-          <input
-            v-model="formUrl"
-            type="url"
-            class="form-input mono"
-            placeholder="https://example.com/webhooks/flaghoist"
-            required
-          />
-        </label>
-
-        <fieldset class="form-fieldset">
-          <legend class="form-label">Events</legend>
-          <label class="event-check">
-            <input type="checkbox" :checked="allEventsSelected" @change="toggleAllEvents" />
-            <span>All flag events</span>
+        <div class="modal-body">
+          <label class="field">
+            <span class="field-label">URL</span>
+            <input
+              v-model="formUrl"
+              type="url"
+              class="mono"
+              placeholder="https://example.com/webhooks/flaghoist"
+              required
+            />
           </label>
-          <div class="event-grid">
-            <label v-for="ev in ALL_EVENTS" :key="ev" class="event-check">
-              <input type="checkbox" :checked="formEvents.has(ev)" @change="toggleEvent(ev)" />
-              <span>{{ EVENT_LABELS[ev] }}</span>
-            </label>
+
+          <div class="field">
+            <div class="field-head">
+              <span class="field-label">Flag events</span>
+              <label class="all-check">
+                <input type="checkbox" :checked="allEventsSelected" @change="toggleAllEvents" />
+                All flag events
+              </label>
+            </div>
+            <div class="chip-row">
+              <button
+                v-for="ev in ALL_EVENTS"
+                :key="ev"
+                type="button"
+                class="event-chip"
+                :class="{ on: formEvents.has(ev) }"
+                :aria-pressed="formEvents.has(ev)"
+                @click="toggleEvent(ev)"
+              >
+                {{ EVENT_LABELS[ev] }}
+              </button>
+            </div>
           </div>
-        </fieldset>
 
-        <fieldset class="form-fieldset">
-          <legend class="form-label">Member events</legend>
-          <p class="member-note">
-            Invites, joins, role changes, disables and removals, for servers with user accounts. The
-            payload has a <code class="mono">member</code> object instead of a
-            <code class="mono">flag</code>.
-          </p>
-          <div class="event-grid">
-            <label v-for="ev in MEMBER_EVENTS" :key="ev" class="event-check">
-              <input type="checkbox" :checked="formEvents.has(ev)" @change="toggleEvent(ev)" />
-              <span>{{ EVENT_LABELS[ev] }}</span>
-            </label>
+          <div class="field">
+            <span class="field-label">Member events</span>
+            <p class="member-note">
+              Invites, joins, role changes, disables and removals, for servers with user accounts.
+              The payload has a <code class="mono">member</code> object instead of a
+              <code class="mono">flag</code>.
+            </p>
+            <div class="chip-row">
+              <button
+                v-for="ev in MEMBER_EVENTS"
+                :key="ev"
+                type="button"
+                class="event-chip"
+                :class="{ on: formEvents.has(ev) }"
+                :aria-pressed="formEvents.has(ev)"
+                @click="toggleEvent(ev)"
+              >
+                {{ EVENT_LABELS[ev] }}
+              </button>
+            </div>
           </div>
-        </fieldset>
+        </div>
 
-        <label class="event-check">
-          <input type="checkbox" v-model="formEnabled" />
-          <span>Enabled</span>
-        </label>
-
-        <div class="form-actions">
-          <button class="btn btn-ghost btn-sm" @click="closeForm" :disabled="formBusy">
+        <div class="modal-foot">
+          <label class="enabled-row">
+            <button
+              type="button"
+              class="toggle"
+              :data-on="formEnabled"
+              aria-label="Enabled"
+              @click="formEnabled = !formEnabled"
+            ></button>
+            <span>Enabled</span>
+          </label>
+          <div class="foot-spacer"></div>
+          <button class="ck-btn ck-btn--outline ck-btn--sm" @click="closeForm" :disabled="formBusy">
             Cancel
           </button>
           <button
-            class="btn btn-primary btn-sm"
+            class="ck-btn ck-btn--solid ck-btn--sm"
             @click="save"
             :disabled="formBusy || !formUrl.trim()"
           >
@@ -311,35 +354,42 @@ function maskSecret(secret: string): string {
         </div>
       </div>
     </div>
-  </div>
+  </main>
 </template>
 
 <style scoped>
 .webhooks {
-  max-width: 800px;
+  flex: 1;
+  width: 100%;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.4rem 1.2rem 4rem;
-}
-.webhooks-header {
+  padding: 36px 32px 64px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+  gap: 24px;
+}
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-head-text {
+  flex: 1;
+  min-width: 240px;
 }
 .page-title {
-  font-size: 1.2rem;
+  font-size: 1.625rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
-.webhooks-hint {
-  font-size: 0.8rem;
+.page-sub {
+  margin: 6px 0 0;
   color: var(--text-mute);
-  margin: 0 0 1.4rem;
-  line-height: 1.5;
-}
-.webhooks-hint code {
-  font-size: 0.72rem;
-  background: var(--surface-2);
-  padding: 0.12rem 0.3rem;
-  border-radius: 4px;
+  font-size: 0.875rem;
+  max-width: 620px;
+  line-height: 1.55;
+  text-wrap: pretty;
 }
 
 .loading {
@@ -349,33 +399,56 @@ function maskSecret(secret: string): string {
 }
 
 .empty-state {
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  padding: 64px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  padding: 3rem 1rem;
-  color: var(--text-2);
+  gap: 6px;
 }
-.empty-state h2 {
-  font-size: 1rem;
-  margin-bottom: 0.4rem;
+.empty-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--accent-wash);
+  color: var(--signal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
 }
-.empty-state p {
-  font-size: 0.84rem;
+.empty-mark svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.empty-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.empty-sub {
+  font-size: 0.85rem;
   color: var(--text-mute);
 }
 
 .webhook-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 12px;
 }
-
 .webhook-card {
-  padding: 1rem 1.2rem;
+  padding: 16px 22px;
 }
 .webhook-top {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  align-items: center;
+  gap: 16px;
 }
 .webhook-info {
   min-width: 0;
@@ -403,26 +476,22 @@ function maskSecret(secret: string): string {
   font-size: 0.82rem;
   word-break: break-all;
 }
-.member-note {
-  margin: 0 0 0.5rem;
-  font-size: 0.78rem;
-  color: var(--text-2);
-}
 .webhook-events {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
 }
 .event-badge {
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--text-mute);
   background: var(--surface-2);
-  padding: 0.12rem 0.4rem;
-  border-radius: var(--r-pill);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
 }
 .webhook-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.15rem;
   flex-shrink: 0;
 }
 
@@ -431,7 +500,7 @@ function maskSecret(secret: string): string {
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.75rem;
-  padding-top: 0.65rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--line-soft);
 }
 .secret-label {
@@ -447,85 +516,34 @@ function maskSecret(secret: string): string {
   min-width: 0;
 }
 
-/* Form overlay */
-.webhook-form-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+.member-note {
+  margin: -2px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-mute);
+  text-wrap: pretty;
+}
+.all-check {
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-.webhook-form {
-  width: min(480px, 90vw);
-  padding: 1.4rem;
-}
-.webhook-form h2 {
-  font-size: 1rem;
-  margin: 0 0 1.2rem;
-}
-
-.form-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-2);
-  margin-bottom: 0.9rem;
-}
-.form-input {
-  display: block;
-  width: 100%;
-  margin-top: 0.3rem;
-  padding: 0.5rem 0.6rem;
-  font-size: 0.82rem;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-  color: var(--text);
-  outline: none;
-}
-.form-input:focus {
-  border-color: var(--signal);
-}
-
-.form-fieldset {
-  border: none;
-  padding: 0;
-  margin: 0 0 0.9rem;
-}
-.form-fieldset legend {
-  margin-bottom: 0.4rem;
-}
-.event-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.3rem;
-  margin-top: 0.3rem;
-}
-.event-check {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
+  gap: 7px;
+  font-size: 0.78rem;
   color: var(--text-2);
   cursor: pointer;
-  margin-bottom: 0.3rem;
 }
-.event-check input[type='checkbox'] {
-  accent-color: var(--signal);
-}
-
-.form-actions {
+.enabled-row {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.2rem;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: var(--text-2);
 }
 
 @media (max-width: 640px) {
+  .webhooks {
+    padding: 24px 16px 64px;
+  }
   .webhook-top {
-    flex-direction: column;
+    flex-wrap: wrap;
   }
   .webhook-actions {
     flex-wrap: wrap;

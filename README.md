@@ -73,9 +73,9 @@ npm create flaghoist@latest team-flags   # writes flaghoist.toml, the entire pro
 cd team-flags && npx flaghoist deploy    # Cloudflare Workers, or a container for any host
 ```
 
-Your API, your dashboard at `/admin`, and your storage, in one deploy with no code. Want the code
-instead? `npx flaghoist eject` turns it into a small project you own, which is also where you turn
-on [accounts for your team](https://docs.flaghoist.dev/accounts/).
+Setup asks a few questions and turns on [accounts for your team](https://docs.flaghoist.dev/accounts/)
+by default. Your API, your dashboard at `/admin`, and your storage, in one deploy with no code. Want
+the code instead? `npx flaghoist eject` turns it into a small project you own.
 
 ```bash
 # 2. In your app, install the client

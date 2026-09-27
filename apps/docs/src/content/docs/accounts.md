@@ -7,15 +7,42 @@ A fresh Flaghoist server has one admin token, and whoever holds it can do anythi
 while it is just you. Once a team shares it, you lose track of who changed what, and rotating it
 locks everyone out at once.
 
-Turn on accounts and each person signs in with their own email, gets a role, and has their changes
-recorded under their name. Everything on this page is part of the open-source server. There is no
+With accounts, each person signs in with their own email, gets a role, and has their changes
+recorded under their name. New projects have them on from the start. Everything on this page is part of the open-source server. There is no
 separate edition.
 
 ## Turn on accounts
 
-Accounts are configured in code, so you need a project you own. If you started from
-`flaghoist.toml`, run `npx flaghoist eject` first; it writes `src/index.ts` on Cloudflare Workers or
-`server.mjs` for a container. Then add `users` to the server config:
+`npm create flaghoist@latest` asks whether you want accounts and roles, and the answer is yes unless
+you say otherwise. Accounts need one secret, `AUTH_PEPPER`: a random value of at least 32
+characters that the server mixes into every password hash. Setup generates it for you (or takes
+one you paste), prints it once so you can save it in your password manager, and writes it to a
+git-ignored `.env`. It never goes in `flaghoist.toml`.
+
+Where it goes from there depends on the platform:
+
+- **Cloudflare Workers:** `npx flaghoist deploy` sets it as a Worker secret from `.env`. If the
+  Worker already has one, it is left alone.
+- **A container host:** add it to the host's environment variables, the same place as
+  `ADMIN_TOKEN`. Locally, `docker run --env-file .env` passes it in.
+
+Back it up and keep it the same for the life of the server. A copy of your database is useless to
+an attacker without the pepper, but if you lose or change it, every password has to be set again.
+
+### On an existing project
+
+For a project that uses `flaghoist.toml`, add this and deploy again:
+
+```toml
+[accounts]
+enabled = true
+```
+
+Then give the server a pepper. Generate one with `openssl rand -hex 32` and either put it in `.env`
+as `AUTH_PEPPER=...` before `npx flaghoist deploy`, or set it yourself with
+`npx wrangler secret put AUTH_PEPPER` (or your container host's settings).
+
+If you ejected, add `users` to the server config instead:
 
 ```ts
 createFlagServer((env) => ({
@@ -27,17 +54,6 @@ createFlagServer((env) => ({
   users: { pepper: env.AUTH_PEPPER },
 }))
 ```
-
-`AUTH_PEPPER` is a secret of at least 32 characters. Generate one and store it where your other
-secrets live:
-
-```bash
-openssl rand -hex 32
-```
-
-On Cloudflare Workers that is `npx wrangler secret put AUTH_PEPPER`; on a container host it is an
-environment variable. Back it up. A copy of your database is useless to an attacker without the
-pepper, but if you lose it, every password has to be set again.
 
 Accounts are kept in the same storage as your flags, through the adapter's record store. Every
 bundled adapter has one. If a custom adapter does not, the server refuses to start with `users`
@@ -148,8 +164,22 @@ the admin token.
 
 ## Sign in with your identity provider
 
-Add `users.sso` and the sign-in screen offers **Continue with** your provider: Okta, Microsoft
-Entra, Google Workspace, Auth0, Keycloak, or anything that speaks OpenID Connect.
+Turn on SSO and the sign-in screen offers **Continue with** your provider: Okta, Microsoft Entra,
+Google Workspace, Auth0, Keycloak, or anything that speaks OpenID Connect.
+
+Setup asks whether you want it. Say yes and it asks for the issuer URL, the client ID, the group
+whose members become admins, and the client secret. The secret goes in `.env` as
+`SSO_CLIENT_SECRET`, and the rest lands in `flaghoist.toml`:
+
+```toml
+[accounts.sso]
+issuer = "https://acme.okta.com"
+clientId = "0oa1example"
+adminGroup = "flag-admins"
+```
+
+Everyone else who signs in through the provider starts as a viewer. For more than that, such as
+several group mappings, a button label or allowed email domains, eject and set `users.sso` in code:
 
 ```ts
 users: {

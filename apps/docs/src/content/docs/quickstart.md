@@ -13,6 +13,11 @@ npm create flaghoist@latest team-flags
 cd team-flags
 ```
 
+It asks a few questions: the project name, where it will run, which storage to use, whether you
+want accounts and roles, single sign-on, and the dashboard. Enter takes the default for each.
+Accounts are on by default, so setup creates an `AUTH_PEPPER`, the secret your password hashes
+depend on. It shows it once for your password manager and keeps it in a git-ignored `.env`.
+
 This makes the `team-flags` directory and writes `flaghoist.toml` into it, which is the whole
 project. Flaghoist runs as its own service rather than a library inside your app, so it wants a
 directory of its own. If you already made an empty one, run `npx flaghoist init` inside it instead.
@@ -41,7 +46,8 @@ npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put READ_API_KEY
 ```
 
-Use long random values for both (`openssl rand -hex 32`).
+Use long random values for both (`openssl rand -hex 32`). You do not need to set `AUTH_PEPPER`:
+`deploy` copies it from `.env` onto the Worker.
 
 ### Any other host
 
@@ -55,11 +61,11 @@ docker build -t team-flags .
 ```
 
 ```bash
-docker run -p 8080:8080 -e FLAGS_STORAGE=memory -e ADMIN_TOKEN=change-me-to-something-long -e READ_API_KEY=change-me-too team-flags
+docker run -p 8080:8080 --env-file .env -e FLAGS_STORAGE=memory -e ADMIN_TOKEN=change-me-to-something-long -e READ_API_KEY=change-me-too team-flags
 ```
 
 For real use, point it at Postgres, Redis or SQLite with `FLAGS_STORAGE` and `DATABASE_URL` (or
-`REDIS_URL`, or `DATABASE_PATH`). The [Docker guide](/deploy/docker/) lists every variable, and
+`REDIS_URL`, or `DATABASE_PATH`), and add `AUTH_PEPPER` from `.env` to your host's secrets. If you turned accounts off, there is no `.env`, so leave out `--env-file .env`. The [Docker guide](/deploy/docker/) lists every variable, and
 there are walkthroughs for [Render](/deploy/render/), [Fly.io](/deploy/fly/) and
 [Railway](/deploy/railway/).
 
@@ -71,9 +77,10 @@ and the dashboard at `/admin`.
 
 ## 3. Open the dashboard
 
-Go to `/admin` on your server and sign in with the admin token. That is fine while it is just you.
-When other people need access, [turn on accounts](/accounts/) so everyone signs in as themselves
-with their own role.
+Go to `/admin` on your server and sign in with the admin token. Then open **Account** and create
+your own account, which becomes the owner. From then on you sign in with your email, and you can
+[invite the rest of your team](/accounts/), each with their own role. If you turned accounts off,
+the admin token is how you sign in.
 
 ## 4. Point the CLI at your service
 

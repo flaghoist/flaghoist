@@ -1,11 +1,18 @@
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { PassThrough, Writable } from 'node:stream'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, parseConfig, serializeConfig, type FlaghoistConfig } from '../src/config'
 import { generateNodeEntry } from '../src/generate-container'
 import { generateWorkerEntry } from '../src/generate'
-import { readEnvFile, setupSummary, writeSetup, type SetupResult } from '../src/setup'
+import {
+  readEnvFile,
+  setupSummary,
+  terminalAsker,
+  writeSetup,
+  type SetupResult,
+} from '../src/setup'
 import { parseSecretNames, syncWorkerSecrets, type WranglerRunner } from '../src/worker-secrets'
 
 const PEPPER = 'p'.repeat(64)
@@ -181,5 +188,42 @@ describe('parseSecretNames', () => {
   it('reads names past any banner wrangler prints first', () => {
     expect(parseSecretNames('wrangler 4\n[{"name":"A"}]')).toEqual(new Set(['A']))
     expect(parseSecretNames('not json')).toBeNull()
+  })
+})
+
+describe('terminalAsker', () => {
+  // Drives the real asker through streams, the way a terminal would.
+  function terminal() {
+    const input = new PassThrough()
+    let shown = ''
+    const output = new Writable({
+      write(chunk, _encoding, done) {
+        shown += String(chunk)
+        done()
+      },
+    })
+    const asker = terminalAsker(input, output)
+    return { asker, input, shown: () => shown }
+  }
+
+  it('reads answers, falling back to the default on Enter', async () => {
+    const { asker, input } = terminal()
+    const name = asker.text('Project name', 'team-flags')
+    input.write('acme\n')
+    expect(await name).toBe('acme')
+    const again = asker.text('Project name', 'team-flags')
+    input.write('\n')
+    expect(await again).toBe('team-flags')
+    asker.close()
+  })
+
+  it('does not echo a secret as it is typed', async () => {
+    const { asker, input, shown } = terminal()
+    const secret = asker.secret('Paste your AUTH_PEPPER')
+    input.write('hunter2-but-longer\n')
+    expect(await secret).toBe('hunter2-but-longer')
+    expect(shown()).toContain('Paste your AUTH_PEPPER')
+    expect(shown()).not.toContain('hunter2')
+    asker.close()
   })
 })

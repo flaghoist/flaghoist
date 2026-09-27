@@ -1,4 +1,5 @@
 import { containerStorageDefault, type FlaghoistConfig } from './config'
+import { usersBlock } from './generate'
 
 /**
  * Files for the `container` platform: a Node entry served by `@hono/node-server`, plus a Dockerfile.
@@ -17,11 +18,11 @@ import { containerStorageDefault, type FlaghoistConfig } from './config'
  * Kept in step with `examples/docker/package.json`.
  */
 const CONTAINER_DEPS: Record<string, string> = {
-  '@flaghoist/adapter-memory': '^0.1.2',
-  '@flaghoist/adapter-postgres': '^0.1.2',
-  '@flaghoist/adapter-redis': '^0.1.2',
-  '@flaghoist/adapter-sqlite': '^0.1.0',
-  '@flaghoist/server': '^0.3.0',
+  '@flaghoist/adapter-memory': '^0.2.0',
+  '@flaghoist/adapter-postgres': '^0.2.0',
+  '@flaghoist/adapter-redis': '^0.2.0',
+  '@flaghoist/adapter-sqlite': '^0.3.0',
+  '@flaghoist/server': '^0.4.0',
   '@hono/node-server': '^2.1.1',
   'better-sqlite3': '^11.0.0',
   ioredis: '^5.4.0',
@@ -109,7 +110,7 @@ const app = createFlagServer({
   auth: {
     admin: ${adminExpr(config.auth.admin)},
     read: apiKey(env.READ_API_KEY),
-  },
+  },${usersBlock(config)}
   rateLimit: memoryRateLimit(),
   // Comma-separated list of browser origins allowed to read flags cross-origin.
   allowedOrigins: env.FLAGS_CORS ? env.FLAGS_CORS.split(',').map((o) => o.trim()) : ${origins},
@@ -156,7 +157,11 @@ export function generateContainerPackageJson(config: FlaghoistConfig): string {
     version: '0.0.0',
     private: true,
     type: 'module',
-    scripts: { start: 'node server.mjs' },
+    scripts: {
+      start: 'node server.mjs',
+      // Loads AUTH_PEPPER and the other secrets from .env for a local run. Needs Node 20.6 or later.
+      dev: 'node --env-file=.env server.mjs',
+    },
     dependencies: CONTAINER_DEPS,
   }
   return `${JSON.stringify(pkg, null, 2)}\n`
@@ -164,7 +169,14 @@ export function generateContainerPackageJson(config: FlaghoistConfig): string {
 
 /** Generate a `.dockerignore` so the build context stays small and the image excludes local files. */
 export function generateDockerignore(): string {
-  return ['node_modules', 'npm-debug.log', 'Dockerfile', '.dockerignore', 'README.md', ''].join(
-    '\n',
-  )
+  // .env holds secrets: they are passed at run time (`--env-file`), never baked into the image.
+  return [
+    'node_modules',
+    'npm-debug.log',
+    'Dockerfile',
+    '.dockerignore',
+    'README.md',
+    '.env',
+    '',
+  ].join('\n')
 }

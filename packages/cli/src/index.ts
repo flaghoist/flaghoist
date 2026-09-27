@@ -16,7 +16,6 @@ import {
 } from './admin'
 import {
   asContainer,
-  DEFAULT_CONFIG,
   parseConfig,
   PLATFORM_KINDS,
   serializeConfig,
@@ -49,6 +48,16 @@ import {
 import { readPassword } from './prompt'
 import { loginForToken, runTokens, TOKENS_USAGE } from './tokens'
 import { runUsers, USERS_USAGE } from './users'
+import {
+  collectSetup,
+  defaultsAsker,
+  readEnvFile,
+  setupSummary,
+  terminalAsker,
+  writeSetup,
+  type SetupPreset,
+} from './setup'
+import { syncWorkerSecrets } from './worker-secrets'
 import { VERSION } from './version'
 
 function writeFileSafe(path: string, content: string): void {
@@ -277,7 +286,7 @@ async function runUsersCommand(args: string[]): Promise<void> {
   }
 }
 
-function runInit(args: string[]): void {
+async function runInit(args: string[]): Promise<void> {
   const { values } = parseArgs({
     args,
     allowPositionals: true,
@@ -285,6 +294,12 @@ function runInit(args: string[]): void {
       name: { type: 'string' },
       storage: { type: 'string' },
       platform: { type: 'string' },
+      'no-accounts': { type: 'boolean' },
+      'sso-issuer': { type: 'string' },
+      'sso-client-id': { type: 'string' },
+      'sso-admin-group': { type: 'string' },
+      'no-dashboard': { type: 'boolean' },
+      yes: { type: 'boolean', short: 'y' },
     },
   })
   if (existsSync('flaghoist.toml')) throw new Error('flaghoist.toml already exists.')
@@ -294,17 +309,30 @@ function runInit(args: string[]): void {
   if (values.platform && !PLATFORM_KINDS.includes(values.platform as PlatformKind)) {
     throw new Error(`Unknown platform "${values.platform}". One of: ${PLATFORM_KINDS.join(', ')}.`)
   }
-  const base: FlaghoistConfig = {
-    ...DEFAULT_CONFIG,
-    name: values.name ?? DEFAULT_CONFIG.name,
-    storage: (values.storage as StorageKind) ?? DEFAULT_CONFIG.storage,
+  const preset: SetupPreset = {
+    name: values.name,
+    storage: values.storage as StorageKind | undefined,
+    platform: values.platform as PlatformKind | undefined,
+    ...(values['no-accounts'] ? { accounts: false } : {}),
+    ...(values['no-dashboard'] ? { dashboard: false } : {}),
+    ...(values['sso-issuer'] ? { ssoIssuer: values['sso-issuer'] } : {}),
+    ...(values['sso-client-id'] ? { ssoClientId: values['sso-client-id'] } : {}),
+    ...(values['sso-admin-group'] ? { ssoAdminGroup: values['sso-admin-group'] } : {}),
   }
-  // asContainer runs the storage through the container rule, so a container project never lands with
-  // a KV choice it cannot use, even if one was passed explicitly.
-  const config = values.platform === 'container' ? asContainer(base) : base
-  writeFileSync('flaghoist.toml', serializeConfig(config))
-  console.log('Created flaghoist.toml')
-  console.log('Next: `flaghoist deploy` to ship it, or `flaghoist eject` to own the code.')
+  const interactive = process.stdin.isTTY === true && values.yes !== true
+  const asker = interactive ? terminalAsker() : defaultsAsker()
+  let result
+  try {
+    result = await collectSetup(asker, preset)
+  } finally {
+    if ('close' in asker) (asker as { close(): void }).close()
+  }
+  const { envPath } = writeSetup('.', result)
+  console.log('\nCreated flaghoist.toml')
+  // Without a terminal the pepper is never printed, so it cannot end up in a CI log.
+  const shown = interactive ? result : { ...result, pepperGenerated: false }
+  for (const line of setupSummary(shown, envPath !== undefined)) console.log(line)
+  console.log('\nNext: `flaghoist deploy` to ship it, or `flaghoist eject` to own the code.')
 }
 
 /** The file a scaffold writes first, and the marker for `eject`'s already-ejected check. */
@@ -483,7 +511,7 @@ DATABASE_URL, ADMIN_TOKEN, READ_API_KEY). Build and run it with Docker:
 
   docker build -t ${container.name} .
   docker run -p 8080:8080 -e ADMIN_TOKEN=... -e READ_API_KEY=... ${container.name}
-
+${accountsNote(container)}
 Or deploy it to a host:
   Render          https://docs.flaghoist.dev/deploy/render/
   Fly.io          https://docs.flaghoist.dev/deploy/fly/
@@ -491,6 +519,18 @@ Or deploy it to a host:
   All targets     https://docs.flaghoist.dev/deploy/overview/
 
 Missing a platform you need? Open an issue at https://github.com/flaghoist/flaghoist/issues.`)
+}
+
+/** How a container gets its account secrets. Empty when accounts are off. */
+function accountsNote(config: FlaghoistConfig): string {
+  if (!config.accounts?.enabled) return ''
+  const names = config.accounts.sso ? 'AUTH_PEPPER and SSO_CLIENT_SECRET' : 'AUTH_PEPPER'
+  return `
+Accounts are on, so the server also needs ${names}. They are in .env (git-ignored):
+run locally with \`npm run dev\` or \`docker run --env-file .env ...\`, and add the same values
+to your host's secrets before you deploy. Keep AUTH_PEPPER the same for the life of the server:
+changing it signs everyone out and breaks every password.
+`
 }
 
 async function deployCloudflare(config: FlaghoistConfig): Promise<never> {
@@ -501,6 +541,28 @@ async function deployCloudflare(config: FlaghoistConfig): Promise<never> {
   ensureKvNamespace(config)
   console.log('Deploying with wrangler...')
   const result = spawnSync('npx', ['wrangler', 'deploy'], { stdio: 'inherit' })
+  if (result.status === 0) {
+    // The Worker exists now, so its secrets can be set. The value is piped in, never put on the
+    // command line where it would land in shell history or a process list.
+    syncWorkerSecrets(
+      config,
+      readEnvFile('.env'),
+      (args, input) => {
+        const run = spawnSync('npx', ['wrangler', ...args], {
+          input,
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'inherit'],
+        })
+        return { status: run.status, stdout: run.stdout ?? '' }
+      },
+      (line) => console.log(line),
+    )
+    if (config.accounts?.enabled) {
+      console.log(
+        'Open /admin on your Worker and sign in with your ADMIN_TOKEN once to create the owner account.',
+      )
+    }
+  }
   process.exit(result.status ?? 0)
 }
 
@@ -525,7 +587,9 @@ function printHelp(): void {
 Usage: flaghoist <command>
 
 Scaffolding
-  init [--name N] [--storage cloudflare-kv|redis|postgres|memory] [--platform cloudflare|container]
+  init [--name N] [--storage S] [--platform cloudflare|container] [--no-accounts]
+       [--sso-issuer URL --sso-client-id ID [--sso-admin-group G]] [--no-dashboard] [-y]
+                           Set up flaghoist.toml, asking what the flags leave open
   eject                    Generate a code project you own (a Worker, or a container)
   deploy [--target T]      Deploy (prompts for the platform; T is cloudflare or other)
 

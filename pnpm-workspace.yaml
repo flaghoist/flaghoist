@@ -4,6 +4,9 @@ packages:
   - packages/providers/*
   - apps/*
   - examples/*
+  # A standalone npm project: its Dockerfile runs `npm install` against published versions, so it
+  # must not use workspace links or have its ranges rewritten by a release.
+  - '!examples/docker'
 
 allowBuilds:
   better-sqlite3: true

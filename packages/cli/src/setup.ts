@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import type { Readable, Writable } from 'node:stream'
+import { Writable, type Readable } from 'node:stream'
 import {
   containerStorageDefault,
   DEFAULT_CONFIG,
@@ -308,14 +308,19 @@ export function terminalAsker(
   input: Readable & { isTTY?: boolean } = process.stdin,
   output: Writable = process.stdout,
 ): Asker & { close(): void } {
-  const rl = createInterface({ input, output, terminal: true })
-  // Echo is switched off only while a secret is being typed.
+  // Readline echoes through this stream, which drops everything while a secret is being typed.
+  // Readline's own internals for this differ between Node versions, so none of them are touched.
   let muted = false
-  const internal = rl as unknown as { _writeToOutput: (text: string) => void }
-  const write = internal._writeToOutput.bind(rl)
-  internal._writeToOutput = (text: string) => {
-    if (!muted) write(text)
-  }
+  const echo = new Writable({
+    write(chunk, encoding, done) {
+      if (muted) done()
+      else output.write(chunk, encoding, done)
+    },
+  })
+  Object.defineProperty(echo, 'columns', {
+    get: () => (output as Writable & { columns?: number }).columns ?? 80,
+  })
+  const rl = createInterface({ input, output: echo, terminal: true })
 
   return {
     interactive: true,

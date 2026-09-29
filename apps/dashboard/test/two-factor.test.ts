@@ -190,7 +190,7 @@ describe('setting up two-factor', () => {
     expect(wrapper.find('.tfa-gate').exists()).toBe(true)
     expect(wrapper.find('.shell').exists()).toBe(false)
 
-    await wrapper.find('.tfa-gate button.btn-primary').trigger('click')
+    await wrapper.find('.tfa-gate button.ck-btn--solid').trigger('click')
     await flushPromises()
     await wrapper.find('#tfa-code').setValue('123456')
     await wrapper.find('.tfa-gate form').trigger('submit')

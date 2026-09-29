@@ -1,0 +1,89 @@
+/* From semantic-tokens/shadows.ts, tokens/durations.ts, easings.ts */
+:root {
+  --shadow-xs: 0px 1px 2px rgba(24, 24, 27, 0.1), 0px 0px 1px rgba(24, 24, 27, 0.2);
+  --shadow-sm: 0px 2px 4px rgba(24, 24, 27, 0.1), 0px 0px 1px rgba(24, 24, 27, 0.3);
+  --shadow-md: 0px 4px 8px rgba(24, 24, 27, 0.1), 0px 0px 1px rgba(24, 24, 27, 0.3);
+  --shadow-lg: 0px 8px 16px rgba(24, 24, 27, 0.1), 0px 0px 1px rgba(24, 24, 27, 0.3);
+  --shadow-xl: 0px 16px 24px rgba(24, 24, 27, 0.1), 0px 0px 1px rgba(24, 24, 27, 0.3);
+  --shadow-2xl: 0px 24px 40px rgba(24, 24, 27, 0.16), 0px 0px 1px rgba(24, 24, 27, 0.3);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --shadow-inset: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --duration-fastest: 50ms; /* @kind other */
+  --duration-faster: 100ms; /* @kind other */
+  --duration-fast: 150ms; /* @kind other */
+  --duration-moderate: 200ms; /* @kind other */
+  --duration-slow: 300ms; /* @kind other */
+  --duration-slower: 400ms; /* @kind other */
+  --duration-slowest: 500ms; /* @kind other */
+  --ease-in: cubic-bezier(0.42, 0, 1, 1); /* @kind other */
+  --ease-out: cubic-bezier(0, 0, 0.58, 1); /* @kind other */
+  --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1); /* @kind other */
+  --ease-in-smooth: cubic-bezier(0.32, 0.72, 0, 1); /* @kind other */
+  --ease-toast: cubic-bezier(0.21, 1.02, 0.73, 1); /* @kind other */
+}
+.dark {
+  --shadow-xs: 0px 1px 1px rgba(9, 9, 11, 0.64), 0px 0px 1px inset rgba(212, 212, 216, 0.2);
+  --shadow-sm: 0px 2px 4px rgba(9, 9, 11, 0.64), 0px 0px 1px inset rgba(212, 212, 216, 0.3);
+  --shadow-md: 0px 4px 8px rgba(9, 9, 11, 0.64), 0px 0px 1px inset rgba(212, 212, 216, 0.3);
+  --shadow-lg: 0px 8px 16px rgba(9, 9, 11, 0.64), 0px 0px 1px inset rgba(212, 212, 216, 0.3);
+  --shadow-xl: 0px 16px 24px rgba(9, 9, 11, 0.64), 0px 0px 1px inset rgba(212, 212, 216, 0.3);
+  --shadow-2xl: 0px 24px 40px rgba(9, 9, 11, 0.64), 0px 0px 1px inset rgba(212, 212, 216, 0.3);
+  --shadow-inner: inset 0 2px 4px 0 #09090b;
+  --shadow-inset: inset 0 0 0 1px rgba(212, 212, 216, 0.05);
+}
+@keyframes ck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ck-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes ck-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ck-scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes ck-slide-from-bottom {
+  from {
+    transform: translateY(0.5rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes ck-slide-from-top {
+  from {
+    transform: translateY(-0.5rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes ck-bg-position {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}

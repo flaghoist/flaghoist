@@ -1,0 +1,115 @@
+/* From tokens/fonts.ts, font-sizes.ts, font-weights.ts, line-heights.ts, letter-spacing.ts, text-styles.ts */
+:root {
+  --font-fallback:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  --font-heading: Inter, var(--font-fallback);
+  --font-body: Inter, var(--font-fallback);
+  --font-mono: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --font-size-2xs: 0.625rem;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 3.75rem;
+  --font-size-7xl: 4.5rem;
+  --font-size-8xl: 6rem;
+  --font-size-9xl: 8rem;
+  --font-weight-thin: 100; /* @kind other */
+  --font-weight-extralight: 200; /* @kind other */
+  --font-weight-light: 300; /* @kind other */
+  --font-weight-normal: 400; /* @kind other */
+  --font-weight-medium: 500; /* @kind other */
+  --font-weight-semibold: 600; /* @kind other */
+  --font-weight-bold: 700; /* @kind other */
+  --font-weight-extrabold: 800; /* @kind other */
+  --font-weight-black: 900; /* @kind other */
+  --line-height-shorter: 1.25; /* @kind other */
+  --line-height-short: 1.375; /* @kind other */
+  --line-height-moderate: 1.5; /* @kind other */
+  --line-height-tall: 1.625; /* @kind other */
+  --line-height-taller: 2; /* @kind other */
+  --letter-spacing-tighter: -0.05em; /* @kind other */
+  --letter-spacing-tight: -0.025em; /* @kind other */
+  --letter-spacing-wide: 0.025em; /* @kind other */
+  --letter-spacing-wider: 0.05em; /* @kind other */
+  --letter-spacing-widest: 0.1em; /* @kind other */
+  /* textStyles line-heights (paired with --font-size-*) */
+  --text-2xs-lh: 0.75rem; /* @kind other */
+  --text-xs-lh: 1rem; /* @kind other */
+  --text-sm-lh: 1.25rem; /* @kind other */
+  --text-md-lh: 1.5rem; /* @kind other */
+  --text-lg-lh: 1.75rem; /* @kind other */
+  --text-xl-lh: 1.875rem; /* @kind other */
+  --text-2xl-lh: 2rem; /* @kind other */
+  --text-3xl-lh: 2.375rem; /* @kind other */
+  --text-4xl-lh: 2.75rem; /* @kind other */
+  --text-5xl-lh: 3.75rem; /* @kind other */
+  --text-6xl-lh: 4.5rem; /* @kind other */
+  --text-7xl-lh: 5.75rem; /* @kind other */
+  /* semantic */
+  --text-body: var(--font-size-sm);
+  --text-label: var(--font-size-sm);
+}
+.text-2xs {
+  font-size: var(--font-size-2xs);
+  line-height: var(--text-2xs-lh);
+}
+.text-xs {
+  font-size: var(--font-size-xs);
+  line-height: var(--text-xs-lh);
+}
+.text-sm {
+  font-size: var(--font-size-sm);
+  line-height: var(--text-sm-lh);
+}
+.text-md {
+  font-size: var(--font-size-md);
+  line-height: var(--text-md-lh);
+}
+.text-lg {
+  font-size: var(--font-size-lg);
+  line-height: var(--text-lg-lh);
+}
+.text-xl {
+  font-size: var(--font-size-xl);
+  line-height: var(--text-xl-lh);
+}
+.text-2xl {
+  font-size: var(--font-size-2xl);
+  line-height: var(--text-2xl-lh);
+}
+.text-3xl {
+  font-size: var(--font-size-3xl);
+  line-height: var(--text-3xl-lh);
+}
+.text-4xl {
+  font-size: var(--font-size-4xl);
+  line-height: var(--text-4xl-lh);
+  letter-spacing: -0.025em;
+}
+.text-5xl {
+  font-size: var(--font-size-5xl);
+  line-height: var(--text-5xl-lh);
+  letter-spacing: -0.025em;
+}
+.text-6xl {
+  font-size: var(--font-size-6xl);
+  line-height: var(--text-6xl-lh);
+  letter-spacing: -0.025em;
+}
+.text-7xl {
+  font-size: var(--font-size-7xl);
+  line-height: var(--text-7xl-lh);
+  letter-spacing: -0.025em;
+}
+.text-label {
+  font-size: var(--font-size-sm);
+  line-height: 1.25rem;
+  font-weight: 500;
+}

@@ -64,8 +64,8 @@ watch(
         :aria-label="flag.enabled ? `Disable ${flag.key}` : `Enable ${flag.key}`"
         @click="emit('toggle')"
       ></button>
-      <button class="btn btn-quiet btn-sm" @click="emit('edit')">Edit</button>
-      <button class="btn btn-quiet btn-sm danger" @click="emit('remove')">Delete</button>
+      <button class="ck-btn ck-btn--ghost ck-btn--sm" @click="emit('edit')">Edit</button>
+      <button class="ck-btn ck-btn--ghost ck-btn--sm danger" @click="emit('remove')">Delete</button>
     </div>
 
     <span v-if="busy" class="saving" role="status">Saving</span>

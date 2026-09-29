@@ -82,10 +82,12 @@ async function copyCodes() {
       </ol>
       <p v-if="error" class="err" role="alert">{{ error }}</p>
       <div class="actions">
-        <button class="btn btn-ghost btn-sm" @click="copyCodes">
+        <button class="ck-btn ck-btn--outline ck-btn--sm" @click="copyCodes">
           {{ copied ? 'Copied' : 'Copy codes' }}
         </button>
-        <button class="btn btn-primary btn-sm" @click="emit('done')">I have saved them</button>
+        <button class="ck-btn ck-btn--solid ck-btn--sm" @click="emit('done')">
+          I have saved them
+        </button>
       </div>
     </template>
 
@@ -117,7 +119,7 @@ async function copyCodes() {
             maxlength="6"
             required
           />
-          <button type="submit" class="btn btn-primary btn-sm" :disabled="busy || !code">
+          <button type="submit" class="ck-btn ck-btn--solid ck-btn--sm" :disabled="busy || !code">
             {{ busy ? 'Checking' : 'Turn on' }}
           </button>
         </div>
@@ -130,7 +132,7 @@ async function copyCodes() {
         Sign in with a code from an authenticator app as well as your password, so a stolen password
         is not enough on its own.
       </p>
-      <button class="btn btn-primary btn-sm" :disabled="busy" @click="start">
+      <button class="ck-btn ck-btn--solid ck-btn--sm" :disabled="busy" @click="start">
         {{ busy ? 'Starting' : 'Set up two-factor sign-in' }}
       </button>
     </template>

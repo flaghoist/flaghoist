@@ -76,7 +76,8 @@ async function discover() {
   if (current !== probe) return
   config.value = result
   mode.value = result.accounts && !result.setupRequired ? 'password' : 'token'
-  setTimeout(() => firstField.value?.focus(), 0)
+  // Discovery runs while the person is still typing the URL, so it must not steal focus. Where the
+  // cursor goes is theirs to decide.
 }
 
 let urlTimer: ReturnType<typeof setTimeout> | null = null
@@ -124,7 +125,7 @@ function submit() {
       </svg>
     </button>
 
-    <div class="card gate-card">
+    <div class="ck-card ck-card--outline gate-card">
       <div class="head">
         <svg width="26" height="26" viewBox="0 0 64 64" fill="none" aria-hidden="true">
           <circle cx="16" cy="9" r="3" fill="currentColor" />
@@ -141,7 +142,7 @@ function submit() {
           id="gate-tfa"
           ref="tfaEl"
           v-model="tfaCode"
-          class="mono full"
+          class="ck-input ck-input--md mono full"
           autocomplete="one-time-code"
           aria-describedby="gate-tfa-hint"
           required
@@ -152,12 +153,16 @@ function submit() {
         <p v-if="error" class="err" role="alert">{{ error }}</p>
         <button
           type="submit"
-          class="btn btn-primary full connect"
+          class="ck-btn ck-btn--solid ck-btn--md full connect"
           :disabled="connecting || !tfaCode"
         >
           {{ connecting ? 'Checking' : 'Continue' }}
         </button>
-        <button type="button" class="btn btn-quiet full switch" @click="emit('cancelTwoFactor')">
+        <button
+          type="button"
+          class="ck-btn ck-btn--ghost ck-btn--md full switch"
+          @click="emit('cancelTwoFactor')"
+        >
           Back
         </button>
       </form>
@@ -168,7 +173,7 @@ function submit() {
           <input
             id="gate-url"
             v-model="url"
-            class="mono full"
+            class="ck-input ck-input--md mono full"
             placeholder="https://flags.example.com"
           />
         </template>
@@ -180,7 +185,7 @@ function submit() {
         <template v-if="mode === 'password' && sso">
           <button
             type="button"
-            class="btn btn-primary full sso-btn"
+            class="ck-btn ck-btn--solid ck-btn--md full sso-btn"
             :class="{ spaced: !servedByServer }"
             :disabled="connecting"
             @click="emit('sso', url.trim())"
@@ -199,7 +204,7 @@ function submit() {
             ref="firstField"
             v-model="email"
             type="email"
-            class="full"
+            class="ck-input ck-input--md full"
             autocomplete="username"
             required
           />
@@ -208,7 +213,7 @@ function submit() {
             id="gate-password"
             v-model="password"
             type="password"
-            class="full"
+            class="ck-input ck-input--md full"
             autocomplete="current-password"
             required
           />
@@ -227,7 +232,7 @@ function submit() {
             ref="firstField"
             v-model="token"
             type="password"
-            class="full"
+            class="ck-input ck-input--md full"
             placeholder="Bearer token"
             autocomplete="off"
           />
@@ -242,8 +247,8 @@ function submit() {
         <button
           v-if="mode === 'token' || showPassword"
           type="submit"
-          class="btn full connect"
-          :class="mode === 'password' && sso ? 'btn-ghost' : 'btn-primary'"
+          class="ck-btn ck-btn--md full connect"
+          :class="mode === 'password' && sso ? 'ck-btn--outline' : 'ck-btn--solid'"
           :disabled="connecting || (mode === 'password' ? !email || !password : !token)"
         >
           <template v-if="mode === 'password'">{{
@@ -255,7 +260,7 @@ function submit() {
         <button
           v-if="config?.accounts && !config.setupRequired"
           type="button"
-          class="btn btn-quiet full switch"
+          class="ck-btn ck-btn--ghost ck-btn--md full switch"
           @click="useToken(mode === 'password')"
         >
           {{
@@ -273,7 +278,7 @@ function submit() {
           <input
             id="gate-url"
             v-model="url"
-            class="mono full"
+            class="ck-input ck-input--md mono full"
             placeholder="https://flags.example.com"
           />
         </details>

@@ -311,7 +311,7 @@ describe('Security log', () => {
       props: { serverUrl: 'https://x.dev', token: 't', canSeeSecurity: true },
     })
     await flushPromises()
-    const tab = wrapper.findAll('.audit-tabs .chip').find((b) => b.text() === 'Security')!
+    const tab = wrapper.findAll('.ck-tabs__trigger').find((b) => b.text() === 'Security')!
     await tab.trigger('click')
     await flushPromises()
     const lastUrl = String(fetch.mock.calls.at(-1)?.[0])
@@ -324,7 +324,7 @@ describe('Security log', () => {
       props: { serverUrl: 'https://x.dev', token: 't', canSeeSecurity: false },
     })
     await flushPromises()
-    expect(wrapper.find('.audit-tabs').exists()).toBe(false)
+    expect(wrapper.find('.ck-tabs').exists()).toBe(false)
   })
 })
 
@@ -358,7 +358,7 @@ describe('Access tokens', () => {
     expect((wrapper.find('#new-token').element as HTMLInputElement).value).toBe(
       'fh_pat_secretvalue',
     )
-    await wrapper.find('.token-panel .btn-quiet').trigger('click')
+    await wrapper.find('.token-panel .ck-btn--ghost').trigger('click')
     expect(wrapper.text()).not.toContain('fh_pat_secretvalue')
     expect(wrapper.text()).toContain('CI deploys')
   })

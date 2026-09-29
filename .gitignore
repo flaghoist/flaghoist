@@ -55,3 +55,10 @@ Desktop.ini
 
 # Impeccable local workflow settings (machine-specific)
 .impeccable/config.local.json
+
+# docs 
+apps/dashboard/docs/*
+
+# claude 
+CLAUDE.md
+LAUNCH.md

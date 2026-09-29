@@ -68,13 +68,23 @@ describe('member events on the Webhooks page', () => {
       .findAll('button')
       .find((b) => b.text().includes('Add webhook'))!
       .trigger('click')
-    const fieldsets = wrapper.findAll('fieldset')
-    const memberBoxes = fieldsets[1]!.findAll('input[type="checkbox"]')
-    expect(memberBoxes).toHaveLength(6)
-    expect(memberBoxes.every((b) => !(b.element as HTMLInputElement).checked)).toBe(true)
+    // Member events are opt-in chips, separate from the flag-event chips and off by default.
+    const memberLabels = [
+      'Member invited',
+      'Member joined',
+      'Role changed',
+      'Member disabled',
+      'Member enabled',
+      'Member removed',
+    ]
+    const memberChips = wrapper
+      .findAll('.event-chip')
+      .filter((c) => memberLabels.includes(c.text()))
+    expect(memberChips).toHaveLength(6)
+    expect(memberChips.every((c) => c.attributes('aria-pressed') === 'false')).toBe(true)
 
     await wrapper.find('input[type="url"]').setValue('https://hooks.example.com/in')
-    await memberBoxes[1]!.setValue(true)
+    await memberChips.find((c) => c.text() === 'Member joined')!.trigger('click')
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'Create')!

@@ -60,7 +60,7 @@ describe('the Security log', () => {
     })
     await flushPromises()
     await wrapper
-      .findAll('.audit-tabs .chip')
+      .findAll('.ck-tabs__trigger')
       .find((b) => b.text() === 'Security')!
       .trigger('click')
     await flushPromises()
@@ -69,13 +69,11 @@ describe('the Security log', () => {
     expect(rows).toHaveLength(SECURITY_ACTIONS.length)
     rows.forEach((row, i) => {
       const action = SECURITY_ACTIONS[i]!
-      const badge = row.find('.log-action')
-      const delta = row.find('.log-delta').text()
-      expect(badge.text(), `badge for ${action}`).not.toMatch(RAW)
-      expect(badge.text(), `badge for ${action}`).not.toBe('')
-      expect(delta, `description for ${action}`).not.toMatch(RAW)
-      expect(delta, `description for ${action}`).not.toBe('')
-      const tone = badge.classes().find((c) => c !== 'log-action')
+      // The action reads as a sentence ("Ada signed in ..."), never its raw name, and carries a tone.
+      const label = row.find('.entry-line').text()
+      expect(label, `label for ${action}`).not.toMatch(RAW)
+      expect(label, `label for ${action}`).not.toBe('')
+      const tone = row.attributes('data-tone')
       expect(TONES, `tone for ${action}`).toContain(tone)
     })
   })

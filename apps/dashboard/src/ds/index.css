@@ -1,0 +1,13 @@
+/*
+  Chakra UI design system, vendored from docs/_ds and served from our own bundle. The upstream
+  tokens/fonts.css pulls Inter from Google Fonts; we deliberately leave it out and self-host Inter
+  through @fontsource in main.ts instead, because this console runs on a Worker with no guaranteed
+  network egress. Everything else is copied verbatim so the .ck-* components match the source.
+*/
+@import './tokens/colors-base.css';
+@import './tokens/colors-semantic.css';
+@import './tokens/typography.css';
+@import './tokens/spacing.css';
+@import './tokens/effects.css';
+@import './tokens/base.css';
+@import './components.css';

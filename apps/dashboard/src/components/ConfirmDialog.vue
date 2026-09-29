@@ -24,14 +24,28 @@ onMounted(() => cancelEl.value?.focus())
 
 <template>
   <div class="overlay" @click.self="emit('cancel')">
-    <div class="confirm card" role="alertdialog" aria-modal="true" :aria-label="title">
+    <div
+      class="confirm ck-card ck-card--outline"
+      role="alertdialog"
+      aria-modal="true"
+      :aria-label="title"
+    >
       <h2>{{ title }}</h2>
       <p>{{ body }}</p>
       <div class="actions">
-        <button ref="cancelEl" class="btn btn-ghost" :disabled="busy" @click="emit('cancel')">
+        <button
+          ref="cancelEl"
+          class="ck-btn ck-btn--outline ck-btn--md"
+          :disabled="busy"
+          @click="emit('cancel')"
+        >
           Cancel
         </button>
-        <button class="btn btn-danger" :disabled="busy" @click="emit('confirm')">
+        <button
+          class="ck-btn ck-btn--outline ck-btn--md cp-red"
+          :disabled="busy"
+          @click="emit('confirm')"
+        >
           {{ busy ? 'Deleting…' : (confirmLabel ?? 'Delete') }}
         </button>
       </div>
@@ -43,21 +57,24 @@ onMounted(() => cancelEl.value?.focus())
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.25rem;
-  background: light-dark(rgba(11, 30, 58, 0.34), rgba(2, 8, 16, 0.62));
-  backdrop-filter: blur(3px);
+  background: var(--color-black-alpha-500);
 }
 .confirm {
   width: min(26rem, 100%);
-  padding: 1.25rem;
+  padding: 22px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  animation: modal-in 0.2s ease;
 }
 .confirm h2 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
+  font-weight: 600;
 }
 .confirm p {
   margin: 0 0 1.25rem;

@@ -76,7 +76,8 @@ async function discover() {
   if (current !== probe) return
   config.value = result
   mode.value = result.accounts && !result.setupRequired ? 'password' : 'token'
-  setTimeout(() => firstField.value?.focus(), 0)
+  // Discovery runs while the person is still typing the URL, so it must not steal focus. Where the
+  // cursor goes is theirs to decide.
 }
 
 let urlTimer: ReturnType<typeof setTimeout> | null = null
@@ -141,7 +142,7 @@ function submit() {
           id="gate-tfa"
           ref="tfaEl"
           v-model="tfaCode"
-          class="mono full"
+          class="ck-input ck-input--md mono full"
           autocomplete="one-time-code"
           aria-describedby="gate-tfa-hint"
           required
@@ -172,7 +173,7 @@ function submit() {
           <input
             id="gate-url"
             v-model="url"
-            class="mono full"
+            class="ck-input ck-input--md mono full"
             placeholder="https://flags.example.com"
           />
         </template>
@@ -203,7 +204,7 @@ function submit() {
             ref="firstField"
             v-model="email"
             type="email"
-            class="full"
+            class="ck-input ck-input--md full"
             autocomplete="username"
             required
           />
@@ -212,7 +213,7 @@ function submit() {
             id="gate-password"
             v-model="password"
             type="password"
-            class="full"
+            class="ck-input ck-input--md full"
             autocomplete="current-password"
             required
           />
@@ -231,7 +232,7 @@ function submit() {
             ref="firstField"
             v-model="token"
             type="password"
-            class="full"
+            class="ck-input ck-input--md full"
             placeholder="Bearer token"
             autocomplete="off"
           />
@@ -277,7 +278,7 @@ function submit() {
           <input
             id="gate-url"
             v-model="url"
-            class="mono full"
+            class="ck-input ck-input--md mono full"
             placeholder="https://flags.example.com"
           />
         </details>

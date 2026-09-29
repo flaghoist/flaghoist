@@ -226,7 +226,7 @@ describe('filtering', () => {
     await navigateToFlags(wrapper)
     expect(wrapper.findAll('.flag-row')).toHaveLength(4)
 
-    await wrapper.find('.search input').setValue('dark')
+    await wrapper.find('.topbar-search input').setValue('dark')
     expect(wrapper.findAll('.flag-row')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -247,7 +247,7 @@ describe('filtering', () => {
   it('shows a distinct empty state when a search matches nothing', async () => {
     const wrapper = await mountSignedIn(client({ list: vi.fn(async () => many) }))
     await navigateToFlags(wrapper)
-    await wrapper.find('.search input').setValue('nothing-here')
+    await wrapper.find('.topbar-search input').setValue('nothing-here')
     expect(wrapper.find('.empty-state h2').text()).toBe('Nothing matches')
     wrapper.unmount()
   })

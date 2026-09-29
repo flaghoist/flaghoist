@@ -47,6 +47,22 @@
   --font-ui: var(--font-body);
 }
 
+/*
+  Dark theme: swap the design system's near-black zinc surfaces for a deep navy. Only the background
+  and border tokens change; text, accent and status colors stay as the DS defines them. This block
+  loads after the DS, so its `.dark` wins.
+*/
+.dark {
+  --bg: #0d1a30;
+  --bg-subtle: #10203a;
+  --bg-muted: #1b2d4d;
+  --bg-emphasized: #26395c;
+  --bg-panel: #14233f;
+  --border: #284067;
+  --border-muted: #1c2f50;
+  --border-emphasized: #35507c;
+}
+
 /* Focus ring for anything not already handled by a .ck-* recipe. */
 :focus-visible {
   outline: 2px solid var(--cp-focus-ring);
@@ -97,6 +113,15 @@ select {
 
 .mono {
   font-family: var(--font-mono);
+}
+/* Form label, same recipe as .ck-field__label. */
+.label {
+  display: block;
+  font-size: var(--font-size-sm);
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--fg);
+  margin-bottom: 0.375rem;
 }
 /* A stroked glyph. .ck-btn sizes it; this only sets the stroke so inline SVGs render as line icons. */
 .btn-icon {
@@ -243,8 +268,9 @@ textarea {
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
+  /* A single 1px orange border is the whole focus indicator — no extra outline on top. */
   border-color: var(--orange-focus-ring);
-  outline: 1px solid var(--orange-focus-ring);
+  outline: none;
 }
 input[aria-invalid='true'] {
   border-color: var(--border-error);

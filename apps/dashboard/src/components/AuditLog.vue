@@ -315,7 +315,12 @@ onMounted(() => void load())
       <p v-if="entries.length === 0" class="status">No activity recorded yet.</p>
       <div v-for="group in groups" :key="group.day" class="day-group">
         <div class="day-head">{{ group.day }}</div>
-        <div v-for="entry in group.entries" :key="entry.id" class="log-entry">
+        <div
+          v-for="entry in group.entries"
+          :key="entry.id"
+          class="log-entry"
+          :data-tone="actionTone[entry.action] ?? entry.action"
+        >
           <span class="entry-dot" :style="{ background: dotColor(entry) }"></span>
           <div class="entry-body">
             <div class="entry-line">

@@ -197,7 +197,7 @@ describe('creating a flag that the active filter would hide', () => {
     const wrapper = await mountSignedIn(api)
     await navigateToFlags(wrapper)
 
-    await wrapper.find('.flag-row .danger-hover').trigger('click')
+    await wrapper.find('.flag-row button[aria-label^="Archive"]').trigger('click')
     await flushPromises()
 
     // "Archive" on the active flag triggers archiveFlag, not delete.
@@ -299,7 +299,7 @@ describe('ordering', () => {
 
     const editBtns = wrapper
       .findAll('.flag-row .action-group button')
-      .filter((b) => b.text() === 'Edit')
+      .filter((b) => b.attributes('aria-label')?.startsWith('Edit'))
     await editBtns[1].trigger('click')
     await flushPromises()
     wrapper.findComponent({ name: 'FlagEditor' }).vm.$emit(

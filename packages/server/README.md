@@ -54,6 +54,23 @@ environment (`apiKeys({ production: '...', staging: '...' })`) instead of a sing
 leaked staging key can't read production. Auth is an interface, so if none of those fit, pass your
 own function.
 
+## Accounts
+
+Pass `users` to turn on named accounts with roles, so people sign in as themselves instead of
+sharing the admin token. It needs a `pepper`, a secret of at least 32 characters read from the
+environment, and takes optional single sign-on, two-factor, email and invite settings.
+
+```ts
+createFlagServer((env) => ({
+  storage,
+  auth: { admin: bearerToken(env.ADMIN_TOKEN), read: apiKey(env.READ_API_KEY) },
+  users: { pepper: env.AUTH_PEPPER },
+}))
+```
+
+Accounts live in the same storage as your flags. `npm create flaghoist` turns this on by default,
+generates the pepper for you, and keeps it in a git-ignored `.env`.
+
 ## Environments
 
 Pass `environments: ['production', 'staging', ...]` to partition flags without a second deploy or a

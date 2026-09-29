@@ -16,11 +16,17 @@ That gives you an OFREP read API, an admin API, and a dashboard at `/admin`, all
 deploy. On Cloudflare KV, the first deploy also creates the KV namespace for you and writes its id
 into `wrangler.toml`.
 
+Setup asks a few questions (where it runs, which storage, whether you want accounts) and turns
+accounts on by default, so people sign in as themselves rather than share the admin token. It
+generates an `AUTH_PEPPER`, keeps it in a git-ignored `.env`, and `deploy` sets it as a Worker secret
+for you. To set up a directory you already have, run `flaghoist init` instead of scaffolding a new
+one.
+
 ## Managing flags
 
 Point the CLI at your server with `--url` and `--token`, or set `FLAGS_URL` and
-`FLAGS_ADMIN_TOKEN`. On a server with user accounts, `flaghoist login --url <server>` signs you in
-once and saves a personal access token instead.
+`FLAGS_ADMIN_TOKEN`. Since accounts are on by default, `flaghoist login --url <server>` signs you in
+and saves a personal access token; the admin token is the fallback for a server with accounts off.
 
 ```bash
 flaghoist flag list

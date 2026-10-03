@@ -62,3 +62,17 @@ apps/dashboard/docs/*
 # claude 
 CLAUDE.md
 LAUNCH.md
+
+# Internal docs: launch, marketing and planning notes kept local, not published.
+# (docs/threat-model.md stays tracked: it is linked from SECURITY.md and the docs site.)
+.claude/launch.json
+docs/alpha-testing-plan.md
+docs/demo-video-script.md
+docs/issue-drafts.md
+docs/language-verification.md
+docs/launch-runbook.md
+docs/openfeature-listing.md
+docs/phase6-admin-auth-plan.md
+docs/recording-the-demo.md
+docs/security-audit.md
+docs/social-drafts.md

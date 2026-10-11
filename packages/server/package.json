@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@flaghoist/core": "workspace:*",
-    "hono": "^4.13.12",
+    "hono": "^4.13.13",
     "jose": "^6.2.12"
   },
   "devDependencies": {

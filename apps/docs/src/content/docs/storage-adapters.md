@@ -38,6 +38,26 @@ just no longer looking there.
 Webhook endpoints live in the same namespace, under a separate `webhook:` prefix by default (`{
 webhookPrefix: '...' }` to change it).
 
+### How soon a change shows up
+
+Reading a single flag by key is immediate. Listing flags is not: a newly created flag can take up
+to 30 seconds to appear in `list()`, because `kv.list()` reads a separate key index that KV updates
+asynchronously. Both the dashboard's flag list and OFREP bulk evaluation go through `list()`, so a
+flag you just created may not show up right away. This is a property of Workers KV, not a bug.
+Postgres and Redis have no such lag, which is a genuine reason to bring your own database.
+
+On top of that, and on every backend, the read path caches flag definitions in memory for
+`cacheTtlSeconds` (default 30, set it on the server config), so a change can take that long to reach
+readers even once it is in storage. Lower it for faster toggles at the cost of more storage reads:
+
+```ts
+createFlagServer((env) => ({
+  storage: cloudflareKV(env.FLAGS),
+  auth: {/* … */},
+  cacheTtlSeconds: 5,
+}))
+```
+
 ## Redis
 
 Works with `ioredis` (Node) and Upstash (edge). All flags live in one hash, so `list()` is a single

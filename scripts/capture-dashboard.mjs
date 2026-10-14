@@ -103,8 +103,8 @@ try {
   // page. Nothing about behaviour or capability is altered.
   await page.evaluate(() => {
     document.querySelectorAll('*').forEach((el) => {
-      if (el.children.length === 0 && el.textContent?.startsWith('http://localhost:')) {
-        el.textContent = 'team-flags.you.workers.dev'
+      if (el.children.length === 0 && el.textContent && /localhost:\d+/.test(el.textContent)) {
+        el.textContent = el.textContent.replace(/localhost:\d+/, 'team-flags.you.workers.dev')
       }
     })
   })

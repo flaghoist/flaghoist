@@ -70,6 +70,7 @@ import type { ConfigResolver, ServerConfig } from './types'
 import {
   ALL_WEBHOOK_EVENTS,
   createWebhookStore,
+  createInMemoryWebhookStore,
   dispatchWebhooks,
   generateId,
   generateSecret,
@@ -77,6 +78,7 @@ import {
   validateWebhookInput,
   type MemberWebhookPayload,
   type WebhookPayload,
+  type WebhookStore,
 } from './webhooks'
 
 export type { PublicInvite, PublicSession, PublicToken, PublicUser, UsersConfig } from './accounts'
@@ -172,8 +174,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   // than failing on its first request. A config function is checked on every request instead.
   if (directConfig?.users) assertUsersConfig(directConfig.users, directConfig.storage)
   const audit = createAuditLog(directConfig?.storage)
-  const webhookStore = createWebhookStore(directConfig?.storage)
-
+  const inMemoryWebhookStore = createInMemoryWebhookStore()
+  function webhookStoreFromConfig(cfg: ServerConfig) {
+    return createWebhookStore(cfg.storage) ?? inMemoryWebhookStore
+  }
   function defaultEnvOf(cfg: ServerConfig): string {
     return cfg.defaultEnvironment ?? 'production'
   }
@@ -183,6 +187,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
   }
 
   function fireWebhook(
+    webhookStore: WebhookStore,
     event: FlagWebhookEvent,
     flagKey: string,
     actor: string,
@@ -208,6 +213,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
 
   /** Tell webhooks that listed a member event about a team change. Fire and forget. */
   function fireMemberEvent(
+    webhookStore: WebhookStore,
     event: MemberWebhookEvent,
     actor: string,
     member: {
@@ -662,7 +668,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         changeDescription,
         environment: auditEnv,
       })
+      const webhookStore = webhookStoreFromConfig(cfg)
       fireWebhook(
+        webhookStore,
         `flag.${flagAction === 'update' ? 'updated' : 'created'}`,
         key,
         identity,
@@ -702,7 +710,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         previous: snapshot(existing),
         environment: auditEnv,
       })
-      fireWebhook('flag.archived', key, identity, auditEnv, undefined, snapshot(existing))
+      const webhookStore = webhookStoreFromConfig(cfg)
+      fireWebhook(
+        webhookStore,
+        'flag.archived',
+        key,
+        identity,
+        auditEnv,
+        undefined,
+        snapshot(existing),
+      )
       return c.json(archived)
     })
 
@@ -731,7 +748,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         current: snapshot(restored),
         environment: auditEnv,
       })
-      fireWebhook('flag.restored', key, identity, auditEnv, snapshot(restored))
+      const webhookStore = webhookStoreFromConfig(cfg)
+      fireWebhook(webhookStore, 'flag.restored', key, identity, auditEnv, snapshot(restored))
       return c.json(restored)
     })
 
@@ -757,7 +775,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         environment: auditEnv,
       })
       if (existing) {
-        fireWebhook('flag.deleted', key, identity, auditEnv, undefined, snapshot(existing))
+        const webhookStore = webhookStoreFromConfig(cfg)
+        fireWebhook(
+          webhookStore,
+          'flag.deleted',
+          key,
+          identity,
+          auditEnv,
+          undefined,
+          snapshot(existing),
+        )
       }
       return c.body(null, 204)
     })
@@ -886,12 +913,14 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
     app.get(`${prefix}/webhooks`, async (c) => {
       const authorized = await authorize(c, 'webhooks:manage')
       if (authorized instanceof Response) return authorized
+      const webhookStore = webhookStoreFromConfig(authorized.cfg)
       return c.json({ webhooks: await webhookStore.list() })
     })
 
     app.get(`${prefix}/webhooks/:id`, async (c) => {
       const authorized = await authorize(c, 'webhooks:manage')
       if (authorized instanceof Response) return authorized
+      const webhookStore = webhookStoreFromConfig(authorized.cfg)
       const hook = await webhookStore.get(c.req.param('id'))
       if (!hook) return c.json({ error: 'Webhook not found' }, 404)
       return c.json(hook)
@@ -914,6 +943,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         createdAt: now,
         updatedAt: now,
       }
+      const webhookStore = webhookStoreFromConfig(authorized.cfg)
       await webhookStore.put(hook.id, hook)
       await audit.record({
         action: 'webhook.created',
@@ -928,6 +958,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const authorized = await authorize(c, 'webhooks:manage')
       if (authorized instanceof Response) return authorized
       const id = c.req.param('id')
+      const webhookStore = webhookStoreFromConfig(authorized.cfg)
       const existing = await webhookStore.get(id)
       if (!existing) return c.json({ error: 'Webhook not found' }, 404)
       const parsed = await readJsonBody(await c.req.text())
@@ -969,6 +1000,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const authorized = await authorize(c, 'webhooks:manage')
       if (authorized instanceof Response) return authorized
       const id = c.req.param('id')
+      const webhookStore = webhookStoreFromConfig(authorized.cfg)
       const existing = await webhookStore.get(id)
       if (!existing) return c.json({ error: 'Webhook not found' }, 404)
       await webhookStore.delete(id)
@@ -985,6 +1017,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       const authorized = await authorize(c, 'webhooks:manage')
       if (authorized instanceof Response) return authorized
       const { identity } = authorized
+      const webhookStore = webhookStoreFromConfig(authorized.cfg)
       const hook = await webhookStore.get(c.req.param('id'))
       if (!hook) return c.json({ error: 'Webhook not found' }, 404)
       const payload: WebhookPayload = {
@@ -1314,7 +1347,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       target: { type: 'user', id: user.id },
       changeDescription: `${user.email} as owner`,
     })
-    fireMemberEvent('member.joined', caller.identity, user)
+    const webhookStore = webhookStoreFromConfig(caller.cfg)
+    fireMemberEvent(webhookStore, 'member.joined', caller.identity, user)
     return c.json({ user: publicUser(user) }, 201)
   })
 
@@ -1556,6 +1590,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         })
         if (!created) return back('That email already has an account.')
         user = created
+        const webhookStore = webhookStoreFromConfig(cfg)
         if (invite) {
           await accounts.revokeInvite(invite.id)
           await audit.record({
@@ -1564,7 +1599,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
             target: { type: 'user', id: user.id },
             changeDescription: `Joined as ${user.role} with SSO`,
           })
-          fireMemberEvent('member.joined', email, user)
+          fireMemberEvent(webhookStore, 'member.joined', email, user)
         } else {
           await audit.record({
             action: 'user.created',
@@ -1572,7 +1607,7 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
             target: { type: 'user', id: user.id },
             changeDescription: `${email} as ${user.role}, with SSO`,
           })
-          fireMemberEvent('member.joined', email, user)
+          fireMemberEvent(webhookStore, 'member.joined', email, user)
         }
       }
     }
@@ -1593,7 +1628,10 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
             target: { type: 'user', id: user.id },
             changeDescription: `${email}: role ${before} to ${groupRole}`,
           })
-          fireMemberEvent('member.role_changed', 'SSO groups', user, { role: before })
+          const webhookStore = webhookStoreFromConfig(cfg)
+          fireMemberEvent(webhookStore, 'member.role_changed', 'SSO groups', user, {
+            role: before,
+          })
         }
       }
     }
@@ -2005,14 +2043,16 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         changeDescription: `${user.email}: ${changes.join(', ')}`,
       })
     }
+    const webhookStore = webhookStoreFromConfig(caller.cfg)
     if (roleChanged || envRolesChanged) {
-      fireMemberEvent('member.role_changed', caller.identity, saved, {
+      fireMemberEvent(webhookStore, 'member.role_changed', caller.identity, saved, {
         role: user.role,
         ...(user.environmentRoles ? { environmentRoles: user.environmentRoles } : {}),
       })
     }
     if (statusChanged) {
       fireMemberEvent(
+        webhookStore,
         status === 'disabled' ? 'member.disabled' : 'member.enabled',
         caller.identity,
         saved,
@@ -2037,7 +2077,12 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       target: { type: 'user', id: user.id },
       changeDescription: user.email,
     })
-    fireMemberEvent('member.removed', caller.identity, { ...user, status: 'removed' })
+
+    const webhookStore = webhookStoreFromConfig(caller.cfg)
+    fireMemberEvent(webhookStore, 'member.removed', caller.identity, {
+      ...user,
+      status: 'removed',
+    })
     return c.body(null, 204)
   })
 
@@ -2134,7 +2179,9 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
       target: { type: 'invite', id: invite.id },
       changeDescription: `${email} as ${role}${result.emailed ? ', emailed' : ''}`,
     })
-    fireMemberEvent('member.invited', caller.identity, { email, role })
+
+    const webhookStore = webhookStoreFromConfig(caller.cfg)
+    fireMemberEvent(webhookStore, 'member.invited', caller.identity, { email, role })
     return c.json(result, 201)
   })
 
@@ -2249,7 +2296,8 @@ export function createFlagServer<Env extends object = Record<string, unknown>>(
         target: { type: 'user', id: user.id },
         changeDescription: `Joined as ${user.role}`,
       })
-      fireMemberEvent('member.joined', user.email, user)
+      const webhookStore = webhookStoreFromConfig(cfg)
+      fireMemberEvent(webhookStore, 'member.joined', user.email, user)
     } else {
       const existing = invite.userId ? await accounts.getUser(invite.userId) : null
       if (!existing || existing.email !== invite.email) {

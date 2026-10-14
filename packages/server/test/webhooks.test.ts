@@ -118,6 +118,28 @@ describe('webhook CRUD', () => {
     expect(hook.url).toBe('https://example.com/hook')
   })
 
+  it('persists webhooks in the configured storage when the config is a function', async () => {
+    const storage = memoryAdapter()
+    const config = () => ({
+      storage,
+      auth: { admin: bearerToken('admin-secret'), read: apiKey('read-key') },
+    })
+
+    const app = createFlagServer(config)
+    await app.request('/api/v1/webhooks', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ url: 'https://example.com/hook' }),
+    })
+
+    // A second server over the same storage stands in for a restart: the webhook must be in
+    // storage, not in a store that only lived inside the first server instance.
+    const restarted = createFlagServer(config)
+    const res = await restarted.request('/api/v1/webhooks', { headers: adminHeaders })
+    const body = (await res.json()) as { webhooks: { url: string }[] }
+    expect(body.webhooks.map((w) => w.url)).toEqual(['https://example.com/hook'])
+  })
+
   it('returns 404 for missing webhook', async () => {
     const app = makeServer()
     const res = await app.request('/api/v1/webhooks/nonexistent', { headers: adminHeaders })

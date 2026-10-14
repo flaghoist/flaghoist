@@ -22,13 +22,8 @@ export interface WebhookStore {
   delete(id: string): Promise<void>
 }
 
-export function createWebhookStore(storage?: StorageAdapter | null): WebhookStore {
-  if (
-    storage?.putWebhook &&
-    storage?.getWebhook &&
-    storage?.deleteWebhook &&
-    storage?.listWebhooks
-  ) {
+export function createWebhookStore(storage: StorageAdapter): WebhookStore | null {
+  if (storage.putWebhook && storage.getWebhook && storage.deleteWebhook && storage.listWebhooks) {
     return {
       list: () => storage.listWebhooks!(),
       get: (id) => storage.getWebhook!(id),
@@ -36,7 +31,10 @@ export function createWebhookStore(storage?: StorageAdapter | null): WebhookStor
       delete: (id) => storage.deleteWebhook!(id),
     }
   }
+  return null
+}
 
+export function createInMemoryWebhookStore(): WebhookStore {
   const mem = new Map<string, WebhookEndpoint>()
   return {
     async list() {

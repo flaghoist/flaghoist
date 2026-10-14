@@ -1,5 +1,11 @@
 # @flaghoist/server
 
+## 0.4.2
+
+### Patch Changes
+
+- 23c3c9c: Fix webhooks not persisting when `createFlagServer` is given a config function. The function form, used on Cloudflare Workers to read `env`, left the webhook store resolving to memory instead of the configured storage, so webhooks added through the dashboard were lost. The store is now resolved per request from the active config.
+
 ## 0.4.1
 
 ### Patch Changes

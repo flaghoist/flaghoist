@@ -350,6 +350,9 @@ importers:
 
   packages/providers/node:
     dependencies:
+      '@openfeature/ofrep-core':
+        specifier: ^2.3.0
+        version: 2.3.0(@openfeature/core@1.12.0)
       '@openfeature/ofrep-provider':
         specifier: ^0.2.5
         version: 0.2.5(@openfeature/core@1.12.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
@@ -1623,11 +1626,6 @@ packages:
 
   '@openfeature/core@1.12.0':
     resolution: {integrity: sha512-7PCPzyd1OC19begz30+CRknFB0ChtyaZUhk7YWrk+Bov1fpVw0HYkTXtoxxsvPfDZB9P9WsT7uixN+Z8f9+bcA==}
-
-  '@openfeature/ofrep-core@2.2.0':
-    resolution: {integrity: sha512-YbeT8mYS4Ggo/JFcYY1IzN0O0UvsCx7RPk1m40TFc4ip0gJdFVpYc5a8WDwZC2v/YqxreJ7NWBDxHxP5SOevsA==}
-    peerDependencies:
-      '@openfeature/core': ^1.6.0
 
   '@openfeature/ofrep-core@2.3.0':
     resolution: {integrity: sha512-PgUoEp0nGDYUeZ2fIU2IczEe/5B+gQVDpGXc5o05wpo3sj69pbcpq/a3p8MT/mhv9fqODiqqwu29g/YEq/huaw==}
@@ -5704,17 +5702,13 @@ snapshots:
 
   '@openfeature/core@1.12.0': {}
 
-  '@openfeature/ofrep-core@2.2.0(@openfeature/core@1.12.0)':
-    dependencies:
-      '@openfeature/core': 1.12.0
-
   '@openfeature/ofrep-core@2.3.0(@openfeature/core@1.12.0)':
     dependencies:
       '@openfeature/core': 1.12.0
 
   '@openfeature/ofrep-provider@0.2.5(@openfeature/core@1.12.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))':
     dependencies:
-      '@openfeature/ofrep-core': 2.2.0(@openfeature/core@1.12.0)
+      '@openfeature/ofrep-core': 2.3.0(@openfeature/core@1.12.0)
       '@openfeature/server-sdk': 1.23.0(@openfeature/core@1.12.0)
     transitivePeerDependencies:
       - '@openfeature/core'

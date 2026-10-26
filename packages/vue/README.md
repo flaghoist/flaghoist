@@ -41,7 +41,9 @@ const newCheckout = useFeatureFlag('new-checkout')
 
 The ref updates when the provider becomes ready and when its configuration changes. Note that
 background polling is off by default in the underlying OpenFeature provider, so flags refresh when
-the page becomes visible again rather than on a timer. Pass `pollInterval` if you want a timer.
+the page becomes visible again rather than on a timer. Pass `pollInterval` (milliseconds) if you want
+a timer. `FlaghoistProvider` takes every `@flaghoist/provider-web` option, including `cacheMode`,
+which decides whether users see last known values or your defaults while the server is down.
 
 Use the read only API key here, never the admin token. It ships to the browser.
 

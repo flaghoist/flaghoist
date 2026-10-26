@@ -104,9 +104,16 @@ const enabled = await client.getBooleanValue('new-checkout', false, {
 On the server, pass the evaluation context per request rather than setting it globally. A shared
 global context means every request is evaluated as the same user.
 
+The server provider fetches every flag for a context in one request to the OFREP bulk endpoint and
+answers each check from that result, so a handler that checks three flags makes one round trip, not
+three. The result is reused for 5 seconds per context (`cacheTtlMs`), checks that arrive while a
+request is in flight share it, and `bulk: false` goes back to one request per check. See the
+[package README](https://www.npmjs.com/package/@flaghoist/provider-node) for the details.
+
 ## Without the Flaghoist wrapper
 
-The wrappers only attach the `x-api-key` header. You can use the official provider directly:
+The browser wrapper only attaches the `x-api-key` header, and the server wrapper adds the bulk fetch
+described above. You can use the official providers directly:
 
 ```ts
 import { OFREPWebProvider } from '@openfeature/ofrep-web-provider'

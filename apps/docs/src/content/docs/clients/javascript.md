@@ -32,6 +32,15 @@ const newCheckout = client.getBooleanValue('new-checkout', false)
 
 Using Vue? `@flaghoist/vue` adds a reactive `useFeatureFlag()` composable over this.
 
+The browser provider fetches every flag in one request, then answers each check from memory. It
+re-fetches when the context changes and when the tab becomes visible again, but does not poll unless
+you set `pollInterval` (in milliseconds). It also saves the last flags it saw in `localStorage`, so
+during an outage users keep the last known values rather than your code defaults; set
+`cacheMode: 'disabled'` to get the defaults instead, like the server provider. Every option of the
+official OFREP web provider is accepted; the
+[package README](https://www.npmjs.com/package/@flaghoist/provider-web) covers the ones worth
+choosing.
+
 ## React
 
 React reads flags through the official [`@openfeature/react-sdk`](https://www.npmjs.com/package/@openfeature/react-sdk), so there is no Flaghoist-specific React package to install. `@flaghoist/provider-web` is the only Flaghoist piece; everything your components touch is standard OpenFeature.

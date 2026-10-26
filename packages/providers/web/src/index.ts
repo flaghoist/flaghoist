@@ -1,6 +1,12 @@
-import { OFREPWebProvider } from '@openfeature/ofrep-web-provider'
+import { OFREPWebProvider, type OFREPWebProviderOptions } from '@openfeature/ofrep-web-provider'
+import type { Logger } from '@openfeature/web-sdk'
 
-export interface FlaghoistWebProviderOptions {
+/**
+ * Every option of the official OFREP web provider (`pollInterval`, `changeDetection`, `cacheMode`,
+ * `cacheTTL`, `timeoutMs` and the rest) passes straight through with its upstream default. Only
+ * `baseUrl` and the tuple-style `headers` are replaced by the friendlier fields below.
+ */
+export type FlaghoistWebProviderOptions = Omit<OFREPWebProviderOptions, 'baseUrl' | 'headers'> & {
   /** Base URL of your Flaghoist server, e.g. `https://team-flags.you.workers.dev`. */
   url: string
   /** Read-only API key, sent as the `x-api-key` header. */
@@ -23,10 +29,11 @@ export interface FlaghoistWebProviderOptions {
  *   )
  */
 export class FlaghoistWebProvider extends OFREPWebProvider {
-  constructor(options: FlaghoistWebProviderOptions) {
+  constructor(options: FlaghoistWebProviderOptions, logger?: Logger) {
+    const { url, apiKey, headers: extra, ...rest } = options
     const headers: [string, string][] = []
-    if (options.apiKey) headers.push(['x-api-key', options.apiKey])
-    if (options.headers) headers.push(...Object.entries(options.headers))
-    super({ baseUrl: options.url, headers })
+    if (apiKey) headers.push(['x-api-key', apiKey])
+    if (extra) headers.push(...Object.entries(extra))
+    super({ ...rest, baseUrl: url, headers }, logger)
   }
 }

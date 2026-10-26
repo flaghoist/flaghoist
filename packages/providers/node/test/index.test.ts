@@ -18,7 +18,7 @@ function fakeServer(flags: Record<string, boolean>) {
   const fetch = vi.fn(async (input: Request | string | URL) => {
     const req = input as Request
     requests.push({ url: req.url, body: await req.json(), headers: req.headers })
-    if (req.url.endsWith('/ofrep/v1/evaluate/flags')) {
+    if (new URL(req.url).pathname === '/ofrep/v1/evaluate/flags') {
       return json({
         flags: Object.entries(flags).map(([key, value]) => ({
           key,
@@ -56,7 +56,7 @@ describe('FlaghoistProvider', () => {
     const provider = new FlaghoistProvider({
       url: URL_BASE,
       apiKey: 'read-key',
-      fetch: server.fetch,
+      fetchImplementation: server.fetch,
     })
     const ctx = { targetingKey: 'user-1', plan: 'pro' }
 
@@ -78,7 +78,7 @@ describe('FlaghoistProvider', () => {
   it('works through the OpenFeature client', async () => {
     const server = fakeServer({ 'new-checkout': true, 'gift-wrap': false })
     await OpenFeature.setProviderAndWait(
-      new FlaghoistProvider({ url: URL_BASE, fetch: server.fetch }),
+      new FlaghoistProvider({ url: URL_BASE, fetchImplementation: server.fetch }),
     )
     const client = OpenFeature.getClient()
     const ctx = { targetingKey: 'user-1' }
@@ -89,7 +89,7 @@ describe('FlaghoistProvider', () => {
 
   it('treats contexts with the same attributes in a different order as the same context', async () => {
     const server = fakeServer({ a: true })
-    const provider = new FlaghoistProvider({ url: URL_BASE, fetch: server.fetch })
+    const provider = new FlaghoistProvider({ url: URL_BASE, fetchImplementation: server.fetch })
     await provider.resolveBooleanEvaluation('a', false, { targetingKey: 'u', plan: 'pro' })
     await provider.resolveBooleanEvaluation('a', false, { plan: 'pro', targetingKey: 'u' })
     expect(server.requests).toHaveLength(1)
@@ -97,7 +97,7 @@ describe('FlaghoistProvider', () => {
 
   it('makes a separate request for a different context', async () => {
     const server = fakeServer({ a: true })
-    const provider = new FlaghoistProvider({ url: URL_BASE, fetch: server.fetch })
+    const provider = new FlaghoistProvider({ url: URL_BASE, fetchImplementation: server.fetch })
     await provider.resolveBooleanEvaluation('a', false, { targetingKey: 'user-1' })
     await provider.resolveBooleanEvaluation('a', false, { targetingKey: 'user-2' })
     expect(server.requests).toHaveLength(2)
@@ -106,7 +106,11 @@ describe('FlaghoistProvider', () => {
   it('fetches again once the cached result expires', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const server = fakeServer({ a: true })
-    const provider = new FlaghoistProvider({ url: URL_BASE, fetch: server.fetch, cacheTtlMs: 1000 })
+    const provider = new FlaghoistProvider({
+      url: URL_BASE,
+      fetchImplementation: server.fetch,
+      cacheTtlMs: 1000,
+    })
     const ctx = { targetingKey: 'u' }
     await provider.resolveBooleanEvaluation('a', false, ctx)
     vi.advanceTimersByTime(999)
@@ -119,7 +123,7 @@ describe('FlaghoistProvider', () => {
 
   it('reports a flag the server does not have as FLAG_NOT_FOUND with the default', async () => {
     const server = fakeServer({ a: true })
-    const provider = new FlaghoistProvider({ url: URL_BASE, fetch: server.fetch })
+    const provider = new FlaghoistProvider({ url: URL_BASE, fetchImplementation: server.fetch })
     const result = await provider.resolveBooleanEvaluation('missing', true, { targetingKey: 'u' })
     expect(result.value).toBe(true)
     expect(result.errorCode).toBe(ErrorCode.FLAG_NOT_FOUND)
@@ -132,7 +136,7 @@ describe('FlaghoistProvider', () => {
         ? json({ errorCode: 'GENERAL', errorDetails: 'storage unavailable' }, 500)
         : json({ flags: [{ key: 'a', value: true, reason: 'STATIC' }] }),
     ) as unknown as typeof globalThis.fetch
-    const provider = new FlaghoistProvider({ url: URL_BASE, fetch })
+    const provider = new FlaghoistProvider({ url: URL_BASE, fetchImplementation: fetch })
     const ctx = { targetingKey: 'u' }
 
     const failed = await provider.resolveBooleanEvaluation('a', false, ctx)
@@ -147,7 +151,9 @@ describe('FlaghoistProvider', () => {
     const fetch = vi.fn(async () =>
       json({ error: 'Too many requests' }, 429, { 'retry-after': '30' }),
     ) as unknown as typeof globalThis.fetch
-    await OpenFeature.setProviderAndWait(new FlaghoistProvider({ url: URL_BASE, fetch }))
+    await OpenFeature.setProviderAndWait(
+      new FlaghoistProvider({ url: URL_BASE, fetchImplementation: fetch }),
+    )
     const client = OpenFeature.getClient()
     expect(await client.getBooleanValue('a', true, { targetingKey: 'u' })).toBe(true)
     expect(await client.getBooleanValue('b', true, { targetingKey: 'v' })).toBe(true)
@@ -158,7 +164,7 @@ describe('FlaghoistProvider', () => {
     const server = fakeServer({ a: true })
     const provider = new FlaghoistProvider({
       url: URL_BASE,
-      fetch: server.fetch,
+      fetchImplementation: server.fetch,
       maxCachedContexts: 2,
     })
     for (const user of ['u1', 'u2', 'u3']) {
@@ -172,7 +178,11 @@ describe('FlaghoistProvider', () => {
 
   it('makes one request per check with bulk turned off', async () => {
     const server = fakeServer({ a: true, b: false })
-    const provider = new FlaghoistProvider({ url: URL_BASE, fetch: server.fetch, bulk: false })
+    const provider = new FlaghoistProvider({
+      url: URL_BASE,
+      fetchImplementation: server.fetch,
+      bulk: false,
+    })
     const ctx = { targetingKey: 'u' }
     expect((await provider.resolveBooleanEvaluation('a', false, ctx)).value).toBe(true)
     expect((await provider.resolveBooleanEvaluation('b', true, ctx)).value).toBe(false)
@@ -180,5 +190,20 @@ describe('FlaghoistProvider', () => {
       `${URL_BASE}/ofrep/v1/evaluate/flags/a`,
       `${URL_BASE}/ofrep/v1/evaluate/flags/b`,
     ])
+  })
+
+  it('passes headersFactory and query through to the bulk request', async () => {
+    const server = fakeServer({ a: true })
+    const provider = new FlaghoistProvider({
+      url: URL_BASE,
+      apiKey: 'read-key',
+      fetchImplementation: server.fetch,
+      headersFactory: async () => [['x-request-id', 'abc']],
+      query: new URLSearchParams({ region: 'eu' }),
+    })
+    await provider.resolveBooleanEvaluation('a', false, { targetingKey: 'u' })
+    expect(server.requests[0]?.url).toBe(`${URL_BASE}/ofrep/v1/evaluate/flags?region=eu`)
+    expect(server.requests[0]?.headers.get('x-request-id')).toBe('abc')
+    expect(server.requests[0]?.headers.get('x-api-key')).toBe('read-key')
   })
 })

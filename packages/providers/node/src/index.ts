@@ -1,13 +1,12 @@
 import {
   type EvaluationResponse,
-  type FetchAPI,
   handleEvaluationError,
   isEvaluationFailureResponse,
   OFREPApi,
   OFREPApiTooManyRequestsError,
   toResolutionDetails,
 } from '@openfeature/ofrep-core'
-import { OFREPProvider } from '@openfeature/ofrep-provider'
+import { OFREPProvider, type OFREPProviderOptions } from '@openfeature/ofrep-provider'
 import {
   ErrorCode,
   type EvaluationContext,
@@ -17,9 +16,18 @@ import {
   StandardResolutionReasons,
 } from '@openfeature/server-sdk'
 
-export interface FlaghoistProviderOptions {
+/**
+ * Every option of the official OFREP server provider (`timeoutMs`, `headersFactory`, `query`,
+ * `fetchImplementation`) passes straight through with its upstream default. Only `baseUrl` and the
+ * tuple-style `headers` are replaced by the friendlier fields below, the same shape as
+ * `@flaghoist/provider-web`.
+ */
+export type FlaghoistProviderOptions = Omit<OFREPProviderOptions, 'baseUrl' | 'headers'> & {
+  /** Base URL of your Flaghoist server, e.g. `https://team-flags.you.workers.dev`. */
   url: string
+  /** Read-only API key, sent as the `x-api-key` header. */
   apiKey?: string
+  /** Additional static headers to send with every request. */
   headers?: Record<string, string>
   /**
    * Evaluate every flag for a context in one request, and answer each check from that result.
@@ -34,10 +42,6 @@ export interface FlaghoistProviderOptions {
   cacheTtlMs?: number
   /** The most evaluation contexts kept in the cache at once, oldest dropped first. Default 1000. */
   maxCachedContexts?: number
-  /** Abort a request after this many milliseconds. Default 10000. */
-  timeoutMs?: number
-  /** A fetch implementation to use instead of the global one. */
-  fetch?: FetchAPI
 }
 
 type FlagValue = boolean | string | number | JsonValue
@@ -78,20 +82,24 @@ export class FlaghoistProvider extends OFREPProvider {
   private pausedUntil: Date | null = null
 
   constructor(options: FlaghoistProviderOptions) {
+    const {
+      url,
+      apiKey,
+      headers: extra,
+      bulk,
+      cacheTtlMs,
+      maxCachedContexts,
+      ...upstream
+    } = options
     const headers: [string, string][] = []
-    if (options.apiKey) headers.push(['x-api-key', options.apiKey])
-    if (options.headers) headers.push(...Object.entries(options.headers))
-    const base = {
-      baseUrl: options.url,
-      headers,
-      timeoutMs: options.timeoutMs,
-      fetchImplementation: options.fetch,
-    }
+    if (apiKey) headers.push(['x-api-key', apiKey])
+    if (extra) headers.push(...Object.entries(extra))
+    const base = { ...upstream, baseUrl: url, headers }
     super(base)
-    this.bulk = options.bulk ?? true
-    this.cacheTtlMs = options.cacheTtlMs ?? 5000
-    this.maxCachedContexts = options.maxCachedContexts ?? 1000
-    this.api = new OFREPApi(base, options.fetch)
+    this.bulk = bulk ?? true
+    this.cacheTtlMs = cacheTtlMs ?? 5000
+    this.maxCachedContexts = maxCachedContexts ?? 1000
+    this.api = new OFREPApi(base, base.fetchImplementation)
   }
 
   override async onClose(): Promise<void> {

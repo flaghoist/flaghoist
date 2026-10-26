@@ -10,7 +10,7 @@ now calls the OFREP bulk endpoint once per evaluation context and answers each c
 result. Checks that arrive while the request is in flight share it, and the result is reused for 5
 seconds per context.
 
-New options: `cacheTtlMs` (default 5000), `maxCachedContexts` (default 1000), `timeoutMs`, `fetch`,
-and `bulk: false` to keep the old one-request-per-check behaviour. A flag missing from the server
-returns `FLAG_NOT_FOUND` with your default, a failed request returns defaults without being cached,
-and a `429` pauses requests until `Retry-After` has passed.
+New options: `cacheTtlMs` (default 5000), `maxCachedContexts` (default 1000), and `bulk: false` to
+keep the old one-request-per-check behaviour. A flag missing from the server returns
+`FLAG_NOT_FOUND` with your default, a failed request returns defaults without being cached, and a
+`429` pauses requests until `Retry-After` has passed.

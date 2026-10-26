@@ -61,6 +61,12 @@ Each distinct context is still its own request, so a busy server evaluating many
 makes one request per user per `cacheTtlMs`. If that runs into a rate limit you set with
 `rateLimit`, raise the limit for your server's address rather than dropping the cache.
 
+Every option of the official
+[OFREP server provider](https://www.npmjs.com/package/@openfeature/ofrep-provider) passes through
+too, with the same defaults: `timeoutMs`, `headersFactory` (headers computed per request, for keys
+that rotate), `query` and `fetchImplementation`. They apply to the bulk request and to
+`bulk: false` alike, and match the option names in `@flaghoist/provider-web`.
+
 Because it speaks OFREP, this is a standard provider rather than a Flaghoist specific client. The
 same is true from any language with an OFREP provider, which is why there is no Go or Python package
 here to install.

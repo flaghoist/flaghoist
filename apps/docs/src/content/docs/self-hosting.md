@@ -161,6 +161,31 @@ which caps total throughput rather than per client. Supply your own `key` if you
 client identifier, or bring an entirely different limiter (a Redis counter, a Cloudflare binding) by
 passing any object with a `check(key)` method.
 
+### Server-side readers
+
+The limit is per client address, and a backend that reads flags sends every check from one
+address. All of its users share that one bucket. A browser app does not have this problem, because
+each visitor reads from their own address.
+
+`@flaghoist/provider-node` makes one request per evaluation context every `cacheTtlMs` (5 seconds by
+default), however many flags a request checks, so most backends stay well inside 120 a minute. One
+serving many distinct users at once can still reach it. Other languages' OFREP providers generally
+make one request per flag check, which reaches it sooner.
+
+When the limit is hit, the read path returns `429`, and the provider quietly serves the defaults in
+your code until `Retry-After` passes. Flags switch off under load with no exception thrown. Plan for
+it:
+
+- Size the limit for your backends, not just your browsers. `memoryRateLimit({ max: 1200 })` is a
+  reasonable start for a busy API reading flags server-side.
+- Or give your backends their own bucket with a `key` function: have your servers send a header
+  carrying a secret value, bucket on that when it matches, and fall back to the client address
+  otherwise. Do not bucket on the read key alone; browsers send the same key, so it would put
+  every visitor in one bucket with your backend.
+- Watch for the fallback: `getBooleanDetails()` returns an `errorCode` when a check fell back, and
+  an OpenFeature hook can log every one. See
+  [During an outage](/clients/javascript/#during-an-outage).
+
 ## Reducing what an instance exposes
 
 By default a deployment serves the admin dashboard at `/admin` and an OpenAPI document at

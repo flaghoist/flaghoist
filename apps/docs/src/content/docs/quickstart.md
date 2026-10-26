@@ -149,7 +149,16 @@ npx flaghoist flag toggle new-checkout --on
 npx flaghoist flag rollout new-checkout 25
 ```
 
-Users pick up the change the next time their app fetches flags.
+Users pick up the change the next time their app fetches flags. A browser fetches when the tab
+becomes visible again or the user signs in or out, and on a timer if you pass `pollInterval` to the
+provider, which is what you want for a "flip it here, watch it change there" demo:
+
+```ts
+new FlaghoistProvider({ url, apiKey, pollInterval: 10_000 })
+```
+
+The server also caches flag definitions for up to 30 seconds, so allow that long either way. See
+[keeping the browser up to date](/clients/javascript/#keeping-the-browser-up-to-date).
 
 ## Other languages
 

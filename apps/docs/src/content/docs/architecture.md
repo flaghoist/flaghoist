@@ -45,6 +45,11 @@ an optional record store every bundled adapter has. See [storage adapters](/stor
 The read path caches flag definitions in-isolate, so a burst of evaluations does not hammer
 storage: at most one `list()` per cache window.
 
+Clients keep the request count down too. The browser provider evaluates every flag in one request
+and answers checks from memory; the Node provider does the same per evaluation context, reusing the
+result for a few seconds. Both use OFREP's bulk endpoint, so a page or a request handler checking ten
+flags costs one round trip, not ten.
+
 ## No vendor lock-in
 
 Because every call site is standard OpenFeature, moving to (or from) LaunchDarkly, Datadog, or any

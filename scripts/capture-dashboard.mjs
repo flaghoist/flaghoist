@@ -2,11 +2,12 @@
 //
 // The marketing site must show the actual product, not a hand-built imitation of it. This boots the
 // committed dev server, seeds representative flags through the real admin API, drives the real UI,
-// and writes PNGs into apps/web/public. Re-run it whenever the dashboard changes so the site cannot
-// drift from what ships.
+// and writes PNGs into apps/web/public and apps/docs/public. Re-run it whenever the dashboard changes
+// so neither site can drift from what ships.
 //
 // Run: node scripts/capture-dashboard.mjs   (requires: npx playwright install chromium)
 import { spawn } from 'node:child_process'
+import { copyFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
@@ -14,6 +15,13 @@ const PORT = 8788
 const TOKEN = 'admin'
 const BASE = `http://localhost:${PORT}`
 const out = (f) => fileURLToPath(new URL(`../apps/web/public/${f}`, import.meta.url))
+const docsOut = (f) => fileURLToPath(new URL(`../apps/docs/public/${f}`, import.meta.url))
+// The docs site serves its own copy, so both stay in step.
+const save = async (page, f) => {
+  await page.screenshot({ path: out(f) })
+  copyFileSync(out(f), docsOut(f))
+  console.log(`wrote apps/web/public/${f} and apps/docs/public/${f}`)
+}
 
 const FLAGS = [
   [
@@ -97,6 +105,9 @@ try {
   await page.getByPlaceholder('Bearer token').fill(TOKEN)
   await page.getByRole('button', { name: 'Connect' }).click()
   await page.waitForSelector('text=checkout-v2')
+  // The dashboard opens on Overview; the shot is the flag list itself.
+  await page.getByRole('button', { name: /^Flags/ }).click()
+  await page.waitForSelector('text=Q3 pricing experiment')
 
   // Swap the visible localhost address for a representative deployed one. The UI, the data and the
   // state are all real; only this one string would otherwise read as a dev artifact on a marketing
@@ -111,14 +122,12 @@ try {
 
   await wait(400) // let the toggle and slider transitions settle
 
-  await page.screenshot({ path: out('shot-flags.png') })
-  console.log('wrote apps/web/public/shot-flags.png')
+  await save(page, 'shot-flags.png')
 
   // The rule builder is the capability the flag list cannot show, so it earns its own shot.
-  await page.getByRole('button', { name: 'Edit' }).nth(2).click()
+  await page.getByRole('button', { name: 'Edit eu-cookie-banner', exact: true }).click()
   await wait(600)
-  await page.screenshot({ path: out('shot-rules.png') })
-  console.log('wrote apps/web/public/shot-rules.png')
+  await save(page, 'shot-rules.png')
 
   await browser.close()
 } finally {

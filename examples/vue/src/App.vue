@@ -7,7 +7,7 @@ const beta = useFeatureFlag('beta')
 
 <template>
   <main>
-    <h1>Flaghoist — Vue example</h1>
+    <h1>Flaghoist: Vue example</h1>
 
     <section v-if="newCheckout" class="feature-on">✨ The new checkout experience is live.</section>
     <section v-else class="feature-off">Using the legacy checkout.</section>

@@ -12,7 +12,7 @@
   <a href="https://github.com/flaghoist/flaghoist/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
   <a href="https://github.com/flaghoist/flaghoist/actions/workflows/ci.yml"><img src="https://github.com/flaghoist/flaghoist/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://openfeature.dev"><img src="https://img.shields.io/badge/OpenFeature-native-000.svg" alt="OpenFeature native" /></a>
-  <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha" />
+  <img src="https://img.shields.io/badge/status-beta-1d9e75.svg" alt="Status: beta" />
   <a href="https://demo.flaghoist.dev"><img src="https://img.shields.io/badge/live%20demo-demo.flaghoist.dev-ff4a1f.svg" alt="Live demo" /></a>
 </p>
 
@@ -26,8 +26,9 @@
 
 ---
 
-> **Status: pre-alpha, under active construction.** APIs may still change between 0.x releases.
-> Stars and early feedback are hugely welcome; production use is not recommended yet.
+> **Status: beta.** Flags, rollouts, targeting, the dashboard and team accounts are feature-complete
+> and ready for real projects. APIs can still change before 1.0, and every breaking change is called
+> out in the release notes. Feedback and stars are hugely welcome.
 
 ## What is Flaghoist?
 
@@ -58,7 +59,7 @@ An honest table, including the rows where Flaghoist loses today.
 | Your data lives    | Their cloud     | Your DB               | Their cloud         | Files              | **Your DB, your account**       |
 | Multivariate flags | Yes             | Yes                   | Yes                 | Yes                | _Not yet, boolean only_         |
 | Experiments / A-B  | Yes             | Yes                   | Yes                 | No                 | _No (bring your own analytics)_ |
-| Maturity           | Mature          | Mature                | Mature              | CNCF               | _Pre-alpha, one maintainer_     |
+| Maturity           | Mature          | Mature                | Mature              | CNCF               | _Beta_                          |
 
 **Why not just build it yourself?** You can. A JSON blob in S3 gets you 60% of the way. The other
 40% is what's here: sticky SHA-256 rollouts that don't reshuffle users on every deploy, ordered

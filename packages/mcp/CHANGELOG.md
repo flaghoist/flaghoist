@@ -1,5 +1,11 @@
 # @flaghoist/mcp
 
+## 0.2.2
+
+### Patch Changes
+
+- @flaghoist/admin-client@0.3.1
+
 ## 0.2.1
 
 ### Patch Changes

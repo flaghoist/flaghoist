@@ -1,5 +1,15 @@
 # @flaghoist/vue
 
+## 0.1.4
+
+### Patch Changes
+
+- 49aeb08: Flaghoist is in beta. Every package README now says so: the core is feature-complete and ready for
+  real projects, the API can still change before 1.0, and every breaking change is called out in the
+  changelog. No code changes.
+- Updated dependencies [49aeb08]
+  - @flaghoist/provider-web@0.2.1
+
 ## 0.1.3
 
 ### Patch Changes

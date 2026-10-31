@@ -1,5 +1,15 @@
 # create-flaghoist
 
+## 0.3.3
+
+### Patch Changes
+
+- 49aeb08: Flaghoist is in beta. Every package README now says so: the core is feature-complete and ready for
+  real projects, the API can still change before 1.0, and every breaking change is called out in the
+  changelog. No code changes.
+- Updated dependencies [49aeb08]
+  - flaghoist@0.5.3
+
 ## 0.3.2
 
 ### Patch Changes

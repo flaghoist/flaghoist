@@ -1,5 +1,15 @@
 # @flaghoist/adapter-cloudflare-kv
 
+## 0.3.1
+
+### Patch Changes
+
+- 49aeb08: Flaghoist is in beta. Every package README now says so: the core is feature-complete and ready for
+  real projects, the API can still change before 1.0, and every breaking change is called out in the
+  changelog. No code changes.
+- Updated dependencies [49aeb08]
+  - @flaghoist/core@0.2.1
+
 ## 0.3.0
 
 ### Minor Changes

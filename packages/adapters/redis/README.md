@@ -40,8 +40,8 @@ Validated by the same conformance suite as the other adapters.
 
 ## Status
 
-Pre-alpha, built and maintained by one person. The API can still change without notice, and
-production use is not recommended yet. If you try it and something breaks, an issue is genuinely
-useful.
+Beta. The core is feature-complete and ready for real projects. The API can still change before
+1.0, and every breaking change is called out in the changelog, so pin your versions and read the
+notes when you upgrade. If something breaks, an issue is genuinely useful.
 
 Apache-2.0. Part of [Flaghoist](https://github.com/flaghoist/flaghoist).

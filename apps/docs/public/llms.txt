@@ -1,6 +1,6 @@
 # Flaghoist documentation
 
-> Flaghoist is an open-source, OpenFeature-native feature-flag service you self-host: run it on Cloudflare Workers (or Node, Bun, Deno), store flags in Cloudflare KV, Redis, or Postgres, and read them from any language through standard OpenFeature OFREP providers. Boolean flags, sticky percentage rollouts, and ordered targeting rules. Pre-alpha, Apache-2.0.
+> Flaghoist is an open-source, OpenFeature-native feature-flag service you self-host: run it on Cloudflare Workers (or Node, Bun, Deno), store flags in Cloudflare KV, Redis, Postgres, or SQLite, and read them from any language through standard OpenFeature OFREP providers. Boolean flags, sticky percentage rollouts, and ordered targeting rules. Beta, Apache-2.0.
 
 ## Start here
 - [Introduction](https://docs.flaghoist.dev/): what Flaghoist is and why.

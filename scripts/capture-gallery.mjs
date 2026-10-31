@@ -267,7 +267,7 @@ const frame = (
   { footer = true } = {},
 ) => `<!doctype html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
 <div class="lockup">${MARK}Flaghoist</div>${body}
-${footer ? '<div class="url"><b>flaghoist.dev</b> &nbsp;·&nbsp; Apache-2.0 &nbsp;·&nbsp; pre-alpha</div>' : ''}</body></html>`
+${footer ? '<div class="url"><b>flaghoist.dev</b> &nbsp;·&nbsp; Apache-2.0 &nbsp;·&nbsp; beta</div>' : ''}</body></html>`
 
 const win = (src, url, style) =>
   `<div class="win" style="${style}"><div class="bar"><i></i><i></i><i></i><span>${url}</span></div><img src="${src}"></div>`

@@ -51,8 +51,8 @@
   },
   "dependencies": {
     "@flaghoist/core": "workspace:*",
-    "hono": "^4.13.13",
-    "jose": "^6.2.13"
+    "hono": "^4.13.14",
+    "jose": "^6.2.14"
   },
   "devDependencies": {
     "@flaghoist/adapter-memory": "workspace:*",

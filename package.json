@@ -34,7 +34,7 @@
     "@flaghoist/adapter-memory": "workspace:*",
     "@flaghoist/core": "workspace:*",
     "@flaghoist/server": "workspace:*",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "playwright": "^1.64.1",
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
